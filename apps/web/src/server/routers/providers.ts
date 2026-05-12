@@ -1,0 +1,196 @@
+import { z } from "zod";
+import { eq, and, desc } from "drizzle-orm";
+import { router, authedProcedure } from "../trpc";
+import { db } from "../db";
+import { providerCredentials } from "../db/schema";
+import { providerRegistry } from "@agenthub/ai-providers";
+
+type ProviderCred = typeof providerCredentials.$inferSelect;
+
+function loadUserCreds(creds: ProviderCred[]) {
+  providerRegistry.loadUserCredentials(creds.map((c) => ({
+    providerId: c.providerId,
+    authType: c.authType as "api_key" | "oauth",
+    apiKey: c.apiKey || undefined,
+    baseUrl: c.baseUrl || undefined,
+    accessToken: c.accessToken || undefined,
+    expiresAt: c.expiresAt,
+  })));
+}
+
+async function getUserCreds(userId: string) {
+  return db.select().from(providerCredentials)
+    .where(and(eq(providerCredentials.userId, userId), eq(providerCredentials.isEnabled, true)));
+}
+
+async function fetchModelsForCredential(cred: ProviderCred): Promise<string[]> {
+  const pid = cred.providerId;
+
+  if (pid === "github-copilot") {
+    return ["gpt-4o", "gpt-4o-mini", "claude-3.5-sonnet", "o1", "o3-mini"];
+  }
+
+  try {
+    if (pid === "openai") {
+      const res = await fetch("https://api.openai.com/v1/models", {
+        headers: { Authorization: `Bearer ${cred.apiKey}` },
+      });
+      if (!res.ok) return [];
+      const data = await res.json() as { data: { id: string }[] };
+      return data.data.map((m) => m.id).filter((id) => id.startsWith("gpt-") || id.startsWith("o1") || id.startsWith("o3"));
+    }
+
+    if (pid === "anthropic") {
+      const res = await fetch("https://api.anthropic.com/v1/models", {
+        headers: { "x-api-key": cred.apiKey ?? "", "anthropic-version": "2023-06-01" },
+      });
+      if (!res.ok) return [];
+      const data = await res.json() as { data: { id: string }[] };
+      return data.data.map((m) => m.id);
+    }
+
+    if (pid === "gemini") {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cred.apiKey}`);
+      if (!res.ok) return [];
+      const data = await res.json() as { models: { name: string }[] };
+      return data.models.map((m) => m.name.replace("models/", "")).filter((id) => id.startsWith("gemini"));
+    }
+
+    if (pid === "ollama") {
+      const base = cred.baseUrl ?? "http://localhost:11434";
+      const res = await fetch(`${base}/api/tags`);
+      if (!res.ok) return [];
+      const data = await res.json() as { models: { name: string }[] };
+      return data.models.map((m) => m.name);
+    }
+
+    if (pid === "lm-studio") {
+      const base = cred.baseUrl ?? "http://localhost:1234";
+      const res = await fetch(`${base}/v1/models`);
+      if (!res.ok) return [];
+      const data = await res.json() as { data: { id: string }[] };
+      return data.data.map((m) => m.id);
+    }
+  } catch {
+    return [];
+  }
+
+  return [];
+}
+
+export const providersRouter = router({
+  list: authedProcedure.query(async ({ ctx }) => {
+    const creds = await getUserCreds(ctx.user.id);
+    if (creds.length > 0) loadUserCreds(creds);
+    return providerRegistry.healthCheckAll();
+  }),
+
+  models: authedProcedure.query(async ({ ctx }) => {
+    const creds = await getUserCreds(ctx.user.id);
+    if (creds.length > 0) loadUserCreds(creds);
+    return providerRegistry.listAllModels();
+  }),
+
+  catalog: authedProcedure.query(async ({ ctx }) => {
+    const creds = await getUserCreds(ctx.user.id);
+    if (creds.length > 0) loadUserCreds(creds);
+    const [providerHealth, providerModels] = await Promise.all([
+      providerRegistry.healthCheckAll(),
+      providerRegistry.listAllModels(),
+    ]);
+    const healthByProvider = new Map(providerHealth.map((p) => [p.id, p]));
+    return {
+      providers: providerHealth.map((p) => ({
+        ...p,
+        models: providerModels.filter((m) => m.providerId === p.id),
+      })),
+      models: providerModels.map((m) => {
+        const health = healthByProvider.get(m.providerId);
+        return {
+          ...m,
+          providerStatus: health?.status || "unhealthy",
+          providerLatency: health?.latency ?? -1,
+        };
+      }),
+    };
+  }),
+});
+
+export const providerCredentialsRouter = router({
+  list: authedProcedure.query(async ({ ctx }) => {
+    return db.select().from(providerCredentials)
+      .where(eq(providerCredentials.userId, ctx.user.id))
+      .orderBy(desc(providerCredentials.updatedAt));
+  }),
+
+  create: authedProcedure
+    .input(z.object({
+      providerId: z.string().min(1),
+      providerName: z.string().min(1),
+      authType: z.enum(["api_key", "oauth"]).default("api_key"),
+      apiKey: z.string().optional(),
+      baseUrl: z.string().optional(),
+      accessToken: z.string().optional(),
+      refreshToken: z.string().optional(),
+      scope: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [cred] = await db.insert(providerCredentials).values({ userId: ctx.user.id, ...input }).returning();
+      return cred;
+    }),
+
+  update: authedProcedure
+    .input(z.object({
+      id: z.string().uuid(),
+      apiKey: z.string().optional(),
+      baseUrl: z.string().optional(),
+      accessToken: z.string().optional(),
+      refreshToken: z.string().optional(),
+      scope: z.string().optional(),
+      isEnabled: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...updates } = input;
+      await db.update(providerCredentials)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(and(eq(providerCredentials.id, id), eq(providerCredentials.userId, ctx.user.id)));
+      return { success: true };
+    }),
+
+  delete: authedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await db.delete(providerCredentials)
+        .where(and(eq(providerCredentials.id, input.id), eq(providerCredentials.userId, ctx.user.id)));
+      return { success: true };
+    }),
+
+  test: authedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const [cred] = await db.select().from(providerCredentials)
+        .where(and(eq(providerCredentials.id, input.id), eq(providerCredentials.userId, ctx.user.id)))
+        .limit(1);
+      if (!cred) throw new Error("Credential not found");
+      const { createCloudProvider } = await import("@agenthub/ai-providers");
+      const provider = createCloudProvider({
+        providerId: cred.providerId,
+        authType: cred.authType as "api_key" | "oauth",
+        apiKey: cred.apiKey || undefined,
+        baseUrl: cred.baseUrl || undefined,
+        accessToken: cred.accessToken || undefined,
+      });
+      if (!provider) throw new Error("Provider not supported");
+      return provider.healthCheck();
+    }),
+
+  fetchModels: authedProcedure
+    .input(z.object({ credentialId: z.string().uuid() }))
+    .query(async ({ ctx, input }) => {
+      const [cred] = await db.select().from(providerCredentials)
+        .where(and(eq(providerCredentials.id, input.credentialId), eq(providerCredentials.userId, ctx.user.id)))
+        .limit(1);
+      if (!cred) throw new Error("Credential not found");
+      return fetchModelsForCredential(cred);
+    }),
+});

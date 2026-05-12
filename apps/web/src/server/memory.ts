@@ -1,0 +1,126 @@
+import { and, desc, eq } from "drizzle-orm";
+import { db } from "./db";
+import { memoryEntries } from "./db/schema";
+
+const MAX_MEMORY_ENTRIES = 12;
+const MAX_MEMORY_VALUE_LENGTH = 280;
+
+export async function fetchAcceptedMemoriesForAgent(agentId: string) {
+  return db
+    .select()
+    .from(memoryEntries)
+    .where(and(eq(memoryEntries.agentId, agentId), eq(memoryEntries.status, "accepted")))
+    .orderBy(desc(memoryEntries.updatedAt))
+    .limit(MAX_MEMORY_ENTRIES);
+}
+
+export function formatMemoryBlock(entries: Array<{ category: string; key: string; value: string }>) {
+  const lines = entries
+    .slice(0, MAX_MEMORY_ENTRIES)
+    .map((entry) => {
+      const value = entry.value.length > MAX_MEMORY_VALUE_LENGTH
+        ? `${entry.value.slice(0, MAX_MEMORY_VALUE_LENGTH - 1)}...`
+        : entry.value;
+      return `- [${entry.category}] ${entry.key}: ${value}`;
+    });
+
+  if (lines.length === 0) return "";
+  return ["Relevant saved memories:", ...lines].join("\n");
+}
+
+export function appendMemoryBlockToSystemPrompt(systemPrompt: string | null | undefined, memoryBlock: string): string | undefined {
+  if (!memoryBlock) return systemPrompt || undefined;
+  return [systemPrompt || "", memoryBlock].filter(Boolean).join("\n\n");
+}
+
+interface ExtractedMemory {
+  category: string;
+  key: string;
+  value: string;
+}
+
+export async function extractMemories(userMessage: string, assistantResponse: string, model = "ollama:qwen2.5:7b"): Promise<ExtractedMemory[]> {
+  const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+  const modelName = model.replace("ollama:", "");
+
+  const prompt = `You are a memory extraction system. Given a user message and an assistant response, extract 0-3 factual memories about the user that would be useful in future conversations.
+
+Rules:
+- Only extract concrete, factual information about the user (preferences, facts, goals, context).
+- Do not extract generic information or temporary details.
+- If no useful memories can be extracted, output "NONE".
+
+Format each memory exactly as:
+CATEGORY: <profile|preference|fact|goal>
+KEY: <short descriptive label>
+VALUE: <detailed fact>
+
+---
+
+User: ${userMessage.slice(0, 2000)}
+
+Assistant: ${assistantResponse.slice(0, 2000)}
+
+Extracted memories:`;
+
+  try {
+    const res = await fetch(`${ollamaUrl}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: modelName,
+        prompt,
+        stream: false,
+        options: { temperature: 0.1, num_predict: 300 },
+      }),
+    });
+
+    if (!res.ok) return [];
+    const data = (await res.json()) as { response?: string };
+    const text = data.response?.trim() || "";
+
+    if (text.toUpperCase().includes("NONE")) return [];
+
+    const memories: ExtractedMemory[] = [];
+    const blocks = text.split(/CATEGORY:\s*/i).slice(1);
+
+    for (const block of blocks) {
+      const categoryMatch = block.match(/^(.+?)\s*\n/i);
+      const keyMatch = block.match(/KEY:\s*(.+?)\s*\n/i);
+      const valueMatch = block.match(/VALUE:\s*([\s\S]+?)(?:\nCATEGORY:|$)/i);
+
+      if (categoryMatch && keyMatch && valueMatch) {
+        memories.push({
+          category: categoryMatch[1].trim().toLowerCase(),
+          key: keyMatch[1].trim(),
+          value: valueMatch[1].trim(),
+        });
+      }
+    }
+
+    return memories.slice(0, 3);
+  } catch {
+    return [];
+  }
+}
+
+export async function storePendingMemories(
+  agentId: string,
+  userId: string,
+  memories: ExtractedMemory[],
+  sourceMessageId?: string
+) {
+  for (const mem of memories) {
+    await db.insert(memoryEntries).values({
+      userId,
+      agentId,
+      category: mem.category,
+      key: mem.key,
+      value: mem.value,
+      confidence: 0.7,
+      sourceMessageId: sourceMessageId || null,
+      status: "proposed",
+      isEdited: false,
+    });
+  }
+}

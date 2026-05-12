@@ -29,7 +29,7 @@ export interface ModelInfo {
   name: string;
   size?: number;
   parameters?: string;
-  capabilities: ("chat" | "vision" | "tools" | "embeddings")[];
+  capabilities: ("chat" | "vision" | "tools" | "embeddings" | "reasoning")[];
 }
 
 export interface ChatOptions {
@@ -39,6 +39,7 @@ export interface ChatOptions {
   maxTokens?: number;
   tools?: Tool[];
   stream?: boolean;
+  signal?: AbortSignal;
 }
 
 export interface ChatResponse {

@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "outDir": "dist",
+    "paths": {
+      "@agenthub/ai-providers": ["../ai-providers/src"]
+    }
+  },
+  "include": ["src"]
+}

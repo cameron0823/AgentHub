@@ -1,13 +1,11 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import * as schema from "./schema";
-import { mkdirSync } from "fs";
-import { dirname } from "path";
 
-const dbPath = process.env.DATABASE_URL?.replace("file:", "") || "./data/agenthub.db";
-mkdirSync(dirname(dbPath), { recursive: true });
+const connectionString = process.env.DATABASE_URL || "postgres://agenthub:agenthub_password@localhost:5432/agenthub";
 
-const sqlite = new Database(dbPath);
-sqlite.pragma("journal_mode = WAL");
+// For migrations and queries
+export const client = postgres(connectionString, { max: 10 });
+export const db = drizzle(client, { schema });
 
-export const db = drizzle(sqlite, { schema });
+export type DB = typeof db;

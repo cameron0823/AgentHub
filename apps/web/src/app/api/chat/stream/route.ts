@@ -1,35 +1,182 @@
 import { NextRequest } from "next/server";
-import { providerRegistry } from "@agenthub/ai-providers";
+import { AgentRuntime, MCPClient } from "@agenthub/agent-runtime";
 import { db } from "@/server/db";
-import { messages } from "@/server/db/schema";
-import { eq } from "drizzle-orm";
-import { v4 as uuidv4 } from "uuid";
+import { agents, messages as messagesTable, chatSessions, providerCredentials, mcpServers } from "@/server/db/schema";
+import { eq, and } from "drizzle-orm";
+import { auth } from "@/server/auth";
+import { providerRegistry } from "@agenthub/ai-providers";
+import { fetchAcceptedMemoriesForAgent, formatMemoryBlock, appendMemoryBlockToSystemPrompt, extractMemories, storePendingMemories } from "@/server/memory";
+import { sql } from "drizzle-orm";
+import { documentChunks, documents, knowledgeBases } from "@/server/db/schema";
+
+export const runtime = "nodejs";
+
+const DEFAULT_MODEL_ID = "ollama:qwen2.5:7b";
+
+function parseAgentTools(value: string | null) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((tool): tool is string => typeof tool === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 export async function POST(req: NextRequest) {
-  const { sessionId, model, messages: chatMessages, temperature, maxTokens } = await req.json();
-
-  const provider = providerRegistry.get("ollama");
-  if (!provider) {
-    return new Response(JSON.stringify({ error: "Ollama provider not available" }), {
-      status: 503,
+  const session = await auth();
+  if (!session?.user) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
       headers: { "Content-Type": "application/json" },
     });
   }
+
+  // Load user's cloud provider credentials into registry
+  const userCreds = await db.select().from(providerCredentials)
+    .where(and(eq(providerCredentials.userId, session.user.id), eq(providerCredentials.isEnabled, true)));
+  if (userCreds.length > 0) {
+    providerRegistry.loadUserCredentials(userCreds.map((c) => ({
+      providerId: c.providerId,
+      authType: c.authType as "api_key" | "oauth",
+      apiKey: c.apiKey || undefined,
+      baseUrl: c.baseUrl || undefined,
+      accessToken: c.accessToken || undefined,
+      expiresAt: c.expiresAt,
+    })));
+  }
+
+  const { sessionId, model, messages: chatMessages, temperature, maxTokens, tools } = await req.json();
+
+  const [chatSession] = await db.select({ id: chatSessions.id, agentId: chatSessions.agentId, model: chatSessions.model })
+    .from(chatSessions)
+    .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, session.user.id)))
+    .limit(1);
+
+  if (!chatSession) {
+    return new Response(JSON.stringify({ error: "Session not found" }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const [sessionAgent] = chatSession.agentId
+    ? await db.select().from(agents).where(eq(agents.id, chatSession.agentId)).limit(1)
+    : [];
+
+  const effectiveModel = sessionAgent?.model || model || chatSession.model || DEFAULT_MODEL_ID;
+  const effectiveTools = sessionAgent ? parseAgentTools(sessionAgent.tools) : (tools || ["calculator", "datetime"]);
+
+  // White-box memory injection
+  let memoryBlock = "";
+  if (sessionAgent?.memoryEnabled && sessionAgent?.id) {
+    const memories = await fetchAcceptedMemoriesForAgent(sessionAgent.id);
+    memoryBlock = formatMemoryBlock(memories);
+  }
+  const systemPrompt = appendMemoryBlockToSystemPrompt(sessionAgent?.systemPrompt, memoryBlock);
+
+  // RAG: Knowledge Base retrieval (appends to resolvedPrompt, providing grounded context)
+  let resolvedPrompt = systemPrompt || "";
+  if (sessionAgent?.knowledgeBaseId) {
+    const kb = await db.select().from(knowledgeBases)
+      .where(and(eq(knowledgeBases.id, sessionAgent.knowledgeBaseId), eq(knowledgeBases.userId, session.user.id)))
+      .limit(1);
+
+    if (kb[0]) {
+      const lastUserMessage = [...chatMessages].reverse().find((m) => m.role === "user");
+      if (lastUserMessage?.content) {
+        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        const embedRes = await fetch(`${ollamaUrl}/api/embeddings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: kb[0].embeddingModel || "nomic-embed-text", prompt: lastUserMessage.content }),
+        });
+
+        if (embedRes.ok) {
+          const embedData = (await embedRes.json()) as { embedding?: number[] };
+          if (embedData.embedding) {
+            const embStr = `[${embedData.embedding.join(",")}]`;
+            const ragResults = await db.select({
+              id: documentChunks.id,
+              content: documentChunks.content,
+              documentId: documentChunks.documentId,
+              similarity: sql<number>`1 - (${documentChunks.embedding} <=> ${embStr}::vector)`,
+            })
+              .from(documentChunks)
+              .innerJoin(documents, eq(documentChunks.documentId, documents.id))
+              .where(and(
+                eq(documents.knowledgeBaseId, kb[0].id),
+                eq(documents.status, "indexed")
+              ))
+              .orderBy(sql`${documentChunks.embedding} <=> ${embStr}::vector`)
+              .limit(5);
+
+            if (ragResults.length > 0) {
+              const ragContext = [
+                "## Relevant Knowledge Base Context",
+                ...ragResults.map((r, i) => `[${i + 1}] ${r.content}`),
+                "\nUse the above context to answer the user's question. Cite sources using [1], [2], etc. when referencing specific information.",
+              ].join("\n\n");
+              resolvedPrompt = resolvedPrompt ? `${resolvedPrompt}\n\n${ragContext}` : ragContext;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Load and connect enabled MCP servers for this user
+  const userMcpServers = await db.select().from(mcpServers)
+    .where(and(eq(mcpServers.userId, session.user.id), eq(mcpServers.enabled, true)));
+
+  const mcpClients: MCPClient[] = [];
+  const extraTools: Array<{ name: string; description: string; parameters: Record<string, unknown>; execute: (args: Record<string, unknown>) => Promise<unknown> }> = [];
+
+  await Promise.allSettled(userMcpServers.map(async (srv) => {
+    const config = srv.transport === "stdio"
+      ? { transport: "stdio" as const, command: srv.command!, args: srv.args ? JSON.parse(srv.args) : [], env: srv.env ? JSON.parse(srv.env) : {} }
+      : { transport: "http" as const, url: srv.url! };
+    const client = new MCPClient(config);
+    try {
+      await client.connect();
+      mcpClients.push(client);
+      for (const tool of client.getTools()) {
+        extraTools.push({
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.inputSchema as Record<string, unknown>,
+          execute: (args) => client.callTool(tool.name, args) as Promise<unknown>,
+        });
+      }
+    } catch {
+      // Skip unavailable MCP servers silently
+    }
+  }));
+
+  const agent = new AgentRuntime({
+    model: effectiveModel,
+    systemPrompt: resolvedPrompt,
+    temperature: sessionAgent?.temperature ?? temperature,
+    maxTokens: sessionAgent?.maxTokens ?? maxTokens,
+  });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       let fullContent = "";
       let fullReasoning = "";
+      let toolCalls: any[] = [];
 
       try {
-        for await (const chunk of provider.streamChat({
-          model,
+        const agentStream = agent.run({
+          sessionId,
           messages: chatMessages,
-          temperature,
-          maxTokens,
-          stream: true,
-        })) {
+          tools: effectiveTools,
+          extraTools,
+          signal: req.signal,
+        });
+
+        for await (const chunk of agentStream) {
           const data = `data: ${JSON.stringify(chunk)}\n\n`;
           controller.enqueue(encoder.encode(data));
 
@@ -39,24 +186,54 @@ export async function POST(req: NextRequest) {
           if (chunk.type === "reasoning" && chunk.content) {
             fullReasoning += chunk.content;
           }
+          if (chunk.type === "tool_call" && chunk.toolCall) {
+            toolCalls.push(chunk.toolCall);
+          }
         }
 
-        // Persist assistant message
-        const msgId = uuidv4();
-        await db.insert(messages).values({
-          id: msgId,
-          sessionId,
-          role: "assistant",
-          content: fullContent,
-          reasoning: fullReasoning || null,
-          model,
-        });
+        if (!fullContent && !fullReasoning && toolCalls.length === 0) {
+          // nothing to persist
+        } else {
+          const [savedMsg] = await db.insert(messagesTable).values({
+            sessionId,
+            role: "assistant",
+            content: fullContent,
+            reasoning: fullReasoning || null,
+            model: effectiveModel,
+            toolCalls: toolCalls.length > 0 ? JSON.stringify(toolCalls) : null,
+          }).returning();
 
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "persisted", messageId: msgId })}\n\n`));
-        controller.close();
+          await db.update(chatSessions)
+            .set({ updatedAt: new Date() })
+            .where(eq(chatSessions.id, sessionId));
+
+          // Fire-and-forget memory extraction — doesn't block the stream close
+          if (sessionAgent?.memoryEnabled && sessionAgent?.id && fullContent) {
+            const lastUser = [...chatMessages].reverse().find((m: { role: string }) => m.role === "user");
+            if (lastUser?.content) {
+              const agentIdSnapshot = sessionAgent.id;
+              const userIdSnapshot = session.user.id;
+              const msgIdSnapshot = savedMsg?.id;
+              void (async () => {
+                try {
+                  const extracted = await extractMemories(lastUser.content, fullContent, effectiveModel);
+                  if (extracted.length > 0) {
+                    await storePendingMemories(agentIdSnapshot, userIdSnapshot, extracted, msgIdSnapshot);
+                  }
+                } catch (e) {
+                  console.error("Memory extraction failed (non-fatal):", e);
+                }
+              })();
+            }
+          }
+        }
+
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`));
       } catch (err) {
-        const error = err instanceof Error ? err.message : String(err);
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", error })}\n\n`));
+        const errorMsg = (err as Error).message;
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", error: errorMsg })}\n\n`));
+      } finally {
+        mcpClients.forEach(c => { try { c.disconnect(); } catch { /* ignore */ } });
         controller.close();
       }
     },

@@ -1,0 +1,105 @@
+services:
+  network:
+    image: alpine
+    container_name: agenthub-network
+    command: tail -f /dev/null
+    ports:
+      - "3000:3000"
+      - "8000:8000"
+      - "9000:9000"
+      - "9001:9001"
+      - "11434:11434"
+    restart: always
+
+  postgresql:
+    image: pgvector/pgvector:pg16
+    container_name: agenthub-db
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=agenthub
+      - POSTGRES_USER=agenthub
+      - POSTGRES_PASSWORD=agenthub_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agenthub -d agenthub"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    network_mode: service:network
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    container_name: agenthub-redis
+    volumes:
+      - ./data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    network_mode: service:network
+    restart: always
+
+  minio:
+    image: minio/minio
+    container_name: agenthub-minio
+    volumes:
+      - ./data/minio:/data
+    environment:
+      - MINIO_ROOT_USER=agenthub_minio_user
+      - MINIO_ROOT_PASSWORD=agenthub_minio_password
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    network_mode: service:network
+    restart: always
+
+  minio-init:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    network_mode: service:network
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc alias set myminio http://localhost:9000 agenthub_minio_user agenthub_minio_password) do echo 'Waiting for MinIO...' && sleep 1; done;
+      /usr/bin/mc mb myminio/agenthub || true;
+      /usr/bin/mc anonymous set public myminio/agenthub;
+      exit 0;
+      "
+
+  casdoor:
+    image: casbin/casdoor:latest
+    container_name: agenthub-casdoor
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment:
+      - driverName=postgres
+      - dataSourceName=user=agenthub password=agenthub_password host=localhost port=5432 sslmode=disable dbname=casdoor
+      - origin=http://localhost:8000
+    volumes:
+      - ./data/casdoor:/files
+    entrypoint: /bin/sh -c './server --createDatabase=true'
+    network_mode: service:network
+    restart: always
+
+  agenthub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agenthub-app
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    env_file: .env
+    network_mode: service:network
+    restart: always

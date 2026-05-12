@@ -1,11 +1,10 @@
 import { defineConfig } from "drizzle-kit";
-import { join } from "path";
 
 export default defineConfig({
   schema: "./src/server/db/schema.ts",
   out: "./drizzle",
-  dialect: "sqlite",
+  dialect: "postgresql",
   dbCredentials: {
-    url: join(__dirname, "data", "agenthub.db"),
+    url: process.env.DATABASE_URL || "postgres://agenthub:agenthub_password@localhost:5432/agenthub",
   },
 });

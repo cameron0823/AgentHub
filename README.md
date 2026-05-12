@@ -186,6 +186,7 @@ No API keys. No cloud lock-in. No data leaving your machine.
 
 ### Prerequisites
 - [Node.js](https://nodejs.org/) 20+
+- [pnpm](https://pnpm.io/) via Corepack
 - [Ollama](https://ollama.com/) installed and running
 - (Optional) [ComfyUI](https://github.com/comfyanonymous/ComfyUI) for image generation
 - (Optional) [SearxNG](https://docs.searxng.org/) for web search
@@ -194,7 +195,8 @@ No API keys. No cloud lock-in. No data leaving your machine.
 ```bash
 git clone https://github.com/cameron0823/AgentHub.git
 cd AgentHub
-npm install
+corepack enable
+pnpm install
 ```
 
 ### 2. Pull Recommended Models
@@ -218,25 +220,30 @@ ollama pull deepseek-r1:14b
 ### 3. Configure Environment
 ```bash
 cp .env.example .env.local
-# Edit .env.local — all values are optional for local-only mode
+# Edit .env.local if needed; all values are optional for local-only mode.
 ```
 
-### 4. Run
+### 4. Prepare the Local Database
 ```bash
-npm run dev
+pnpm db:generate
+pnpm db:push
+```
+
+`pnpm db:generate` creates migration files from the Drizzle schema. `pnpm db:push` applies the schema to your local SQLite database when you are ready to create or update runtime data.
+
+### 5. Run
+```bash
+pnpm dev
 # Open http://localhost:3000
 ```
 
 ---
 
-## 🐳 Docker Deployment (Full Stack)
+## 🐳 Docker Deployment (Planned Full Stack)
 
-```bash
-# Clone and start everything (App + Ollama + SearxNG + ComfyUI)
-git clone https://github.com/cameron0823/AgentHub.git
-cd AgentHub
-docker compose -f docker-compose.full.yml up -d
-```
+Docker Compose files are not included in the current repository snapshot. Use the local pnpm workflow above until deployment manifests are added.
+
+Expected future full-stack deployment targets include the app, Ollama, SearxNG, ComfyUI, and optional object storage.
 
 ---
 

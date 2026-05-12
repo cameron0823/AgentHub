@@ -6,14 +6,25 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
     "typecheck": "turbo run typecheck",
-    "db:generate": "cd apps/web && drizzle-kit generate",
-    "db:migrate": "cd apps/web && drizzle-kit migrate",
-    "db:push": "cd apps/web && drizzle-kit push"
+    "db:generate": "pnpm -C apps/web exec drizzle-kit generate",
+    "db:migrate": "pnpm -C apps/web exec drizzle-kit migrate",
+    "db:push": "pnpm -C apps/web exec drizzle-kit push"
   },
   "devDependencies": {
-    "turbo": "^2.0.0",
-    "typescript": "^5.4.0"
+    "turbo": "^2.9.12",
+    "typescript": "^5.9.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "@typescript-eslint/parser": "8.59.2",
+      "esbuild": "0.25.12",
+      "glob": "10.5.0",
+      "minimatch": "9.0.7",
+      "postcss": "8.5.14"
+    }
   },
   "packageManager": "pnpm@9.0.0"
 }

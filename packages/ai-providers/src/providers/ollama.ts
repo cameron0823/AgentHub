@@ -78,6 +78,7 @@ export class OllamaProvider implements ModelProvider {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(this.toOllamaBody(options, false)),
+      signal: options.signal,
     });
 
     if (!res.ok) {
@@ -89,10 +90,12 @@ export class OllamaProvider implements ModelProvider {
     const content = data.message?.content || "";
     const reasoning = this.extractReasoning(content);
     const cleanContent = reasoning ? content.replace(/<think>[\s\S]*?<\/think>/g, "").trim() : content;
+    const toolCalls = this.normalizeToolCalls(data.message?.tool_calls);
 
     return {
       content: cleanContent,
       reasoning: reasoning || undefined,
+      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       usage: data.eval_count
         ? {
             promptTokens: data.prompt_eval_count || 0,
@@ -108,6 +111,7 @@ export class OllamaProvider implements ModelProvider {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(this.toOllamaBody(options, true)),
+      signal: options.signal,
     });
 
     if (!res.ok) {
@@ -118,6 +122,8 @@ export class OllamaProvider implements ModelProvider {
     const reader = res.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let inReasoning = false;
+    let reasoningBuffer = "";
 
     try {
       while (true) {
@@ -132,9 +138,17 @@ export class OllamaProvider implements ModelProvider {
           if (!line.trim()) continue;
           try {
             const data = JSON.parse(line);
-            const content = data.message?.content || "";
+            let content = data.message?.content || "";
+            const toolCalls = this.normalizeToolCalls(data.message?.tool_calls);
+
+            for (const toolCall of toolCalls) {
+              yield { type: "tool_call", toolCall };
+            }
 
             if (data.done) {
+              if (inReasoning && reasoningBuffer) {
+                yield { type: "reasoning", content: reasoningBuffer };
+              }
               yield {
                 type: "done",
                 usage: data.eval_count
@@ -148,17 +162,34 @@ export class OllamaProvider implements ModelProvider {
               continue;
             }
 
-            if (content.includes("<think>")) {
-              const reasoning = this.extractReasoning(content);
-              if (reasoning) {
-                yield { type: "reasoning", content: reasoning };
-                const clean = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-                if (clean) yield { type: "content", content: clean };
-                continue;
-              }
+            if (!content) continue;
+
+            if (!inReasoning && content.includes("<think>")) {
+              const parts = content.split("<think>");
+              if (parts[0]) yield { type: "content", content: parts[0] };
+              inReasoning = true;
+              content = parts[1] || "";
             }
 
-            yield { type: "content", content };
+            if (inReasoning) {
+              if (content.includes("</think>")) {
+                const parts = content.split("</think>");
+                reasoningBuffer += parts[0];
+                yield { type: "reasoning", content: reasoningBuffer };
+                reasoningBuffer = "";
+                inReasoning = false;
+                if (parts[1]) yield { type: "content", content: parts[1] };
+              } else {
+                reasoningBuffer += content;
+                // Don't yield yet, wait for end tag or more content to avoid tiny chunks
+                if (reasoningBuffer.length > 50) {
+                  yield { type: "reasoning", content: reasoningBuffer };
+                  reasoningBuffer = "";
+                }
+              }
+            } else {
+              yield { type: "content", content };
+            }
           } catch {
             // Ignore malformed JSON lines
           }
@@ -185,10 +216,18 @@ export class OllamaProvider implements ModelProvider {
   }
 
   private toOllamaBody(options: ChatOptions, stream: boolean) {
-    const messages = options.messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    const messages = options.messages.map((m) => {
+      const message: Record<string, unknown> = {
+        role: m.role,
+        content: m.content,
+      };
+
+      if (m.name) message.name = m.name;
+      if (m.tool_call_id) message.tool_call_id = m.tool_call_id;
+      if (m.tool_calls && m.tool_calls.length > 0) message.tool_calls = m.tool_calls;
+
+      return message;
+    });
 
     const body: Record<string, unknown> = {
       model: options.model,
@@ -218,6 +257,34 @@ export class OllamaProvider implements ModelProvider {
     }
 
     return body;
+  }
+
+  private normalizeToolCalls(toolCalls: unknown): NonNullable<ChatStreamChunk["toolCall"]>[] {
+    if (!Array.isArray(toolCalls)) return [];
+
+    return toolCalls
+      .map((toolCall, index) => {
+        const candidate = toolCall as {
+          id?: string;
+          type?: string;
+          function?: { name?: string; arguments?: unknown };
+        };
+        const name = candidate.function?.name;
+        if (!name) return null;
+
+        const rawArguments = candidate.function?.arguments;
+        const args = typeof rawArguments === "string" ? rawArguments : JSON.stringify(rawArguments || {});
+
+        return {
+          id: candidate.id || `ollama_tool_call_${index}`,
+          type: "function" as const,
+          function: {
+            name,
+            arguments: args,
+          },
+        };
+      })
+      .filter((toolCall): toolCall is NonNullable<ChatStreamChunk["toolCall"]> => Boolean(toolCall));
   }
 
   private extractReasoning(content: string): string | null {
