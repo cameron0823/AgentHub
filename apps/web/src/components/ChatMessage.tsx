@@ -10,6 +10,7 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Bot, User, Loader2, Wrench, GitBranch, Pencil, RotateCcw, ThumbsUp, ThumbsDown, Copy, Check } from "lucide-react";
 import { ToolCallCard } from "./ToolCallCard";
 import { MermaidBlock } from "./MermaidBlock";
+import { TTSButton } from "./TTSButton";
 import { useState, useCallback } from "react";
 
 function CopyButton({ content }: { content: string }) {
@@ -134,6 +135,9 @@ export function ChatMessageItem({ message, onBranch, onEdit, onRegenerate, onFee
                     <ThumbsDown className="w-3 h-3 text-muted-foreground" />
                   </button>
                 </>
+              )}
+              {isAssistant && message.content && (
+                <TTSButton content={message.content} />
               )}
             </div>
           )}

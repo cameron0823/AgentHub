@@ -4,6 +4,7 @@ import type { ChangeEvent, KeyboardEvent } from "react";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Send, Square, Paperclip, X, FileText, Image } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { VoiceInput } from "./VoiceInput";
 
 interface Attachment {
   file: File;
@@ -226,14 +227,17 @@ export function ChatInput({ onSend, onStop, isGenerating }: ChatInputProps) {
           />
 
           {/* Attachment button */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isGenerating}
-            className="absolute right-10 bottom-2 p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
-            aria-label="Attach file"
-          >
-            <Paperclip className="w-4 h-4" />
-          </button>
+          <div className="absolute right-10 bottom-2 flex items-center gap-1">
+            <VoiceInput onTranscript={(text) => setInput((prev) => prev ? `${prev} ${text}` : text)} />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isGenerating}
+              className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+              aria-label="Attach file"
+            >
+              <Paperclip className="w-4 h-4" />
+            </button>
+          </div>
 
           <input
             ref={fileInputRef}
