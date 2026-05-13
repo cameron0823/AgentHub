@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Save, Trash2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useChatStore, type AgentGroup } from "@/stores/chatStore";
+import { PatternVisualizer } from "./PatternVisualizer";
 
 const ALL_PATTERNS: AgentGroup["pattern"][] = ["sequential", "parallel", "supervisor", "debate", "groupchat"];
 
@@ -203,6 +204,15 @@ export function AgentGroupBuilder() {
             </label>
           </div>
         </section>
+
+        <PatternVisualizer
+          pattern={form.pattern}
+          members={form.members.map((m) => ({
+            agentId: m.agentId,
+            agentName: agents.find((a) => a.id === m.agentId)?.name ?? m.agentId,
+            role: m.role,
+          }))}
+        />
 
         <section className="rounded-xl border bg-card p-4">
           <h3 className="mb-3 font-semibold">Members</h3>
