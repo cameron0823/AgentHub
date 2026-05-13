@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, ilike } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { router, authedProcedure, publicProcedure } from "../trpc";
@@ -236,20 +236,24 @@ export const messagesRouter = router({
     }),
 
   search: authedProcedure
-    .input(z.object({ q: z.string().min(1), limit: z.number().min(1).max(50).default(20) }))
+    .input(z.object({ query: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
+      const pattern = `%${input.query}%`;
       return db.select({
-        id: messages.id,
+        messageId: messages.id,
         sessionId: messages.sessionId,
-        role: messages.role,
+        sessionTitle: chatSessions.title,
         content: messages.content,
         createdAt: messages.createdAt,
-        similarity: sql<number>` similarity(${messages.content}, ${input.q}) `,
+        role: messages.role,
       })
         .from(messages)
         .innerJoin(chatSessions, eq(messages.sessionId, chatSessions.id))
-        .where(and(eq(chatSessions.userId, ctx.user.id), sql`${messages.content} % ${input.q}`))
-        .orderBy(sql` similarity(${messages.content}, ${input.q}) DESC `)
-        .limit(input.limit);
+        .where(and(
+          eq(chatSessions.userId, ctx.user.id),
+          ilike(messages.content, pattern),
+        ))
+        .orderBy(desc(messages.createdAt))
+        .limit(30);
     }),
 });

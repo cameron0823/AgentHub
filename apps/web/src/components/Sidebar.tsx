@@ -387,7 +387,7 @@ function SessionList({
 }) {
   const utils = trpc.useUtils();
   const searchResults = trpc.messages.search.useQuery(
-    { q: searchQuery, limit: 20 },
+    { query: searchQuery },
     { enabled: searchQuery.trim().length > 0 }
   );
 
@@ -450,7 +450,7 @@ function SessionList({
               <div className="space-y-1">
                 {msgs.slice(0, 3).map((msg) => (
                   <div
-                    key={msg.id}
+                    key={msg.messageId}
                     className="text-xs text-muted-foreground line-clamp-2 cursor-pointer hover:bg-muted rounded px-1 py-0.5"
                     onClick={() => setActiveSession(sessionId)}
                     title={msg.content}

@@ -1,18 +1,32 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatInterface } from "@/components/ChatInterface";
 import { AgentBuilder } from "@/components/AgentBuilder";
 import { AgentGroupBuilder } from "@/components/AgentGroupBuilder";
 import { MemoryEditor } from "@/components/MemoryEditor";
 import { AgentMarketplace } from "@/components/AgentMarketplace";
+import { SearchModal } from "@/components/SearchModal";
 import { useChatStore } from "@/stores/chatStore";
 import { LogIn, Loader2 } from "lucide-react";
 
 export default function Home() {
   const { data: session, status } = useSession();
   const mainView = useChatStore((state) => state.mainView);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   if (status === "loading") {
     return (
@@ -55,6 +69,7 @@ export default function Home() {
          mainView === "agent-builder" ? <AgentBuilder /> :
          <ChatInterface />}
       </main>
+      <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }
