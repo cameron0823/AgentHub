@@ -95,6 +95,7 @@ export const chatSessions = pgTable("chat_sessions", {
   metadata: jsonb("metadata"),
   isPublic: boolean("is_public").default(false),
   publicSlug: varchar("public_slug", { length: 20 }).unique(),
+  isPinned: boolean("is_pinned").notNull().default(false),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });

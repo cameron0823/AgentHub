@@ -51,6 +51,7 @@ export interface ChatSession {
   title: string;
   model: string;
   messages: ChatMessage[];
+  isPinned?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -181,6 +182,7 @@ interface ChatState {
   replaceMessageId: (sessionId: string, currentId: string, nextId: string) => void;
   updateSession: (id: string, updates: Partial<Pick<ChatSession, "title" | "model" | "agentId" | "groupId" | "updatedAt">>) => void;
   deleteSession: (id: string) => void;
+  pinSession: (id: string, isPinned: boolean) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -365,4 +367,9 @@ export const useChatStore = create<ChatState>((set) => ({
         activeSessionId: state.activeSessionId === id ? (filtered[0]?.id || null) : state.activeSessionId,
       };
     }),
+
+  pinSession: (id, isPinned) =>
+    set((state) => ({
+      sessions: state.sessions.map((s) => s.id === id ? { ...s, isPinned } : s),
+    })),
 }));

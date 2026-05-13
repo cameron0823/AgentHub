@@ -17,6 +17,7 @@ function toChatSession(session: {
   agentId: string | null;
   groupId?: string | null;
   parentMessageId?: string | null;
+  isPinned?: boolean | null;
   createdAt: Date | null;
   updatedAt: Date | null;
 }): ChatSession {
@@ -28,6 +29,7 @@ function toChatSession(session: {
     title: session.title || "New Chat",
     model: session.model || DEFAULT_MODEL_ID,
     messages: [],
+    isPinned: session.isPinned ?? false,
     createdAt: session.createdAt || new Date(),
     updatedAt: session.updatedAt || new Date(),
   };
@@ -124,6 +126,7 @@ export function Sidebar() {
     setSidebarOpen,
     updateSession,
     deleteSession,
+    pinSession,
   } = useChatStore();
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
@@ -149,6 +152,11 @@ export function Sidebar() {
         updateSession(variables.id, { title: variables.title, updatedAt: new Date() });
       }
       utils.sessions.list.invalidate();
+    },
+  });
+  const pin = trpc.sessions.pin.useMutation({
+    onSuccess: (_result, variables) => {
+      pinSession(variables.id, variables.isPinned);
     },
   });
 
@@ -344,6 +352,7 @@ export function Sidebar() {
           updateServerSession={updateServerSession}
           deleteServerSession={deleteServerSession}
           setActiveSession={setActiveSession}
+          pin={pin}
         />
       </div>
 
@@ -425,6 +434,7 @@ function SessionList({
   updateServerSession,
   deleteServerSession,
   setActiveSession,
+  pin,
 }: {
   sessions: ChatSession[];
   activeSessionId: string | null;
@@ -440,6 +450,7 @@ function SessionList({
   updateServerSession: ReturnType<typeof trpc.sessions.update.useMutation>;
   deleteServerSession: ReturnType<typeof trpc.sessions.delete.useMutation>;
   setActiveSession: (id: string) => void;
+  pin: ReturnType<typeof trpc.sessions.pin.useMutation>;
 }) {
   const utils = trpc.useUtils();
   const searchResults = trpc.messages.search.useQuery(
@@ -526,65 +537,96 @@ function SessionList({
     );
   }
 
-  // Default: list sessions
+  // Default: list sessions split into pinned and unpinned
+  const pinned = sessions.filter((s) => s.isPinned);
+  const unpinned = sessions.filter((s) => !s.isPinned);
+
+  const renderSession = (session: ChatSession) => (
+    <div
+      key={session.id}
+      className={`group flex items-center gap-2 rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors ${
+        session.id === activeSessionId
+          ? "bg-primary/10 text-primary"
+          : "hover:bg-muted"
+      } ${session.parentMessageId ? "ml-4" : ""}`}
+      onClick={() => setActiveSession(session.id)}
+    >
+      {session.parentMessageId
+        ? <GitBranch className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+        : <MessageSquare className="w-4 h-4 flex-shrink-0" />}
+      {editingSessionId === session.id ? (
+        <input
+          value={draftTitle}
+          onChange={(e) => setDraftTitle(e.target.value)}
+          onBlur={() => finishRename(session)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") finishRename(session);
+            if (e.key === "Escape") setEditingSessionId(null);
+          }}
+          onClick={(e) => e.stopPropagation()}
+          autoFocus
+          disabled={updateServerSession.isPending}
+          className="min-w-0 flex-1 rounded bg-background px-1 py-0.5 text-sm outline-none ring-1 ring-primary disabled:opacity-60"
+        />
+      ) : (
+        <span
+          className="flex-1 truncate"
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            startRename(session);
+          }}
+          title="Double-click to rename"
+        >
+          <span className="flex items-center gap-1">
+            {session.parentMessageId && <span className="text-muted-foreground text-[10px]" title="Branch">⑂</span>}
+            {session.title}
+          </span>
+        </span>
+      )}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          pin.mutate({ id: session.id, isPinned: !session.isPinned });
+        }}
+        disabled={pin.isPending}
+        className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity ${
+          session.isPinned ? "text-primary opacity-100" : "hover:bg-muted text-muted-foreground"
+        }`}
+        aria-label={session.isPinned ? "Unpin conversation" : "Pin conversation"}
+      >
+        <Pin className="w-3 h-3" />
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!window.confirm(`Delete "${session.title}"?`)) return;
+          deleteServerSession.mutate({ id: session.id });
+        }}
+        disabled={deleteServerSession.isPending}
+        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 hover:text-destructive transition-opacity"
+        aria-label={`Delete ${session.title}`}
+      >
+        <Trash2 className="w-3 h-3" />
+      </button>
+    </div>
+  );
+
   return (
     <div className="space-y-1" data-testid="session-list">
-      {sessions.map((session) => (
-        <div
-          key={session.id}
-          className={`group flex items-center gap-2 rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors ${
-            session.id === activeSessionId
-              ? "bg-primary/10 text-primary"
-              : "hover:bg-muted"
-          } ${session.parentMessageId ? "ml-4" : ""}`}
-          onClick={() => setActiveSession(session.id)}
-        >
-          {session.parentMessageId
-            ? <GitBranch className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
-            : <MessageSquare className="w-4 h-4 flex-shrink-0" />}
-          {editingSessionId === session.id ? (
-            <input
-              value={draftTitle}
-              onChange={(e) => setDraftTitle(e.target.value)}
-              onBlur={() => finishRename(session)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") finishRename(session);
-                if (e.key === "Escape") setEditingSessionId(null);
-              }}
-              onClick={(e) => e.stopPropagation()}
-              autoFocus
-              disabled={updateServerSession.isPending}
-              className="min-w-0 flex-1 rounded bg-background px-1 py-0.5 text-sm outline-none ring-1 ring-primary disabled:opacity-60"
-            />
-          ) : (
-            <span
-              className="flex-1 truncate"
-              onDoubleClick={(e) => {
-                e.stopPropagation();
-                startRename(session);
-              }}
-              title="Double-click to rename"
-            >
-              <span className="flex items-center gap-1">
-                {session.parentMessageId && <span className="text-muted-foreground text-[10px]" title="Branch">⑂</span>}
-                {session.title}
-              </span>
-            </span>
+      {pinned.length > 0 && (
+        <>
+          <div className="px-1 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Pinned
+          </div>
+          {pinned.map(renderSession)}
+          {unpinned.length > 0 && (
+            <div className="px-1 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Recent
+            </div>
           )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!window.confirm(`Delete "${session.title}"?`)) return;
-              deleteServerSession.mutate({ id: session.id });
-            }}
-            disabled={deleteServerSession.isPending}
-            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 hover:text-destructive transition-opacity"
-            aria-label={`Delete ${session.title}`}
-          >
-            <Trash2 className="w-3 h-3" />
-          </button>
-        </div>
-      ))}
+        </>
+      )}
+      {unpinned.map(renderSession)}
     </div>
   );
 }

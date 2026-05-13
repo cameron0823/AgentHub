@@ -61,6 +61,17 @@ export const sessionsRouter = router({
       return { success: true };
     }),
 
+  pin: authedProcedure
+    .input(z.object({ id: z.string().uuid(), isPinned: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const [session] = await db.select().from(chatSessions)
+        .where(and(eq(chatSessions.id, input.id), eq(chatSessions.userId, ctx.user.id))).limit(1);
+      if (!session) throw new Error("Session not found");
+      await db.update(chatSessions).set({ isPinned: input.isPinned, updatedAt: new Date() })
+        .where(eq(chatSessions.id, input.id));
+      return { success: true };
+    }),
+
   listBranches: authedProcedure
     .input(z.object({ parentMessageId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
