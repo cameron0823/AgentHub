@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { Download, Share2, Menu } from "lucide-react";
 import { useChatStore, ChatMessage } from "@/stores/chatStore";
 import { trpc } from "@/lib/trpc";
@@ -11,6 +11,8 @@ import { generateSessionTitle, shouldAutoTitle } from "@/lib/title";
 import { BranchNavigator } from "./BranchNavigator";
 import { ContextWindowBar } from "./ContextWindowBar";
 import { getContextLimit, estimateMessagesTokens, truncateToContextLimit } from "@agenthub/ai-providers";
+import type { OrchestratorEvent } from "@agenthub/agent-runtime";
+import { GroupPatternViz } from "./GroupPatternViz";
 
 function exportAsMarkdown(messages: ChatMessage[], title: string) {
   const body = messages
@@ -66,6 +68,8 @@ export function ChatInterface() {
   } = useChatStore();
 
   const abortRef = useRef<AbortController | null>(null);
+  const [pendingCheckpoint, setPendingCheckpoint] = useState<{ id: string; title: string; plan: string } | null>(null);
+  const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
   const createMessage = trpc.messages.create.useMutation({
@@ -176,6 +180,7 @@ export function ChatInterface() {
         id: userMsgId,
         role: "user",
         content: typeof messageContent === "string" ? messageContent : textContent,
+        imageUrls: imageAttachments.length > 0 ? imageAttachments.map((a) => a.url) : undefined,
       };
 
       addMessage(activeSessionId, userMessage);
@@ -273,18 +278,38 @@ export function ChatInterface() {
                 });
               }
 
-              if (chunk.type === "agent_output" && chunk.chunk?.type === "content" && chunk.chunk.content) {
-                fullContent += chunk.chunk.content;
-                updateMessage(activeSessionId, assistantMsgId, {
-                  content: fullContent,
-                });
-              }
-
-              if (chunk.type === "group_complete" && chunk.synthesis) {
-                fullContent = chunk.synthesis;
-                updateMessage(activeSessionId, assistantMsgId, {
-                  content: fullContent,
-                });
+              if (chunk.type === "orchestrator_event") {
+                const ev = chunk.event as OrchestratorEvent;
+                if (ev.type === "agent_start") {
+                  setActiveAgentId(ev.agentId);
+                  if (fullContent && !fullContent.endsWith("\n\n")) fullContent += "\n\n";
+                  fullContent += `**${ev.agentName}:**\n`;
+                  updateMessage(activeSessionId, assistantMsgId, { content: fullContent });
+                }
+                if (ev.type === "agent_output" && ev.chunk.type === "content" && ev.chunk.content) {
+                  fullContent += ev.chunk.content;
+                  updateMessage(activeSessionId, assistantMsgId, { content: fullContent });
+                }
+                if (ev.type === "agent_complete" && !fullContent.endsWith("\n\n")) {
+                  fullContent += "\n\n";
+                  updateMessage(activeSessionId, assistantMsgId, { content: fullContent });
+                }
+                if (ev.type === "group_complete" && ev.synthesis) {
+                  fullContent = ev.synthesis;
+                  updateMessage(activeSessionId, assistantMsgId, { content: fullContent });
+                }
+                if (ev.type === "supervisor_plan") {
+                  fullContent += `\n\n> **Plan:** ${ev.plan}\n\n`;
+                  updateMessage(activeSessionId, assistantMsgId, { content: fullContent });
+                }
+                if (ev.type === "debate_round") {
+                  fullContent += `\n\n---\n*Round ${ev.round} of ${ev.total}*\n\n`;
+                  updateMessage(activeSessionId, assistantMsgId, { content: fullContent });
+                }
+                if (ev.type === "groupchat_turn") {
+                  fullContent += `\n\n---\n*Turn ${ev.turn} of ${ev.maxTurns}*\n\n`;
+                  updateMessage(activeSessionId, assistantMsgId, { content: fullContent });
+                }
               }
 
               if (chunk.type === "reasoning" && chunk.content) {
@@ -324,6 +349,7 @@ export function ChatInterface() {
               }
 
               if (chunk.type === "done") {
+                setActiveAgentId(null);
                 updateMessage(activeSessionId, assistantMsgId, {
                   isStreaming: false,
                   tokensUsed: (chunk as { tokensUsed?: number }).tokensUsed ?? null,
@@ -334,6 +360,10 @@ export function ChatInterface() {
               if (chunk.type === "persisted" && chunk.messageId) {
                 replaceMessageId(activeSessionId, assistantMsgId, chunk.messageId);
                 utils.messages.list.invalidate({ sessionId: activeSessionId });
+              }
+
+              if (chunk.type === "hitl_checkpoint") {
+                setPendingCheckpoint({ id: chunk.checkpointId, title: chunk.title, plan: chunk.plan });
               }
 
               if (chunk.type === "error") {
@@ -363,6 +393,17 @@ export function ChatInterface() {
     },
     [activeSessionId, activeSession, activeAgent, activeGroup, selectedModel, addMessage, updateMessage, replaceMessageId, setIsGenerating, createMessage, updateServerSession, utils.messages.list]
   );
+
+  const handleCheckpoint = useCallback(async (approved: boolean) => {
+    if (!pendingCheckpoint) return;
+    const id = pendingCheckpoint.id;
+    setPendingCheckpoint(null);
+    await fetch("/api/chat/checkpoint", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ checkpointId: id, approved }),
+    });
+  }, [pendingCheckpoint]);
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
@@ -444,8 +485,20 @@ export function ChatInterface() {
     );
   }
 
+  const groupAgentNames = activeGroup
+    ? Object.fromEntries(activeGroup.members.map((m) => [m.agentId, agents.find((a) => a.id === m.agentId)?.name ?? m.agentId.slice(0, 6)]))
+    : {};
+
   return (
     <div className="flex-1 flex flex-col h-full">
+      {activeGroup && isGenerating && (
+        <GroupPatternViz
+          group={activeGroup}
+          agentNames={groupAgentNames}
+          activeAgentId={activeAgentId}
+          isStreaming={isGenerating}
+        />
+      )}
       <div className="flex-1 min-h-0">
         {activeSession.parentMessageId && (
           <BranchNavigator
@@ -494,6 +547,29 @@ export function ChatInterface() {
           />
         )}
       </div>
+
+      {pendingCheckpoint && (
+        <div className="border-t bg-amber-50 dark:bg-amber-950/30 px-4 py-3">
+          <div className="max-w-3xl mx-auto">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-1">{pendingCheckpoint.title}</p>
+            <p className="text-xs text-muted-foreground line-clamp-3 mb-3 font-mono whitespace-pre-wrap">{pendingCheckpoint.plan.slice(0, 400)}{pendingCheckpoint.plan.length > 400 ? "…" : ""}</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleCheckpoint(true)}
+                className="px-3 py-1.5 rounded text-xs bg-green-600 text-white hover:bg-green-700 transition-colors"
+              >
+                Approve &amp; Continue
+              </button>
+              <button
+                onClick={() => handleCheckpoint(false)}
+                className="px-3 py-1.5 rounded text-xs border hover:bg-muted transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="border-t p-2">
         <div className="max-w-3xl mx-auto flex items-center gap-2 mb-2">

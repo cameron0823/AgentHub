@@ -7,8 +7,10 @@ import { auth } from "@/server/auth";
 import { providerRegistry } from "@agenthub/ai-providers";
 import { fetchAcceptedMemoriesForAgent, formatMemoryBlock, appendMemoryBlockToSystemPrompt, extractMemories, storePendingMemories } from "@/server/memory";
 import { substituteVariables } from "@/server/prompt-variables";
-import { sql } from "drizzle-orm";
-import { documentChunks, documents, knowledgeBases } from "@/server/db/schema";
+import { knowledgeBases, documents, documentChunks } from "@/server/db/schema";
+import { hybridKbSearch } from "@/server/kb-search";
+import { truncateToContextWindow } from "@/server/context-window";
+import { registerCheckpoint } from "@/server/checkpoint-registry";
 
 export const runtime = "nodejs";
 
@@ -78,6 +80,7 @@ export async function POST(req: NextRequest) {
 
   // RAG: Knowledge Base retrieval (appends to resolvedPrompt, providing grounded context)
   let ragSourcesForStream: Array<{ id: string; documentId: string; content: string; similarity: number }> = [];
+  let kbForVfs: { id: string; name: string } | null = null;
   let resolvedPrompt = substituteVariables(systemPrompt || "", {
     userName: session.user.name ?? undefined,
     date: new Date(),
@@ -89,68 +92,32 @@ export async function POST(req: NextRequest) {
       .limit(1);
 
     if (kb[0]) {
-      const lastUserMessage = [...chatMessages].reverse().find((m) => m.role === "user");
+      kbForVfs = { id: kb[0].id, name: kb[0].name };
+      const lastUserMessage = [...chatMessages].reverse().find((m: { role: string; content?: string }) => m.role === "user");
       if (lastUserMessage?.content) {
-        // Validate OLLAMA_URL to prevent SSRF to internal services
-        const rawOllamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-        const ollamaUrl = (() => {
-          try {
-            const parsed = new URL(rawOllamaUrl);
-            if (!["http:", "https:"].includes(parsed.protocol)) return "http://localhost:11434";
-            return rawOllamaUrl;
-          } catch {
-            return "http://localhost:11434";
-          }
-        })();
-
-        let embedData: { embedding?: unknown[] } | undefined;
         try {
-          const embedRes = await fetch(`${ollamaUrl}/api/embeddings`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ model: kb[0].embeddingModel || "nomic-embed-text", prompt: lastUserMessage.content }),
+          const ragResults = await hybridKbSearch({
+            query: lastUserMessage.content,
+            knowledgeBaseId: kb[0].id,
+            limit: 5,
+            embeddingModel: kb[0].embeddingModel || "nomic-embed-text",
           });
-          if (embedRes.ok) {
-            embedData = (await embedRes.json()) as { embedding?: unknown[] };
+          if (ragResults.length > 0) {
+            ragSourcesForStream = ragResults.map((r) => ({
+              id: r.id,
+              documentId: r.documentId,
+              content: r.content.slice(0, 200),
+              similarity: r.similarity,
+            }));
+            const ragContext = [
+              "## Relevant Knowledge Base Context",
+              ...ragResults.map((r, i) => `[${i + 1}] ${r.content}`),
+              "\nUse the above context to answer the user's question. Cite sources using [1], [2], etc. when referencing specific information.",
+            ].join("\n\n");
+            resolvedPrompt = resolvedPrompt ? `${resolvedPrompt}\n\n${ragContext}` : ragContext;
           }
         } catch (e) {
-          console.error("Ollama embedding request failed (non-fatal):", e);
-        }
-
-        if (embedData?.embedding) {
-          // Validate all entries are finite numbers — prevents injection if Ollama API is compromised
-          const rawEmb = embedData.embedding;
-          if (!Array.isArray(rawEmb) || !rawEmb.every((v) => typeof v === "number" && isFinite(v))) {
-            console.error("Invalid embedding from Ollama: non-numeric values, skipping RAG");
-          } else {
-            const safeEmbedding = rawEmb as number[];
-            const embStr = `[${safeEmbedding.join(",")}]`;
-            // Use sql.param() to bind embStr as a SQL parameter — prevents raw string injection
-            const ragResults = await db.select({
-              id: documentChunks.id,
-              content: documentChunks.content,
-              documentId: documentChunks.documentId,
-              similarity: sql<number>`1 - (${documentChunks.embedding} <=> ${sql.param(embStr)}::vector)`,
-            })
-              .from(documentChunks)
-              .innerJoin(documents, eq(documentChunks.documentId, documents.id))
-              .where(and(
-                eq(documents.knowledgeBaseId, kb[0].id),
-                eq(documents.status, "indexed")
-              ))
-              .orderBy(sql`${documentChunks.embedding} <=> ${sql.param(embStr)}::vector`)
-              .limit(5);
-
-            if (ragResults.length > 0) {
-              ragSourcesForStream = ragResults.map((r) => ({ id: r.id, documentId: r.documentId, content: r.content.slice(0, 200), similarity: r.similarity }));
-              const ragContext = [
-                "## Relevant Knowledge Base Context",
-                ...ragResults.map((r, i) => `[${i + 1}] ${r.content}`),
-                "\nUse the above context to answer the user's question. Cite sources using [1], [2], etc. when referencing specific information.",
-              ].join("\n\n");
-              resolvedPrompt = resolvedPrompt ? `${resolvedPrompt}\n\n${ragContext}` : ragContext;
-            }
-          }
+          console.error("Hybrid KB search failed (non-fatal):", e);
         }
       }
     }
@@ -183,6 +150,50 @@ export async function POST(req: NextRequest) {
       // Skip unavailable MCP servers silently
     }
   }));
+
+  // VFS: inject a read_file overlay for the agent's attached KB
+  if (kbForVfs) {
+    const kbId = kbForVfs.id;
+    const kbSlug = kbForVfs.name.toLowerCase().replace(/\s+/g, "-");
+    const prefix = `docs/${kbSlug}/`;
+    extraTools.unshift({
+      name: "read_file",
+      description: `Read documents from the attached knowledge base. Use path "${prefix}<document-name>" to read a document, or "docs/${kbSlug}" to list all indexed documents.`,
+      parameters: {
+        type: "object" as const,
+        properties: {
+          path: { type: "string", description: `Path within the KB, e.g. "${prefix}intro.pdf" or "docs/${kbSlug}" to list.` },
+        },
+        required: ["path"],
+      },
+      execute: async (args: Record<string, unknown>) => {
+        const reqPath = String(args.path ?? "");
+        if (reqPath === `docs/${kbSlug}` || reqPath === `docs/${kbSlug}/`) {
+          const docs = await db
+            .select({ id: documents.id, name: documents.name })
+            .from(documents)
+            .where(and(eq(documents.knowledgeBaseId, kbId), eq(documents.status, "indexed")));
+          return { path: reqPath, documents: docs.map((d) => `${prefix}${d.name}`) };
+        }
+        if (!reqPath.startsWith(prefix)) {
+          return { error: `Path must start with "${prefix}" or be "docs/${kbSlug}" to list.` };
+        }
+        const docName = reqPath.slice(prefix.length);
+        const [doc] = await db
+          .select()
+          .from(documents)
+          .where(and(eq(documents.knowledgeBaseId, kbId), eq(documents.name, docName), eq(documents.status, "indexed")))
+          .limit(1);
+        if (!doc) return { error: `Document "${docName}" not found in knowledge base.` };
+        const chunks = await db
+          .select({ content: documentChunks.content })
+          .from(documentChunks)
+          .where(eq(documentChunks.documentId, doc.id))
+          .orderBy(documentChunks.createdAt);
+        return { path: reqPath, document: doc.name, content: chunks.map((c) => c.content).join("\n"), chunks: chunks.length };
+      },
+    });
+  }
 
   // Fetch group config if session has a groupId
   let groupConfig: { id: string; name: string; pattern: string; members: { agentId: string; role: string | null; sortOrder: number | null }[] } | null = null;
@@ -257,6 +268,10 @@ export async function POST(req: NextRequest) {
             sessionId,
             messages: chatMessages,
             signal: req.signal,
+            checkpoint: async (checkpointId: string, title: string, plan: string) => {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "hitl_checkpoint", checkpointId, title, plan })}\n\n`));
+              return registerCheckpoint(checkpointId);
+            },
           });
 
           const startMs = Date.now();
@@ -284,14 +299,19 @@ export async function POST(req: NextRequest) {
               await storePendingMemories(sessionAgent.id, session.user.id, extracted);
             }
           }
-          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done", tokensUsed: approxTokens, latencyMs })}\n\n`));
           controller.close();
           return;
         }
 
+        const truncatedMessages = (await truncateToContextWindow(chatMessages, {
+          model: effectiveModel,
+          maxTokens: sessionAgent?.maxTokens ?? undefined,
+        })) as import("@agenthub/ai-providers").Message[];
+
         const agentStream = agent.run({
           sessionId,
-          messages: chatMessages,
+          messages: truncatedMessages,
           tools: effectiveTools,
           extraTools,
           signal: req.signal,

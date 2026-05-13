@@ -104,6 +104,24 @@ Extracted memories:`;
   }
 }
 
+async function embedText(text: string): Promise<number[] | null> {
+  try {
+    const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+    const res = await fetch(`${ollamaUrl}/api/embeddings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "nomic-embed-text", prompt: text }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const emb = data.embedding;
+    if (!Array.isArray(emb) || !emb.every((v) => typeof v === "number" && isFinite(v))) return null;
+    return emb as number[];
+  } catch {
+    return null;
+  }
+}
+
 export async function storePendingMemories(
   agentId: string,
   userId: string,
@@ -111,6 +129,8 @@ export async function storePendingMemories(
   sourceMessageId?: string
 ) {
   for (const mem of memories) {
+    const embeddingText = `${mem.key}: ${mem.value}`;
+    const embedding = await embedText(embeddingText);
     await db.insert(memoryEntries).values({
       userId,
       agentId,
@@ -121,6 +141,7 @@ export async function storePendingMemories(
       sourceMessageId: sourceMessageId || null,
       status: "proposed",
       isEdited: false,
+      embedding: embedding,
     });
   }
 }

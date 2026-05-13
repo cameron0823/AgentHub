@@ -39,6 +39,23 @@ ${workers.map((w) => `INSTRUCTIONS_FOR_${w.name}: <specific instructions>`).join
 
     yield { type: "supervisor_plan", groupId, plan: supervisorOutput };
 
+    // HITL checkpoint — pause for human approval before dispatching workers
+    if (options.checkpoint) {
+      const checkpointId = crypto.randomUUID();
+      const approved = await options.checkpoint(checkpointId, "Approve delegation plan?", supervisorOutput);
+      if (!approved) {
+        yield {
+          type: "group_complete",
+          groupId,
+          groupName: options.group.name,
+          pattern: options.group.pattern,
+          synthesis: "Task cancelled at supervisor checkpoint.",
+          outputs: [],
+        };
+        return;
+      }
+    }
+
     // Step 2: Workers execute their tasks
     const workerOutputs: AgentRunResult[] = [];
 

@@ -7,7 +7,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Bot, User, Loader2, Wrench, GitBranch, Pencil, RotateCcw, ThumbsUp, ThumbsDown, Copy, Check } from "lucide-react";
+import { Bot, User, Loader2, Wrench, GitBranch, Pencil, RotateCcw, ThumbsUp, ThumbsDown, Copy, Check, Clock } from "lucide-react";
 import { ToolCallCard } from "./ToolCallCard";
 import { MermaidBlock } from "./MermaidBlock";
 import { TTSButton } from "./TTSButton";
@@ -58,6 +58,15 @@ export function ChatMessageItem({ message, onBranch, onEdit, onRegenerate, onFee
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
   const [showActions, setShowActions] = useState(false);
+  const [showTimestamp, setShowTimestamp] = useState(false);
+  const [msgCopied, setMsgCopied] = useState(false);
+
+  const copyMessage = useCallback(() => {
+    void navigator.clipboard.writeText(message.content).then(() => {
+      setMsgCopied(true);
+      setTimeout(() => setMsgCopied(false), 2000);
+    });
+  }, [message.content]);
 
   const { updateMessage } = useChatStore();
   const setFeedback = trpc.messages.setFeedback.useMutation({
@@ -117,6 +126,24 @@ export function ChatMessageItem({ message, onBranch, onEdit, onRegenerate, onFee
           {/* Message actions */}
           {showActions && !message.isStreaming && (
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {(isUser || isAssistant) && message.content && (
+                <button
+                  onClick={copyMessage}
+                  className="p-1 hover:bg-muted rounded"
+                  title="Copy message"
+                >
+                  {msgCopied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
+                </button>
+              )}
+              {message.createdAt && (
+                <button
+                  onClick={() => setShowTimestamp((prev) => !prev)}
+                  className={`p-1 hover:bg-muted rounded ${showTimestamp ? "text-primary" : "text-muted-foreground"}`}
+                  title="Toggle timestamp"
+                >
+                  <Clock className="w-3 h-3" />
+                </button>
+              )}
               {isUser && onEdit && (
                 <button
                   onClick={() => setIsEditing(true)}
@@ -166,6 +193,11 @@ export function ChatMessageItem({ message, onBranch, onEdit, onRegenerate, onFee
                 <TTSButton content={message.content} />
               )}
             </div>
+          )}
+          {showTimestamp && message.createdAt && (
+            <span className="text-[10px] text-muted-foreground ml-1 select-none">
+              {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
           )}
         </div>
 
@@ -265,6 +297,20 @@ export function ChatMessageItem({ message, onBranch, onEdit, onRegenerate, onFee
                 {displayContent}
               </ReactMarkdown>
             )}
+          </div>
+        )}
+
+        {isUser && message.imageUrls && message.imageUrls.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {message.imageUrls.map((url, i) => (
+              <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                <img
+                  src={url}
+                  alt={`Attachment ${i + 1}`}
+                  className="max-h-48 max-w-xs rounded-lg border object-cover hover:opacity-90 transition-opacity"
+                />
+              </a>
+            ))}
           </div>
         )}
 

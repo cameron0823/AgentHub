@@ -52,6 +52,9 @@ export type OrchestratorEvent =
   | (BaseEvent & { type: "supervisor_plan"; plan: string })
   | (BaseEvent & { type: "supervisor_review"; review: string })
 
+  // HITL checkpoint event
+  | (BaseEvent & { type: "hitl_checkpoint"; checkpointId: string; title: string; plan: string })
+
   // Debate pattern events
   | (BaseEvent & { type: "debate_start"; agents: string[]; rounds: number })
   | (BaseEvent & { type: "debate_round"; round: number; total: number })
@@ -71,6 +74,8 @@ export interface OrchestratorRunOptions {
   messages?: Message[];
   streamToClient?: boolean;
   signal?: AbortSignal;
+  /** Called at HITL checkpoints. Return true to proceed, false to cancel. */
+  checkpoint?: (checkpointId: string, title: string, plan: string) => Promise<boolean>;
 }
 
 export type AgentRuntimeFactory = (agent: OrchestratorAgent) => {

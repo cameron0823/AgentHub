@@ -243,6 +243,7 @@ export function ChatInput({ onSend, onStop, isGenerating }: ChatInputProps) {
             ref={fileInputRef}
             type="file"
             multiple
+            accept="image/*,text/*,application/pdf"
             onChange={handleFileSelect}
             className="hidden"
           />

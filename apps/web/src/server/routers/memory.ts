@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, and, or, ilike } from "drizzle-orm";
+import { eq, desc, and, or, ilike, sql } from "drizzle-orm";
 import { router, authedProcedure } from "../trpc";
 import { db } from "../db";
 import { memoryEntries } from "../db/schema";
@@ -86,5 +86,60 @@ export const memoryEntriesRouter = router({
         .where(and(...filters))
         .orderBy(desc(memoryEntries.updatedAt))
         .limit(20);
+    }),
+
+  semanticSearch: authedProcedure
+    .input(z.object({ query: z.string().min(1), agentId: z.string().uuid().optional(), limit: z.number().int().min(1).max(20).default(5) }))
+    .query(async ({ ctx, input }) => {
+      const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+      let queryVector: number[] | null = null;
+      try {
+        const res = await fetch(`${ollamaUrl}/api/embeddings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "nomic-embed-text", prompt: input.query }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const emb = data.embedding;
+          if (Array.isArray(emb) && emb.every((v: unknown) => typeof v === "number" && isFinite(v as number))) {
+            queryVector = emb as number[];
+          }
+        }
+      } catch {
+        // fall through to keyword search
+      }
+
+      if (!queryVector) {
+        // Fallback to keyword search when embedding fails
+        const pattern = `%${input.query}%`;
+        const filters = [
+          eq(memoryEntries.userId, ctx.user.id),
+          eq(memoryEntries.status, "accepted"),
+          or(ilike(memoryEntries.key, pattern), ilike(memoryEntries.value, pattern))!,
+        ];
+        if (input.agentId) filters.push(eq(memoryEntries.agentId, input.agentId));
+        return db.select().from(memoryEntries)
+          .where(and(...filters))
+          .orderBy(desc(memoryEntries.updatedAt))
+          .limit(input.limit);
+      }
+
+      const agentFilter = input.agentId ? sql`AND agent_id = ${input.agentId}::uuid` : sql``;
+      const rows = await db.execute<{
+        id: string; category: string; key: string; value: string; similarity: number;
+      }>(sql`
+        SELECT id, category, key, value,
+          1 - (embedding <=> ${JSON.stringify(queryVector)}::vector) AS similarity
+        FROM memory_entries
+        WHERE user_id = ${ctx.user.id}::uuid
+          AND status = 'accepted'
+          AND embedding IS NOT NULL
+          ${agentFilter}
+        ORDER BY embedding <=> ${JSON.stringify(queryVector)}::vector
+        LIMIT ${input.limit}
+      `);
+
+      return rows;
     }),
 });

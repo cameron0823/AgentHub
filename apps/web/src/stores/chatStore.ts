@@ -29,6 +29,7 @@ export interface ChatMessage {
   sessionId?: string;
   role: "user" | "assistant" | "system" | "tool";
   content: string;
+  imageUrls?: string[];
   reasoning?: string;
   toolCalls?: ToolCall[];
   toolCallId?: string;
