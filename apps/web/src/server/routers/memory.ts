@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, or, ilike } from "drizzle-orm";
 import { router, authedProcedure } from "../trpc";
 import { db } from "../db";
 import { memoryEntries } from "../db/schema";
@@ -71,5 +71,20 @@ export const memoryEntriesRouter = router({
     .mutation(async ({ ctx, input }) => {
       await db.delete(memoryEntries).where(and(eq(memoryEntries.id, input.id), eq(memoryEntries.userId, ctx.user.id)));
       return { success: true };
+    }),
+
+  search: authedProcedure
+    .input(z.object({ query: z.string().min(1), agentId: z.string().uuid().optional() }))
+    .query(async ({ ctx, input }) => {
+      const pattern = `%${input.query}%`;
+      const filters = [
+        eq(memoryEntries.userId, ctx.user.id),
+        or(ilike(memoryEntries.key, pattern), ilike(memoryEntries.value, pattern))!,
+      ];
+      if (input.agentId) filters.push(eq(memoryEntries.agentId, input.agentId));
+      return db.select().from(memoryEntries)
+        .where(and(...filters))
+        .orderBy(desc(memoryEntries.updatedAt))
+        .limit(20);
     }),
 });

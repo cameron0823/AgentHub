@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useChatStore, type MemoryEntry, type MemoryStatus } from "@/stores/chatStore";
 
@@ -27,14 +28,25 @@ export function MemoryEditor() {
   const [agentId, setAgentId] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<MemoryStatus | "">("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ category: "profile", key: "", value: "", confidence: 1, status: "accepted" as MemoryStatus });
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const utils = trpc.useUtils();
   const listQuery = trpc.memoryEntries.list.useQuery({
     ...(agentId && { agentId }),
     ...(categoryFilter && { category: categoryFilter }),
     ...(statusFilter && { status: statusFilter }),
   });
+  const searchResults = trpc.memoryEntries.search.useQuery(
+    { query: debouncedSearch, ...(agentId && { agentId }) },
+    { enabled: debouncedSearch.length > 0 },
+  );
   const createEntry = trpc.memoryEntries.create.useMutation({
     onSuccess: (entry) => {
       addMemoryEntry(toMemoryEntry(entry));
@@ -57,10 +69,11 @@ export function MemoryEditor() {
   });
 
   useEffect(() => {
-    if (listQuery.data) {
-      setMemoryEntries(listQuery.data.map(toMemoryEntry));
+    const data = debouncedSearch ? searchResults.data : listQuery.data;
+    if (data) {
+      setMemoryEntries(data.map(toMemoryEntry));
     }
-  }, [listQuery.data, setMemoryEntries]);
+  }, [listQuery.data, searchResults.data, debouncedSearch, setMemoryEntries]);
 
   const categories = useMemo(() => {
     return [...new Set(memoryEntries.map((entry) => entry.category))].sort();
@@ -162,22 +175,32 @@ export function MemoryEditor() {
 
         <section className="space-y-4">
           <div className="flex flex-wrap gap-3 rounded-xl border bg-card p-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="search"
+                placeholder="Search key or value..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="rounded-lg border bg-background py-2 pl-9 pr-3 text-sm w-52"
+              />
+            </div>
             <select value={agentId} onChange={(event) => setAgentId(event.target.value)} className="rounded-lg border bg-background px-3 py-2 text-sm">
               <option value="">All agents</option>
               {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
             </select>
-            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="rounded-lg border bg-background px-3 py-2 text-sm">
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="rounded-lg border bg-background px-3 py-2 text-sm" disabled={!!debouncedSearch}>
               <option value="">All categories</option>
               {categories.map((category) => <option key={category} value={category}>{category}</option>)}
             </select>
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as MemoryStatus | "")} className="rounded-lg border bg-background px-3 py-2 text-sm">
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as MemoryStatus | "")} className="rounded-lg border bg-background px-3 py-2 text-sm" disabled={!!debouncedSearch}>
               {STATUS_OPTIONS.map((status) => <option key={status || "all"} value={status}>{status || "All statuses"}</option>)}
             </select>
           </div>
 
-          {listQuery.isLoading ? <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">Loading memories...</div> : null}
-          {listQuery.isError ? <div className="rounded-xl border border-destructive/30 p-6 text-sm text-destructive">Could not load memories.</div> : null}
-          {!listQuery.isLoading && memoryEntries.length === 0 ? <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">No memories yet.</div> : null}
+          {(debouncedSearch ? searchResults.isLoading : listQuery.isLoading) ? <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">Loading memories...</div> : null}
+          {(debouncedSearch ? searchResults.isError : listQuery.isError) ? <div className="rounded-xl border border-destructive/30 p-6 text-sm text-destructive">Could not load memories.</div> : null}
+          {!(debouncedSearch ? searchResults.isLoading : listQuery.isLoading) && memoryEntries.length === 0 ? <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">{debouncedSearch ? "No memories match your search." : "No memories yet."}</div> : null}
 
           <div className="space-y-3">
             {memoryEntries.map((entry) => (
