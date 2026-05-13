@@ -24,11 +24,11 @@ test("root package exposes pnpm workflow scripts", async () => {
 });
 
 test("Playwright browser smoke stack is configured for deterministic local e2e", async () => {
-  const [rootPkg, webPkg, config, smoke] = await Promise.all([
+  const [rootPkg, webPkg, config, authSpec] = await Promise.all([
     readJson("package.json"),
     readJson("apps/web/package.json"),
     readText("apps/web/playwright.config.ts"),
-    readText("apps/web/e2e/chat-smoke.spec.ts"),
+    readText("apps/web/tests/e2e/specs/phase-a/auth.spec.ts"),
   ]);
 
   assert.equal(rootPkg.scripts["test:e2e"], "turbo run test:e2e");
@@ -37,9 +37,8 @@ test("Playwright browser smoke stack is configured for deterministic local e2e",
   assert.match(config, /devices\["Desktop Chrome"\]/);
   assert.match(config, /command: "pnpm dev"/);
   assert.match(config, /url: "http:\/\/127\.0\.0\.1:3000"/);
-  assert.match(config, /DATABASE_URL: "file:\.\/data\/e2e-agenthub\.db"/);
-  assert.match(smoke, /\/api\/trpc\/\*\*/);
-  assert.match(smoke, /\/api\/chat\/stream/);
+  assert.match(config, /DATABASE_URL.*postgres/);
+  assert.match(authSpec, /\/api\/trpc\//);
 });
 
 test("workspace packages and required project files exist", async () => {
