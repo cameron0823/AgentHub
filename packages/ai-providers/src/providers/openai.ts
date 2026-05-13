@@ -2,6 +2,7 @@ import type {
   ChatOptions,
   ChatResponse,
   ChatStreamChunk,
+  ContentPart,
   ModelInfo,
   ModelProvider,
   ProviderHealth,
@@ -246,13 +247,22 @@ export class OpenAIProvider implements ModelProvider {
     return headers;
   }
 
+  private serializeContent(content: string | ContentPart[]): unknown {
+    if (typeof content === "string") return content;
+    return content.map((part) =>
+      part.type === "text"
+        ? { type: "text", text: part.text }
+        : { type: "image_url", image_url: { url: part.url } }
+    );
+  }
+
   private toChatBody(options: ChatOptions, stream: boolean) {
     const body: Record<string, unknown> = {
       model: options.model,
       messages: options.messages.map((message) => {
         const next: Record<string, unknown> = {
           role: message.role,
-          content: message.content,
+          content: this.serializeContent(message.content),
         };
         if (message.name) next.name = message.name;
         if (message.tool_call_id) next.tool_call_id = message.tool_call_id;

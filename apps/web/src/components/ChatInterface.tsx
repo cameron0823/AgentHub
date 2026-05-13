@@ -149,16 +149,27 @@ export function ChatInterface() {
     async (content: string, fileAttachments?: { url: string; name: string; type: string }[]) => {
       if (!activeSessionId) return;
 
-      const attachmentText = fileAttachments?.length
-        ? `\n\n[Attached files: ${fileAttachments.map((a) => `[${a.name}](${a.url})`).join(", ")}]`
+      const imageAttachments = fileAttachments?.filter((a) => a.type.startsWith("image/")) ?? [];
+      const fileOnlyAttachments = fileAttachments?.filter((a) => !a.type.startsWith("image/")) ?? [];
+      const attachmentText = fileOnlyAttachments.length
+        ? `\n\n[Attached files: ${fileOnlyAttachments.map((a) => `[${a.name}](${a.url})`).join(", ")}]`
         : "";
-      const fullContent = content + attachmentText;
+      const textContent = content + attachmentText;
+
+      // Build multipart content when images are present
+      type ContentPart = { type: "text"; text: string } | { type: "image_url"; url: string };
+      const messageContent: string | ContentPart[] = imageAttachments.length > 0
+        ? [
+            { type: "text" as const, text: textContent },
+            ...imageAttachments.map((a) => ({ type: "image_url" as const, url: a.url })),
+          ]
+        : textContent;
 
       const userMsgId = crypto.randomUUID();
       const userMessage: ChatMessage = {
         id: userMsgId,
         role: "user",
-        content: fullContent,
+        content: typeof messageContent === "string" ? messageContent : textContent,
       };
 
       addMessage(activeSessionId, userMessage);
@@ -195,7 +206,8 @@ export function ChatInterface() {
       const freshSession = useChatStore.getState().sessions.find((s) => s.id === activeSessionId);
       const sessionMessages = [
         ...(freshSession?.messages || []),
-        userMessage,
+        // Override the last user message with the full content parts (including images)
+        { ...userMessage, content: messageContent },
       ].map((m) => ({
         role: m.role,
         content: m.content,

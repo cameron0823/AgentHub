@@ -217,10 +217,18 @@ export class OllamaProvider implements ModelProvider {
 
   private toOllamaBody(options: ChatOptions, stream: boolean) {
     const messages = options.messages.map((m) => {
-      const message: Record<string, unknown> = {
-        role: m.role,
-        content: m.content,
-      };
+      const message: Record<string, unknown> = { role: m.role };
+
+      if (Array.isArray(m.content)) {
+        const textParts = m.content.filter((p) => p.type === "text");
+        const imageParts = m.content.filter((p) => p.type === "image_url");
+        message.content = textParts.map((p) => (p.type === "text" ? p.text : "")).join("\n");
+        if (imageParts.length > 0) {
+          message.images = imageParts.map((p) => (p.type === "image_url" ? p.url : ""));
+        }
+      } else {
+        message.content = m.content;
+      }
 
       if (m.name) message.name = m.name;
       if (m.tool_call_id) message.tool_call_id = m.tool_call_id;

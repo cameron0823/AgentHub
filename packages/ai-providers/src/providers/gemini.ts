@@ -235,14 +235,22 @@ export class GeminiProvider implements ModelProvider {
 
     for (const message of options.messages) {
       if (message.role === "system") {
-        systemInstruction = message.content;
+        systemInstruction = typeof message.content === "string" ? message.content : message.content.map((p) => p.type === "text" ? p.text : "").join("\n");
         continue;
       }
 
       const role = message.role === "assistant" ? "model" : "user";
       const parts: GeminiContent["parts"] = [];
 
-      if (message.content) {
+      if (Array.isArray(message.content)) {
+        for (const part of message.content) {
+          if (part.type === "text") {
+            parts.push({ text: part.text });
+          } else if (part.type === "image_url") {
+            parts.push({ inlineData: { mimeType: "image/jpeg", data: part.url } } as { text?: string });
+          }
+        }
+      } else if (message.content) {
         parts.push({ text: message.content });
       }
 
