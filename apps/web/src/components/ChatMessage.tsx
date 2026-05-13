@@ -13,6 +13,15 @@ import { MermaidBlock } from "./MermaidBlock";
 import { TTSButton } from "./TTSButton";
 import { useState, useCallback } from "react";
 
+function insertCitationLinks(content: string, sourceCount: number): string {
+  if (sourceCount === 0) return content;
+  return content.replace(/\[(\d+)\]/g, (match, n) => {
+    const num = parseInt(n, 10);
+    if (num < 1 || num > sourceCount) return match;
+    return `[[${n}]](#cite-${n})`;
+  });
+}
+
 function CopyButton({ content }: { content: string }) {
   const [copied, setCopied] = useState(false);
   const copy = useCallback(() => {
@@ -47,6 +56,9 @@ export function ChatMessageItem({ message, onBranch, onEdit, onRegenerate, onFee
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
   const [showActions, setShowActions] = useState(false);
+
+  const sourceCount = message.ragSources?.length ?? 0;
+  const displayContent = isAssistant ? insertCitationLinks(message.content, sourceCount) : message.content;
 
   const handleSaveEdit = () => {
     if (editContent.trim() && editContent !== message.content) {
@@ -214,9 +226,29 @@ export function ChatMessageItem({ message, onBranch, onEdit, onRegenerate, onFee
                       </code>
                     );
                   },
+                  a({ href, children, ...props }: any) {
+                    if (href?.startsWith("#cite-")) {
+                      return (
+                        <sup>
+                          <a
+                            href={href}
+                            className="text-primary hover:underline font-mono text-[10px] no-underline"
+                            {...props}
+                          >
+                            {children}
+                          </a>
+                        </sup>
+                      );
+                    }
+                    return (
+                      <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+                        {children}
+                      </a>
+                    );
+                  },
                 }}
               >
-                {message.content}
+                {displayContent}
               </ReactMarkdown>
             )}
           </div>
@@ -228,9 +260,12 @@ export function ChatMessageItem({ message, onBranch, onEdit, onRegenerate, onFee
               Sources ({message.ragSources.length})
             </summary>
             <div className="mt-2 space-y-2">
-              {message.ragSources.map((s: RagSource) => (
-                <div key={s.id} className="p-2 rounded border bg-muted/30">
-                  <div className="text-xs text-muted-foreground">{(s.similarity * 100).toFixed(1)}% match</div>
+              {message.ragSources.map((s: RagSource, i: number) => (
+                <div key={s.id} id={`cite-${i + 1}`} className="p-2 rounded border bg-muted/30 scroll-mt-16">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-mono font-semibold text-primary">[{i + 1}]</span>
+                    <span>{(s.similarity * 100).toFixed(1)}% match</span>
+                  </div>
                   <p className="text-xs mt-1 line-clamp-2">{s.content}</p>
                 </div>
               ))}
