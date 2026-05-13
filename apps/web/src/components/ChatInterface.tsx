@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import { Download, Share2 } from "lucide-react";
+import { Download, Share2, Menu } from "lucide-react";
 import { useChatStore, ChatMessage } from "@/stores/chatStore";
 import { trpc } from "@/lib/trpc";
 import { ChatInput } from "./ChatInput";
@@ -60,6 +60,7 @@ export function ChatInterface() {
     replaceMessageId,
     setSessionMessages,
     setIsGenerating,
+    setSidebarOpen,
   } = useChatStore();
 
   const abortRef = useRef<AbortController | null>(null);
@@ -472,6 +473,13 @@ export function ChatInterface() {
 
       <div className="border-t p-2">
         <div className="max-w-3xl mx-auto flex items-center gap-2 mb-2">
+          <button
+            className="md:hidden p-1.5 rounded hover:bg-muted text-muted-foreground"
+            onClick={() => setSidebarOpen(true)}
+            title="Open sidebar"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
           {activeGroup ? (
             <div className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
               Group: {activeGroup.name} · {activeGroup.pattern}

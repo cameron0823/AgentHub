@@ -9,6 +9,7 @@ import { AgentGroupBuilder } from "@/components/AgentGroupBuilder";
 import { MemoryEditor } from "@/components/MemoryEditor";
 import { AgentMarketplace } from "@/components/AgentMarketplace";
 import { SearchModal } from "@/components/SearchModal";
+import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
 import { useChatStore } from "@/stores/chatStore";
 import { LogIn, Loader2 } from "lucide-react";
 
@@ -70,6 +71,7 @@ export default function Home() {
          <ChatInterface />}
       </main>
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <KeyboardShortcuts />
     </div>
   );
 }

@@ -125,6 +125,7 @@ interface ChatState {
   mainView: MainView;
   activeAgentId: string | null;
   activeGroupId: string | null;
+  sidebarOpen: boolean;
 
   // Actions
   setSessions: (sessions: ChatSession[]) => void;
@@ -145,6 +146,7 @@ interface ChatState {
   updateAgent: (id: string, updates: Partial<Agent>) => void;
   deleteAgent: (id: string) => void;
   setMainView: (view: MainView) => void;
+  setSidebarOpen: (open: boolean) => void;
   setActiveAgent: (id: string | null) => void;
   setActiveGroup: (id: string | null) => void;
   addAgentGroup: (group: AgentGroup) => void;
@@ -168,6 +170,7 @@ export const useChatStore = create<ChatState>((set) => ({
   mainView: "chat",
   activeAgentId: null,
   activeGroupId: null,
+  sidebarOpen: false,
 
   setSessions: (sessions) =>
     set((state) => {
@@ -274,6 +277,8 @@ export const useChatStore = create<ChatState>((set) => ({
     })),
 
   setMainView: (view) => set({ mainView: view }),
+
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
 
   setActiveAgent: (id) => set({ activeAgentId: id }),
 

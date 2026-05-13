@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { DEFAULT_MODEL_ID, useChatStore, type Agent, type AgentGroup, type ChatSession } from "@/stores/chatStore";
 import { trpc } from "@/lib/trpc";
-import { Plus, MessageSquare, Trash2, Bot, Users, Database, Store, FileText, Search, Pin, Settings, Moon, GitBranch } from "lucide-react";
+import { Plus, MessageSquare, Trash2, Bot, Users, Database, Store, FileText, Search, Pin, Settings, X, GitBranch } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { AgentList } from "./AgentList";
 import { AgentGroupList } from "./AgentGroupList";
@@ -109,6 +109,7 @@ export function Sidebar() {
     agentGroups,
     activeAgentId,
     activeGroupId,
+    sidebarOpen,
     setSessions,
     setAgents,
     setAgentGroups,
@@ -117,6 +118,7 @@ export function Sidebar() {
     setActiveAgent,
     setActiveGroup,
     setMainView,
+    setSidebarOpen,
     updateSession,
     deleteSession,
   } = useChatStore();
@@ -207,11 +209,30 @@ export function Sidebar() {
   };
 
   return (
-    <div className="w-64 h-full border-r bg-card flex flex-col">
+    <>
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      <div className={`
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+        md:translate-x-0 fixed md:relative z-50 md:z-auto
+        w-64 h-full border-r bg-card flex flex-col
+        transition-transform duration-200 ease-in-out
+      `}>
       <div className="p-4 border-b">
         <div className="flex items-center gap-2 mb-4">
           <Bot className="w-6 h-6 text-primary" />
           <h1 className="font-bold text-lg">AgentHub</h1>
+          <button
+            className="md:hidden ml-auto p-1 rounded hover:bg-muted"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
         <button
           onClick={() => createSession.mutate({ model: selectedModel })}
@@ -350,7 +371,8 @@ export function Sidebar() {
           PostgreSQL + pgvector
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
