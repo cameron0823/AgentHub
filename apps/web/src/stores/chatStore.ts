@@ -17,6 +17,13 @@ export interface ToolResult {
   result: unknown;
 }
 
+export interface RagSource {
+  id: string;
+  documentId: string;
+  content: string;
+  similarity: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system" | "tool";
@@ -29,6 +36,7 @@ export interface ChatMessage {
   model?: string;
   isStreaming?: boolean;
   createdAt?: Date;
+  ragSources?: RagSource[];
 }
 
 export interface ChatSession {

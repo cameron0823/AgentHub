@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
   const systemPrompt = appendMemoryBlockToSystemPrompt(sessionAgent?.systemPrompt, memoryBlock);
 
   // RAG: Knowledge Base retrieval (appends to resolvedPrompt, providing grounded context)
+  let ragSourcesForStream: Array<{ id: string; documentId: string; content: string; similarity: number }> = [];
   let resolvedPrompt = systemPrompt || "";
   if (sessionAgent?.knowledgeBaseId) {
     const kb = await db.select().from(knowledgeBases)
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest) {
               .limit(5);
 
             if (ragResults.length > 0) {
+              ragSourcesForStream = ragResults.map((r) => ({ id: r.id, documentId: r.documentId, content: r.content.slice(0, 200), similarity: r.similarity }));
               const ragContext = [
                 "## Relevant Knowledge Base Context",
                 ...ragResults.map((r, i) => `[${i + 1}] ${r.content}`),
@@ -192,6 +194,10 @@ export async function POST(req: NextRequest) {
       let toolCalls: any[] = [];
 
       try {
+        if (ragSourcesForStream.length > 0) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "rag_sources", sources: ragSourcesForStream })}\n\n`));
+        }
+
         const agentStream = agent.run({
           sessionId,
           messages: chatMessages,
@@ -225,6 +231,7 @@ export async function POST(req: NextRequest) {
             reasoning: fullReasoning || null,
             model: effectiveModel,
             toolCalls: toolCalls.length > 0 ? JSON.stringify(toolCalls) : null,
+            metadata: ragSourcesForStream.length > 0 ? { ragSources: ragSourcesForStream } : null,
           }).returning();
 
           await db.update(chatSessions)

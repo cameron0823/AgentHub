@@ -1,6 +1,6 @@
 "use client";
 
-import { ChatMessage as ChatMessageType } from "@/stores/chatStore";
+import { ChatMessage as ChatMessageType, RagSource } from "@/stores/chatStore";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -216,6 +216,22 @@ export function ChatMessageItem({ message, onBranch, onEdit, onRegenerate, onFee
               </ReactMarkdown>
             )}
           </div>
+        )}
+
+        {isAssistant && message.ragSources && message.ragSources.length > 0 && (
+          <details className="mt-3 text-sm">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
+              Sources ({message.ragSources.length})
+            </summary>
+            <div className="mt-2 space-y-2">
+              {message.ragSources.map((s: RagSource) => (
+                <div key={s.id} className="p-2 rounded border bg-muted/30">
+                  <div className="text-xs text-muted-foreground">{(s.similarity * 100).toFixed(1)}% match</div>
+                  <p className="text-xs mt-1 line-clamp-2">{s.content}</p>
+                </div>
+              ))}
+            </div>
+          </details>
         )}
 
         {isAssistant && message.toolCalls?.map((toolCall) => (

@@ -111,6 +111,7 @@ export const messages = pgTable("messages", {
   model: text("model"),
   toolCalls: jsonb("tool_calls"),
   artifacts: jsonb("artifacts"),
+  metadata: jsonb("metadata"),
   tokensUsed: integer("tokens_used"),
   latencyMs: integer("latency_ms"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),

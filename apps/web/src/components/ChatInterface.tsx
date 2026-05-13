@@ -294,6 +294,12 @@ export function ChatInterface() {
                 });
               }
 
+              if (chunk.type === "rag_sources" && chunk.sources) {
+                updateMessage(activeSessionId, assistantMsgId, {
+                  ragSources: chunk.sources,
+                });
+              }
+
               if (chunk.type === "done") {
                 updateMessage(activeSessionId, assistantMsgId, {
                   isStreaming: false,
