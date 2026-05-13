@@ -230,3 +230,70 @@ test("Layout references PWA manifest and theme color", async () => {
   assert.match(src, /theme-color/, "layout must include theme-color meta tag");
   assert.match(src, /ServiceWorkerRegistrar/, "layout must include ServiceWorkerRegistrar component");
 });
+
+// ── Trust Engine Migration (S10.8) ────────────────────────────────────────────
+
+test("Trust engine migration creates all three tables", async () => {
+  const sql = await readText("apps/web/drizzle/0005_trust_engine.sql");
+
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS agent_credentials/, "must create agent_credentials");
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS trust_policies/, "must create trust_policies");
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS credential_audit_log/, "must create credential_audit_log");
+});
+
+test("Trust engine migration includes encrypted credential columns", async () => {
+  const sql = await readText("apps/web/drizzle/0005_trust_engine.sql");
+
+  assert.match(sql, /encrypted_value TEXT NOT NULL/, "must have encrypted_value column");
+  assert.match(sql, /iv TEXT NOT NULL/, "must have iv column for AES-GCM");
+  assert.match(sql, /auth_tag TEXT NOT NULL/, "must have auth_tag column for GCM tag");
+  assert.match(sql, /key_hint VARCHAR\(8\)/, "must have key_hint column for display");
+});
+
+test("Trust engine migration scopes tables to user and cascades deletes", async () => {
+  const sql = await readText("apps/web/drizzle/0005_trust_engine.sql");
+
+  // agent_credentials and trust_policies both reference users with CASCADE
+  const cascadeCount = (sql.match(/ON DELETE CASCADE/g) ?? []).length;
+  assert.ok(cascadeCount >= 2, "at least 2 ON DELETE CASCADE references (users FK on each table)");
+
+  // credential_audit_log uses SET NULL to preserve historical records
+  assert.match(sql, /ON DELETE SET NULL/, "audit log must use SET NULL to preserve history");
+});
+
+test("Trust engine migration has audit log outcome CHECK constraint", async () => {
+  const sql = await readText("apps/web/drizzle/0005_trust_engine.sql");
+
+  assert.match(
+    sql,
+    /CHECK \(outcome IN \('success', 'denied', 'error'\)\)/,
+    "outcome must have CHECK constraint"
+  );
+});
+
+test("Trust engine router enforces authedProcedure on all operations", async () => {
+  const src = await readText("apps/web/src/server/routers/trust.ts");
+
+  for (const proc of ["listCredentials", "createCredential", "deleteCredential", "getPolicy", "upsertPolicy", "deletePolicy", "auditLog"]) {
+    assert.match(src, new RegExp(`${proc}: authedProcedure`), `${proc} must use authedProcedure`);
+  }
+});
+
+test("Trust engine router never returns encryptedValue to client", async () => {
+  const src = await readText("apps/web/src/server/routers/trust.ts");
+
+  // listCredentials select must not include encrypted_value / encryptedValue
+  assert.doesNotMatch(src, /encryptedValue: agentCredentials\.encryptedValue/, "must not select encryptedValue");
+  assert.doesNotMatch(src, /encrypted_value/, "must not expose encrypted_value column");
+  // But the hint should be returned
+  assert.match(src, /keyHint: agentCredentials\.keyHint/, "must return keyHint for display");
+});
+
+test("Trust engine uses AES-256-GCM encryption with separate iv and authTag", async () => {
+  const src = await readText("apps/web/src/server/trust-engine.ts");
+
+  assert.match(src, /aes-256-gcm/, "must use AES-256-GCM algorithm");
+  assert.match(src, /randomBytes/, "must generate random IV per encryption");
+  assert.match(src, /getAuthTag/, "must capture GCM auth tag for integrity");
+  assert.match(src, /setAuthTag/, "must verify auth tag on decryption");
+});
