@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
+import { Download } from "lucide-react";
 import { useChatStore, ChatMessage } from "@/stores/chatStore";
 import { trpc } from "@/lib/trpc";
 import { ChatInput } from "./ChatInput";
@@ -8,6 +9,20 @@ import { ModelSelector } from "./ModelSelector";
 import { VirtualizedMessageList } from "./VirtualizedMessageList";
 import { generateSessionTitle, shouldAutoTitle } from "@/lib/title";
 import { BranchNavigator } from "./BranchNavigator";
+
+function exportAsMarkdown(messages: ChatMessage[], title: string) {
+  const body = messages
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => `## ${m.role === "user" ? "You" : "Assistant"}\n\n${m.content}`)
+    .join("\n\n---\n\n");
+  const blob = new Blob([`# ${title}\n\n${body}`], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${title.replace(/\s+/g, "-")}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function parseJsonArray(value: unknown) {
   if (Array.isArray(value)) return value;
@@ -421,6 +436,17 @@ export function ChatInterface() {
           ) : (
             <ModelSelector sessionId={activeSession.id} />
           )}
+          <div className="ml-auto">
+            {activeSession.messages.length > 0 && (
+              <button
+                onClick={() => exportAsMarkdown(activeSession.messages, activeSession.title || "conversation")}
+                title="Export as Markdown"
+                className="p-1.5 rounded hover:bg-muted text-muted-foreground"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
         <ChatInput onSend={handleSend} onStop={handleStop} isGenerating={isGenerating} />
       </div>

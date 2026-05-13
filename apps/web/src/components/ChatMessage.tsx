@@ -9,6 +9,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Bot, User, Loader2, Wrench, GitBranch, Pencil, RotateCcw, ThumbsUp, ThumbsDown, Copy, Check } from "lucide-react";
 import { ToolCallCard } from "./ToolCallCard";
+import { MermaidBlock } from "./MermaidBlock";
 import { useState, useCallback } from "react";
 
 function CopyButton({ content }: { content: string }) {
@@ -188,6 +189,9 @@ export function ChatMessageItem({ message, onBranch, onEdit, onRegenerate, onFee
                   code({ node, inline, className, children, ...props }: any) {
                     const match = /language-(\w+)/.exec(className || "");
                     const codeText = String(children).replace(/\n$/, "");
+                    if (!inline && match?.[1] === "mermaid") {
+                      return <MermaidBlock code={codeText} />;
+                    }
                     return !inline && match ? (
                       <div className="relative group/code">
                         <CopyButton content={codeText} />
