@@ -261,6 +261,26 @@ export const automationRuns = pgTable("automation_runs", {
   completedAt: timestamp("completed_at", { mode: "date" }),
 });
 
+export const agentTasks = pgTable("agent_tasks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id").references(() => agents.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  prompt: text("prompt").notNull(),
+  status: text("status", { enum: ["pending", "queued", "running", "success", "error", "cancelled"] }).notNull().default("pending"),
+  output: text("output"),
+  error: text("error"),
+  dependsOn: text("depends_on"), // JSON array of task IDs
+  retryCount: integer("retry_count").notNull().default(0),
+  maxRetries: integer("max_retries").notNull().default(2),
+  priority: integer("priority").notNull().default(0), // -2..2; 2=high
+  startedAt: timestamp("started_at", { mode: "date" }),
+  completedAt: timestamp("completed_at", { mode: "date" }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+export type AgentTask = typeof agentTasks.$inferSelect;
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   agents: many(agents),

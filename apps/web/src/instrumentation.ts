@@ -6,5 +6,11 @@ export async function register() {
     } catch (err) {
       console.warn("[instrumentation] automation worker failed to start:", err);
     }
+    try {
+      const { startTaskWorker } = await import("./server/workers/taskWorker");
+      startTaskWorker();
+    } catch (err) {
+      console.warn("[instrumentation] task worker failed to start:", err);
+    }
   }
 }

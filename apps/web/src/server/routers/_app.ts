@@ -9,6 +9,7 @@ import { mcpRouter } from "./mcp";
 import { promptLibraryRouter } from "./promptLibrary";
 import { analyticsRouter } from "./analytics";
 import { automationsRouter } from "./automations";
+import { tasksRouter } from "./tasks";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({ status: "ok" })),
@@ -26,6 +27,7 @@ export const appRouter = router({
   promptLibrary: promptLibraryRouter,
   analytics: analyticsRouter,
   automations: automationsRouter,
+  tasks: tasksRouter,
 });
 
 export type AppRouter = typeof appRouter;

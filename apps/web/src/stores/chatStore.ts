@@ -100,7 +100,28 @@ export interface MemoryEntry {
   updatedAt?: Date | null;
 }
 
-export type MainView = "chat" | "agent-builder" | "group-builder" | "memory-editor" | "marketplace";
+export type MainView = "chat" | "agent-builder" | "group-builder" | "memory-editor" | "marketplace" | "tasks";
+
+export type TaskStatus = "pending" | "queued" | "running" | "success" | "error" | "cancelled";
+
+export interface AgentTask {
+  id: string;
+  userId: string;
+  agentId: string | null;
+  title: string;
+  prompt: string;
+  status: TaskStatus;
+  output: string | null;
+  error: string | null;
+  dependsOn: string | null;
+  retryCount: number;
+  maxRetries: number;
+  priority: number;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface ModelMetadata {
   id: string;
