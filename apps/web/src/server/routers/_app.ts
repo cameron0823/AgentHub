@@ -7,6 +7,7 @@ import { providersRouter, providerCredentialsRouter } from "./providers";
 import { marketplaceRouter } from "./marketplace";
 import { mcpRouter } from "./mcp";
 import { promptLibraryRouter } from "./promptLibrary";
+import { analyticsRouter } from "./analytics";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({ status: "ok" })),
@@ -22,6 +23,7 @@ export const appRouter = router({
   providerCredentials: providerCredentialsRouter,
   mcpServers: mcpRouter,
   promptLibrary: promptLibraryRouter,
+  analytics: analyticsRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -206,6 +206,7 @@ export async function POST(req: NextRequest) {
           signal: req.signal,
         });
 
+        const streamStartMs = Date.now();
         for await (const chunk of agentStream) {
           const data = `data: ${JSON.stringify(chunk)}\n\n`;
           controller.enqueue(encoder.encode(data));
@@ -220,6 +221,8 @@ export async function POST(req: NextRequest) {
             toolCalls.push(chunk.toolCall);
           }
         }
+        const latencyMs = Date.now() - streamStartMs;
+        const approxTokens = Math.ceil(fullContent.length / 4);
 
         if (!fullContent && !fullReasoning && toolCalls.length === 0) {
           // nothing to persist
@@ -232,6 +235,8 @@ export async function POST(req: NextRequest) {
             model: effectiveModel,
             toolCalls: toolCalls.length > 0 ? JSON.stringify(toolCalls) : null,
             metadata: ragSourcesForStream.length > 0 ? { ragSources: ragSourcesForStream } : null,
+            tokensUsed: approxTokens,
+            latencyMs,
           }).returning();
 
           await db.update(chatSessions)
