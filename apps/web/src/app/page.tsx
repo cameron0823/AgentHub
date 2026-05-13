@@ -9,6 +9,7 @@ import { AgentGroupBuilder } from "@/components/AgentGroupBuilder";
 import { MemoryEditor } from "@/components/MemoryEditor";
 import { AgentMarketplace } from "@/components/AgentMarketplace";
 import { TaskManager } from "@/components/TaskManager";
+import { AdminPanel } from "@/components/AdminPanel";
 import { SearchModal } from "@/components/SearchModal";
 import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
 import { useChatStore } from "@/stores/chatStore";
@@ -70,6 +71,7 @@ export default function Home() {
          mainView === "group-builder" ? <AgentGroupBuilder /> :
          mainView === "agent-builder" ? <AgentBuilder /> :
          mainView === "tasks" ? <TaskManager /> :
+         mainView === "admin" ? <AdminPanel /> :
          <ChatInterface />}
       </main>
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />

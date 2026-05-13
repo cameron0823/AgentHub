@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { DEFAULT_MODEL_ID, useChatStore, type Agent, type AgentGroup, type ChatSession } from "@/stores/chatStore";
 import { trpc } from "@/lib/trpc";
-import { Plus, MessageSquare, Trash2, Bot, Users, Database, Store, FileText, Search, Pin, Settings, BarChart2, X, GitBranch, Zap, ListTodo } from "lucide-react";
+import { Plus, MessageSquare, Trash2, Bot, Users, Database, Store, FileText, Search, Pin, Settings, BarChart2, X, GitBranch, Zap, ListTodo, ShieldCheck } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { AgentList } from "./AgentList";
 import { AgentGroupList } from "./AgentGroupList";
@@ -100,6 +101,8 @@ function toAgent(agent: {
 export function Sidebar() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
+  const { data: authSession } = useSession();
+  const isAdmin = (authSession?.user as { role?: string } | undefined)?.role === "admin";
 
   const {
     sessions,
@@ -373,6 +376,16 @@ export function Sidebar() {
           <ListTodo className="w-4 h-4" />
           Tasks
         </a>
+        {isAdmin && (
+          <a
+            href="#"
+            onClick={(e) => { e.preventDefault(); setMainView("admin"); }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors mb-1"
+          >
+            <ShieldCheck className="w-4 h-4" />
+            Admin
+          </a>
+        )}
         <a
           href="/settings"
           className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors mb-1"

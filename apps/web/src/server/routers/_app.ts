@@ -10,6 +10,7 @@ import { promptLibraryRouter } from "./promptLibrary";
 import { analyticsRouter } from "./analytics";
 import { automationsRouter } from "./automations";
 import { tasksRouter } from "./tasks";
+import { adminRouter } from "./admin";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({ status: "ok" })),
@@ -28,6 +29,7 @@ export const appRouter = router({
   analytics: analyticsRouter,
   automations: automationsRouter,
   tasks: tasksRouter,
+  admin: adminRouter,
 });
 
 export type AppRouter = typeof appRouter;

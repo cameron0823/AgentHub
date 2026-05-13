@@ -102,7 +102,7 @@ export interface MemoryEntry {
   updatedAt?: Date | null;
 }
 
-export type MainView = "chat" | "agent-builder" | "group-builder" | "memory-editor" | "marketplace" | "tasks";
+export type MainView = "chat" | "agent-builder" | "group-builder" | "memory-editor" | "marketplace" | "tasks" | "admin";
 
 export type TaskStatus = "pending" | "queued" | "running" | "success" | "error" | "cancelled";
 
