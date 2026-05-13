@@ -37,6 +37,8 @@ export interface ChatMessage {
   isStreaming?: boolean;
   createdAt?: Date;
   ragSources?: RagSource[];
+  tokensUsed?: number | null;
+  latencyMs?: number | null;
 }
 
 export interface ChatSession {

@@ -243,6 +243,13 @@ export function ChatMessageItem({ message, onBranch, onEdit, onRegenerate, onFee
         ))}
 
         {isTool && message.toolResult && <ToolCallCard toolResult={message.toolResult} />}
+
+        {isAssistant && !message.isStreaming && (message.tokensUsed || message.latencyMs) && (
+          <div className="mt-2 flex gap-2 text-[10px] text-muted-foreground/60 select-none">
+            {message.tokensUsed ? <span>~{message.tokensUsed} tok</span> : null}
+            {message.latencyMs ? <span>{(message.latencyMs / 1000).toFixed(1)}s</span> : null}
+          </div>
+        )}
       </div>
     </div>
   );

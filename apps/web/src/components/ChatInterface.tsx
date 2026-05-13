@@ -138,6 +138,8 @@ export function ChatInterface() {
           } : undefined,
           model: message.model || undefined,
           createdAt: message.createdAt || undefined,
+          tokensUsed: message.tokensUsed ?? null,
+          latencyMs: message.latencyMs ?? null,
         };
       })
     );
@@ -304,6 +306,8 @@ export function ChatInterface() {
               if (chunk.type === "done") {
                 updateMessage(activeSessionId, assistantMsgId, {
                   isStreaming: false,
+                  tokensUsed: (chunk as { tokensUsed?: number }).tokensUsed ?? null,
+                  latencyMs: (chunk as { latencyMs?: number }).latencyMs ?? null,
                 });
               }
 

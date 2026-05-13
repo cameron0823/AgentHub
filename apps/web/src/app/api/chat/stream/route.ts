@@ -355,7 +355,7 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done" })}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done", tokensUsed: approxTokens, latencyMs })}\n\n`));
       } catch (err) {
         const errorMsg = (err as Error).message;
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", error: errorMsg })}\n\n`));
