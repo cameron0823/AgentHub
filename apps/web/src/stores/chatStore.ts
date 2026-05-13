@@ -26,6 +26,7 @@ export interface RagSource {
 
 export interface ChatMessage {
   id: string;
+  sessionId?: string;
   role: "user" | "assistant" | "system" | "tool";
   content: string;
   reasoning?: string;
@@ -39,6 +40,7 @@ export interface ChatMessage {
   ragSources?: RagSource[];
   tokensUsed?: number | null;
   latencyMs?: number | null;
+  feedback?: "up" | "down" | null;
 }
 
 export interface ChatSession {

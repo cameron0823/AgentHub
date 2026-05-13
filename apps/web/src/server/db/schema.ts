@@ -114,6 +114,7 @@ export const messages = pgTable("messages", {
   metadata: jsonb("metadata"),
   tokensUsed: integer("tokens_used"),
   latencyMs: integer("latency_ms"),
+  feedback: text("feedback", { enum: ["up", "down"] }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 

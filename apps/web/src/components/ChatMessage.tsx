@@ -12,6 +12,8 @@ import { ToolCallCard } from "./ToolCallCard";
 import { MermaidBlock } from "./MermaidBlock";
 import { TTSButton } from "./TTSButton";
 import { useState, useCallback } from "react";
+import { trpc } from "@/lib/trpc";
+import { useChatStore } from "@/stores/chatStore";
 
 function insertCitationLinks(content: string, sourceCount: number): string {
   if (sourceCount === 0) return content;
@@ -56,6 +58,18 @@ export function ChatMessageItem({ message, onBranch, onEdit, onRegenerate, onFee
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
   const [showActions, setShowActions] = useState(false);
+
+  const { updateMessage } = useChatStore();
+  const setFeedback = trpc.messages.setFeedback.useMutation({
+    onSuccess: (_, variables) => {
+      updateMessage(message.sessionId!, message.id, { feedback: variables.feedback ?? undefined });
+    },
+  });
+
+  const handleFeedback = (value: "up" | "down") => {
+    const next = message.feedback === value ? null : value;
+    setFeedback.mutate({ id: message.id, feedback: next });
+  };
 
   const sourceCount = message.ragSources?.length ?? 0;
   const displayContent = isAssistant ? insertCitationLinks(message.content, sourceCount) : message.content;
@@ -130,21 +144,21 @@ export function ChatMessageItem({ message, onBranch, onEdit, onRegenerate, onFee
                   <GitBranch className="w-3 h-3 text-muted-foreground" />
                 </button>
               )}
-              {isAssistant && onFeedback && (
+              {isAssistant && (
                 <>
                   <button
-                    onClick={() => onFeedback(message.id, "up")}
-                    className="p-1 hover:bg-muted rounded"
+                    onClick={() => handleFeedback("up")}
+                    className={`p-1 hover:bg-muted rounded ${message.feedback === "up" ? "text-green-500" : "text-muted-foreground"}`}
                     title="Helpful"
                   >
-                    <ThumbsUp className="w-3 h-3 text-muted-foreground" />
+                    <ThumbsUp className="w-3 h-3" />
                   </button>
                   <button
-                    onClick={() => onFeedback(message.id, "down")}
-                    className="p-1 hover:bg-muted rounded"
+                    onClick={() => handleFeedback("down")}
+                    className={`p-1 hover:bg-muted rounded ${message.feedback === "down" ? "text-red-500" : "text-muted-foreground"}`}
                     title="Not helpful"
                   >
-                    <ThumbsDown className="w-3 h-3 text-muted-foreground" />
+                    <ThumbsDown className="w-3 h-3" />
                   </button>
                 </>
               )}

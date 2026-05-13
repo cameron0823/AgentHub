@@ -256,4 +256,16 @@ export const messagesRouter = router({
         .orderBy(desc(messages.createdAt))
         .limit(30);
     }),
+
+  setFeedback: authedProcedure
+    .input(z.object({ id: z.string().uuid(), feedback: z.enum(["up", "down"]).nullable() }))
+    .mutation(async ({ ctx, input }) => {
+      const [msg] = await db.select().from(messages).where(eq(messages.id, input.id)).limit(1);
+      if (!msg) throw new Error("Message not found");
+      const [session] = await db.select().from(chatSessions)
+        .where(and(eq(chatSessions.id, msg.sessionId), eq(chatSessions.userId, ctx.user.id))).limit(1);
+      if (!session) throw new Error("Session not found");
+      await db.update(messages).set({ feedback: input.feedback }).where(eq(messages.id, input.id));
+      return { success: true };
+    }),
 });
