@@ -104,7 +104,7 @@ Sprints 0–5 per `IMPLEMENTATION_ROADMAP.md` (committed, verified):
 ### Sprint 10: MCP & Extensibility
 
 - [x] A2A protocol gateway (HTTP endpoint for cross-agent task delegation) [S10.5]
-- [x] Trust engine (credential vault + policy engine) [S10.8] — AES-256-GCM encrypted `agent_credentials` table, `trust_policies` (allowed tools, rate limits), `credential_audit_log` (tamper-evident), `resolveCredential()` utility, tRPC `trust` router with authedProcedure on all ops
+- [x] Trust engine (credential vault + policy engine) [S10.8] — AES-256-GCM encrypted `agent_credentials` table, `trust_policies` (allowed tools, rate limits), `credential_audit_log` (tamper-evident), `resolveCredential()` utility, tRPC `trust` router with authedProcedure on all ops; `TrustSettings.tsx` settings panel with credential CRUD + audit log viewer
 
 ### Sprint 11: API & Integration Layer
 
