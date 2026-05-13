@@ -7,9 +7,28 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Bot, User, Loader2, Wrench, GitBranch, Pencil, RotateCcw, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Bot, User, Loader2, Wrench, GitBranch, Pencil, RotateCcw, ThumbsUp, ThumbsDown, Copy, Check } from "lucide-react";
 import { ToolCallCard } from "./ToolCallCard";
-import { useState } from "react";
+import { useState, useCallback } from "react";
+
+function CopyButton({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = useCallback(() => {
+    void navigator.clipboard.writeText(content).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [content]);
+  return (
+    <button
+      onClick={copy}
+      className="absolute top-2 right-2 p-1.5 rounded bg-muted/80 hover:bg-muted text-muted-foreground opacity-0 group-hover/code:opacity-100 transition-opacity"
+      title="Copy code"
+    >
+      {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -168,17 +187,21 @@ export function ChatMessageItem({ message, onBranch, onEdit, onRegenerate, onFee
                 components={{
                   code({ node, inline, className, children, ...props }: any) {
                     const match = /language-(\w+)/.exec(className || "");
+                    const codeText = String(children).replace(/\n$/, "");
                     return !inline && match ? (
-                      <SyntaxHighlighter
-                        style={vscDarkPlus}
-                        language={match[1]}
-                        PreTag="div"
-                        {...props}
-                      >
-                        {String(children).replace(/\n$/, "")}
-                      </SyntaxHighlighter>
+                      <div className="relative group/code">
+                        <CopyButton content={codeText} />
+                        <SyntaxHighlighter
+                          style={vscDarkPlus}
+                          language={match[1]}
+                          PreTag="div"
+                          {...props}
+                        >
+                          {codeText}
+                        </SyntaxHighlighter>
+                      </div>
                     ) : (
-                      <code className={className} {...props}>
+                      <code className={`${className ?? ""} px-1 py-0.5 rounded bg-muted font-mono text-sm`} {...props}>
                         {children}
                       </code>
                     );
