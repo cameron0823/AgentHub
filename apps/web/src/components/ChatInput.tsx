@@ -252,6 +252,17 @@ export function ChatInput({ onSend, onStop, isGenerating }: ChatInputProps) {
             {isGenerating ? <Square className="w-4 h-4" /> : <Send className="w-4 h-4" />}
           </button>
         </div>
+        {input.length > 0 && (() => {
+          const tokens = Math.ceil(input.length / 4);
+          const color = tokens < 2000 ? "text-green-600 dark:text-green-400"
+            : tokens < 8000 ? "text-yellow-600 dark:text-yellow-400"
+            : "text-red-600 dark:text-red-400";
+          return (
+            <div className={`mt-1 text-xs text-right ${color}`}>
+              ~{tokens.toLocaleString()} tokens
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
