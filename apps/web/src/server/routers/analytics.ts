@@ -107,4 +107,36 @@ export const analyticsRouter = router({
       .where(eq(chatSessions.userId, ctx.user.id))
       .groupBy(messages.role);
   }),
+
+  tokensPerDay: authedProcedure
+    .input(z.object({ days: z.number().default(30) }))
+    .query(async ({ ctx, input }) => {
+      const since = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
+      return db
+        .select({
+          day: sql<string>`date_trunc('day', ${messages.createdAt})::date::text`,
+          tokens: sql<number>`coalesce(sum(${messages.tokensUsed}), 0)::int`,
+        })
+        .from(messages)
+        .innerJoin(chatSessions, eq(messages.sessionId, chatSessions.id))
+        .where(and(eq(chatSessions.userId, ctx.user.id), gte(messages.createdAt, since)))
+        .groupBy(sql`date_trunc('day', ${messages.createdAt})`)
+        .orderBy(sql`date_trunc('day', ${messages.createdAt})`);
+    }),
+
+  latencyPerDay: authedProcedure
+    .input(z.object({ days: z.number().default(30) }))
+    .query(async ({ ctx, input }) => {
+      const since = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
+      return db
+        .select({
+          day: sql<string>`date_trunc('day', ${messages.createdAt})::date::text`,
+          avgLatency: sql<number>`coalesce(avg(${messages.latencyMs}) filter (where ${messages.latencyMs} is not null), 0)::int`,
+        })
+        .from(messages)
+        .innerJoin(chatSessions, eq(messages.sessionId, chatSessions.id))
+        .where(and(eq(chatSessions.userId, ctx.user.id), gte(messages.createdAt, since)))
+        .groupBy(sql`date_trunc('day', ${messages.createdAt})`)
+        .orderBy(sql`date_trunc('day', ${messages.createdAt})`);
+    }),
 });
