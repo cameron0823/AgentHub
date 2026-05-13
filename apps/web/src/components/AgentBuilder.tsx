@@ -9,6 +9,7 @@ const TOOL_OPTIONS = [
   { id: "calculator", label: "Calculator", description: "Evaluate math expressions." },
   { id: "datetime", label: "Date and time", description: "Read current date/time context." },
   { id: "read_file", label: "Read file", description: "Read files only when explicitly enabled and allowed." },
+  { id: "web_search", label: "Web Search", description: "Search the internet via SearXNG for current information." },
 ];
 
 function emptyForm() {
