@@ -9,6 +9,8 @@ import { ModelSelector } from "./ModelSelector";
 import { VirtualizedMessageList } from "./VirtualizedMessageList";
 import { generateSessionTitle, shouldAutoTitle } from "@/lib/title";
 import { BranchNavigator } from "./BranchNavigator";
+import { ContextWindowBar } from "./ContextWindowBar";
+import { getContextLimit, estimateMessagesTokens, truncateToContextLimit } from "@agenthub/ai-providers";
 
 function exportAsMarkdown(messages: ChatMessage[], title: string) {
   const body = messages
@@ -115,6 +117,10 @@ export function ChatInterface() {
   const activeAgent = activeSession?.agentId ? agents.find((agent) => agent.id === activeSession.agentId) : undefined;
   const activeGroup = activeSession?.groupId ? agentGroups.find((group) => group.id === activeSession.groupId) : undefined;
 
+  const currentModel = activeAgent?.model || selectedModel;
+  const contextLimit = getContextLimit(currentModel);
+  const estimatedSessionTokens = estimateMessagesTokens(activeSession?.messages ?? []);
+
   useEffect(() => {
     if (!activeSessionId || !messageList.data) return;
     setSessionMessages(
@@ -218,6 +224,8 @@ export function ChatInterface() {
 
       abortRef.current = new AbortController();
 
+      const truncatedMessages = truncateToContextLimit(sessionMessages, contextLimit);
+
       try {
         const res = await fetch(activeGroup ? "/api/groups/stream" : "/api/chat/stream", {
           method: "POST",
@@ -229,7 +237,7 @@ export function ChatInterface() {
           } : {
             sessionId: activeSessionId,
             model: activeAgent?.model || selectedModel,
-            messages: sessionMessages,
+            messages: truncatedMessages,
             tools: activeAgent?.tools,
           }),
           signal: abortRef.current.signal,
@@ -529,6 +537,7 @@ export function ChatInterface() {
             )}
           </div>
         </div>
+        <ContextWindowBar usedTokens={estimatedSessionTokens} limitTokens={contextLimit} />
         <ChatInput onSend={handleSend} onStop={handleStop} isGenerating={isGenerating} />
       </div>
     </div>
