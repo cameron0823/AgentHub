@@ -31,6 +31,7 @@
     "nanoid": "^5.1.11",
     "next": "15.5.18",
     "next-auth": "^4.24.14",
+    "next-intl": "^4.12.0",
     "node-cron": "^4.2.1",
     "postgres": "^3.4.9",
     "react": "18.3.1",

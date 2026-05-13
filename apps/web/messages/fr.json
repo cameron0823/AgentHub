@@ -1,0 +1,74 @@
+{
+  "nav": {
+    "newChat": "Nouvelle conversation",
+    "search": "Rechercher",
+    "agents": "Agents",
+    "kb": "Bases de connaissances",
+    "automations": "Automatisations",
+    "analytics": "Analytiques",
+    "settings": "Paramètres",
+    "admin": "Administration"
+  },
+  "chat": {
+    "placeholder": "Écrivez un message…",
+    "send": "Envoyer",
+    "thinking": "Réflexion en cours…",
+    "copyMessage": "Copier le message",
+    "editMessage": "Modifier le message",
+    "regenerate": "Régénérer",
+    "forkHere": "Bifurquer depuis ici",
+    "pinConversation": "Épingler la conversation",
+    "exportMarkdown": "Exporter en Markdown",
+    "noMessages": "Commencer la conversation",
+    "startNewChat": "Nouvelle conversation"
+  },
+  "agents": {
+    "title": "Agents",
+    "create": "Créer un agent",
+    "edit": "Modifier l'agent",
+    "delete": "Supprimer l'agent",
+    "name": "Nom",
+    "description": "Description",
+    "systemPrompt": "Prompt système",
+    "model": "Modèle",
+    "temperature": "Température",
+    "maxTokens": "Tokens maximum",
+    "tools": "Outils",
+    "memoryEnabled": "Mémoire",
+    "save": "Sauvegarder",
+    "cancel": "Annuler"
+  },
+  "kb": {
+    "title": "Bases de connaissances",
+    "create": "Créer une base de connaissances",
+    "upload": "Téléverser un document",
+    "query": "Requête",
+    "noResults": "Aucun résultat"
+  },
+  "auth": {
+    "signIn": "Se connecter",
+    "signOut": "Se déconnecter",
+    "profile": "Profil"
+  },
+  "common": {
+    "loading": "Chargement…",
+    "error": "Une erreur s'est produite",
+    "retry": "Réessayer",
+    "close": "Fermer",
+    "confirm": "Confirmer",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "save": "Sauvegarder",
+    "cancel": "Annuler",
+    "search": "Rechercher…",
+    "noData": "Rien ici pour l'instant"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "language": "Langue",
+    "theme": "Thème",
+    "dark": "Sombre",
+    "light": "Clair",
+    "system": "Système"
+  }
+}

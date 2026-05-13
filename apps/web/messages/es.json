@@ -1,0 +1,74 @@
+{
+  "nav": {
+    "newChat": "Nuevo chat",
+    "search": "Buscar",
+    "agents": "Agentes",
+    "kb": "Bases de conocimiento",
+    "automations": "Automatizaciones",
+    "analytics": "Analíticas",
+    "settings": "Configuración",
+    "admin": "Administración"
+  },
+  "chat": {
+    "placeholder": "Escribe un mensaje…",
+    "send": "Enviar",
+    "thinking": "Pensando…",
+    "copyMessage": "Copiar mensaje",
+    "editMessage": "Editar mensaje",
+    "regenerate": "Regenerar",
+    "forkHere": "Bifurcar desde aquí",
+    "pinConversation": "Fijar conversación",
+    "exportMarkdown": "Exportar como Markdown",
+    "noMessages": "Inicia la conversación",
+    "startNewChat": "Iniciar nuevo chat"
+  },
+  "agents": {
+    "title": "Agentes",
+    "create": "Crear agente",
+    "edit": "Editar agente",
+    "delete": "Eliminar agente",
+    "name": "Nombre",
+    "description": "Descripción",
+    "systemPrompt": "Prompt de sistema",
+    "model": "Modelo",
+    "temperature": "Temperatura",
+    "maxTokens": "Tokens máximos",
+    "tools": "Herramientas",
+    "memoryEnabled": "Memoria",
+    "save": "Guardar",
+    "cancel": "Cancelar"
+  },
+  "kb": {
+    "title": "Bases de conocimiento",
+    "create": "Crear base de conocimiento",
+    "upload": "Subir documento",
+    "query": "Consultar",
+    "noResults": "Sin resultados"
+  },
+  "auth": {
+    "signIn": "Iniciar sesión",
+    "signOut": "Cerrar sesión",
+    "profile": "Perfil"
+  },
+  "common": {
+    "loading": "Cargando…",
+    "error": "Algo salió mal",
+    "retry": "Reintentar",
+    "close": "Cerrar",
+    "confirm": "Confirmar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "search": "Buscar…",
+    "noData": "Todavía no hay nada aquí"
+  },
+  "settings": {
+    "title": "Configuración",
+    "language": "Idioma",
+    "theme": "Tema",
+    "dark": "Oscuro",
+    "light": "Claro",
+    "system": "Sistema"
+  }
+}

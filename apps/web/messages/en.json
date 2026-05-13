@@ -1,0 +1,74 @@
+{
+  "nav": {
+    "newChat": "New Chat",
+    "search": "Search",
+    "agents": "Agents",
+    "kb": "Knowledge Bases",
+    "automations": "Automations",
+    "analytics": "Analytics",
+    "settings": "Settings",
+    "admin": "Admin"
+  },
+  "chat": {
+    "placeholder": "Message your agent…",
+    "send": "Send",
+    "thinking": "Thinking…",
+    "copyMessage": "Copy message",
+    "editMessage": "Edit message",
+    "regenerate": "Regenerate",
+    "forkHere": "Fork from here",
+    "pinConversation": "Pin conversation",
+    "exportMarkdown": "Export as Markdown",
+    "noMessages": "Start the conversation",
+    "startNewChat": "Start a new chat"
+  },
+  "agents": {
+    "title": "Agents",
+    "create": "Create Agent",
+    "edit": "Edit Agent",
+    "delete": "Delete Agent",
+    "name": "Name",
+    "description": "Description",
+    "systemPrompt": "System Prompt",
+    "model": "Model",
+    "temperature": "Temperature",
+    "maxTokens": "Max Tokens",
+    "tools": "Tools",
+    "memoryEnabled": "Memory",
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "kb": {
+    "title": "Knowledge Bases",
+    "create": "Create Knowledge Base",
+    "upload": "Upload Document",
+    "query": "Query",
+    "noResults": "No results found"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "profile": "Profile"
+  },
+  "common": {
+    "loading": "Loading…",
+    "error": "Something went wrong",
+    "retry": "Retry",
+    "close": "Close",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "search": "Search…",
+    "noData": "Nothing here yet"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "theme": "Theme",
+    "dark": "Dark",
+    "light": "Light",
+    "system": "System"
+  }
+}
