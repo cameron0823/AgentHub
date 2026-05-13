@@ -97,7 +97,7 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
 
         <div className="max-h-[60vh] overflow-y-auto">
           {debouncedQuery && results.length === 0 && (
-            <div className="py-8 text-center text-sm text-muted-foreground">No results for "{debouncedQuery}"</div>
+            <div className="py-8 text-center text-sm text-muted-foreground">No results for &ldquo;{debouncedQuery}&rdquo;</div>
           )}
 
           {Object.entries(grouped).map(([sessionId, msgs]) => (

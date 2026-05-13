@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/server/db";
 import { chatSessions, messages, agents } from "@/server/db/schema";
@@ -39,12 +40,12 @@ export default async function SharePage({ params }: Props) {
           {agentName && <p className="text-sm text-muted-foreground">with {agentName}</p>}
         </div>
         <div className="ml-auto">
-          <a
+          <Link
             href="/"
             className="text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
           >
             Fork this conversation
-          </a>
+          </Link>
         </div>
       </header>
 
