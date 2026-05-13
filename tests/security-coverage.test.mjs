@@ -33,26 +33,30 @@ test("Authentication and session isolation guardrails are enforced across all ro
 });
 
 test("Chat stream route uses parameterized queries and validates untrusted input", async () => {
-  const route = await readText("apps/web/src/app/api/chat/stream/route.ts");
+  const [route, kbSearch] = await Promise.all([
+    readText("apps/web/src/app/api/chat/stream/route.ts"),
+    readText("apps/web/src/server/kb-search.ts"),
+  ]);
 
   // No raw SQL string injection — sql.raw() is never used
   assert.doesNotMatch(route, /sql\.raw\(/);
+  assert.doesNotMatch(kbSearch, /sql\.raw\(/);
 
-  // Embedding vector is bound as a parameterized query parameter — prevents vector injection
-  assert.match(route, /sql\.param\(embStr\)/);
+  // Embedding vector is bound safely via hybrid search module (parameterized JSON vector)
+  assert.match(kbSearch, /JSON\.stringify\(queryVector\)/);
 
   // OLLAMA_URL is validated through URL constructor before fetch — SSRF mitigation
-  assert.match(route, /new URL\(rawOllamaUrl\)/);
-  assert.match(route, /\["http:", "https:"\]\.includes\(parsed\.protocol\)/);
+  assert.match(kbSearch, /new URL\(raw\)/);
+  assert.match(kbSearch, /\["http:", "https:"\]\.includes\(parsed\.protocol\)/);
 
   // Embedding values are validated as finite numbers before DB use
-  assert.match(route, /typeof v === "number" && isFinite\(v\)/);
+  assert.match(kbSearch, /typeof v === "number" && isFinite\(v\)/);
 
   // SSE events use standard data: prefix format
   assert.match(route, /`data: \$\{JSON\.stringify\(/);
 
-  // Stream includes a [DONE] terminator for the client
-  assert.match(route, /data: \[DONE\]/);
+  // Stream done event uses JSON format (both group and non-group paths)
+  assert.match(route, /type: "done"/);
 });
 
 test("Agents router enforces per-user ownership for all mutating operations", async () => {
@@ -76,21 +80,19 @@ test("Agents router enforces per-user ownership for all mutating operations", as
 });
 
 test("Knowledge base RAG pipeline validates embeddings and injects context safely", async () => {
-  const [route, schema] = await Promise.all([
+  const [route, schema, kbSearch] = await Promise.all([
     readText("apps/web/src/app/api/chat/stream/route.ts"),
     readText("apps/web/src/server/db/schema.ts"),
+    readText("apps/web/src/server/kb-search.ts"),
   ]);
 
   // Embedding table exists with vector column
   assert.match(schema, /export const documentChunks = pgTable\("document_chunks"/);
   assert.match(schema, /embedding: vector\("embedding"/);
 
-  // RAG uses sql.param for safe vector binding
-  assert.match(route, /sql\.param\(embStr\)/);
-
-  // RAG embedding values validated before DB query
-  assert.match(route, /Array\.isArray\(rawEmb\)/);
-  assert.match(route, /rawEmb\.every\(\(v\) => typeof v === "number" && isFinite\(v\)\)/);
+  // Hybrid search module validates embeddings before DB query
+  assert.match(kbSearch, /Array\.isArray\(rawEmb\)/);
+  assert.match(kbSearch, /rawEmb\.every\(\(v\) => typeof v === "number" && isFinite\(v\)\)/);
 
   // RAG context block format — numbered citations for the model
   assert.match(route, /Relevant Knowledge Base Context/);
