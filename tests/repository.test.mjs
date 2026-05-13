@@ -239,7 +239,8 @@ test("Chat UI virtualizes variable-height message rendering", async () => {
     readJson("apps/web/package.json"),
   ]);
 
-  assert.match(chatInterface, /<VirtualizedMessageList messages=\{activeSession\.messages\} \/>/);
+  assert.match(chatInterface, /VirtualizedMessageList/);
+  assert.match(chatInterface, /messages=\{activeSession\.messages\}/);
   assert.doesNotMatch(chatInterface, /activeSession\.messages\.map/);
   assert.equal(pkg.dependencies["react-virtuoso"], "^4.14.0");
   assert.match(virtualizedList, /import \{ Virtuoso, type VirtuosoHandle \} from "react-virtuoso"/);

@@ -390,6 +390,10 @@ export function ChatInterface() {
     await handleSend(userMessage.content);
   }, [activeSessionId, deleteServerMessage, handleSend]);
 
+  const handleFeedback = useCallback((_messageId: string, _feedback: "up" | "down") => {
+    // Feedback stored locally only for now — Phase 19 wires to backend
+  }, []);
+
   if (!activeSession) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -419,7 +423,13 @@ export function ChatInterface() {
             </div>
           </div>
         ) : (
-          <VirtualizedMessageList messages={activeSession.messages} />
+          <VirtualizedMessageList
+            messages={activeSession.messages}
+            onBranch={handleBranch}
+            onEdit={handleEdit}
+            onRegenerate={handleRegenerate}
+            onFeedback={handleFeedback}
+          />
         )}
       </div>
 

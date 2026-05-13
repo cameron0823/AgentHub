@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { DEFAULT_MODEL_ID, useChatStore, type Agent, type AgentGroup, type ChatSession } from "@/stores/chatStore";
 import { trpc } from "@/lib/trpc";
-import { Plus, MessageSquare, Trash2, Bot, Users, Database, Store, FileText, Search, Pin, Settings, Moon } from "lucide-react";
+import { Plus, MessageSquare, Trash2, Bot, Users, Database, Store, FileText, Search, Pin, Settings, Moon, GitBranch } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { AgentList } from "./AgentList";
 import { AgentGroupList } from "./AgentGroupList";
@@ -480,10 +480,12 @@ function SessionList({
             session.id === activeSessionId
               ? "bg-primary/10 text-primary"
               : "hover:bg-muted"
-          }`}
+          } ${session.parentMessageId ? "ml-4" : ""}`}
           onClick={() => setActiveSession(session.id)}
         >
-          <MessageSquare className="w-4 h-4 flex-shrink-0" />
+          {session.parentMessageId
+            ? <GitBranch className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+            : <MessageSquare className="w-4 h-4 flex-shrink-0" />}
           {editingSessionId === session.id ? (
             <input
               value={draftTitle}
