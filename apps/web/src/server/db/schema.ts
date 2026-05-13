@@ -130,9 +130,12 @@ export const memoryEntries = pgTable("memory_entries", {
   sourceMessageId: uuid("source_message_id").references(() => messages.id, { onDelete: "set null" }),
   status: text("status", { enum: ["accepted", "proposed", "rejected", "archived"] }).notNull().default("accepted"),
   isEdited: boolean("is_edited").notNull().default(false),
+  embedding: vector("embedding", { dimensions: 768 }),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("memory_entries_embedding_idx").using("hnsw", table.embedding.op("vector_cosine_ops")),
+]);
 
 export const knowledgeBases = pgTable("knowledge_bases", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -319,6 +322,18 @@ export const documentsRelations = relations(documents, ({ one, many }) => ({
   chunks: many(documentChunks),
 }));
 
+export const apiKeys = pgTable("api_keys", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  keyHash: text("key_hash").notNull().unique(),
+  keyPrefix: varchar("key_prefix", { length: 12 }).notNull(),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  lastUsedAt: timestamp("last_used_at", { mode: "date" }),
+  expiresAt: timestamp("expires_at", { mode: "date" }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 export type User = typeof users.$inferSelect;
 export type Agent = typeof agents.$inferSelect;
 export type AgentGroup = typeof agentGroups.$inferSelect;
@@ -332,3 +347,47 @@ export type File = typeof files.$inferSelect;
 export type McpServer = typeof mcpServers.$inferSelect;
 export type Automation = typeof automations.$inferSelect;
 export type AutomationRun = typeof automationRuns.$inferSelect;
+export type ApiKey = typeof apiKeys.$inferSelect;
+
+// ── Trust Engine ──────────────────────────────────────────────────────────────
+
+export const agentCredentials = pgTable("agent_credentials", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id").references(() => agents.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  tool: text("tool").notNull(),
+  encryptedValue: text("encrypted_value").notNull(),
+  iv: text("iv").notNull(),
+  authTag: text("auth_tag").notNull(),
+  keyHint: varchar("key_hint", { length: 8 }),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const trustPolicies = pgTable("trust_policies", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id").references(() => agents.id, { onDelete: "cascade" }),
+  allowedTools: jsonb("allowed_tools").default([]),
+  maxTokensPerDay: integer("max_tokens_per_day"),
+  maxRequestsPerMinute: integer("max_requests_per_minute"),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const credentialAuditLog = pgTable("credential_audit_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id").references(() => agents.id, { onDelete: "set null" }),
+  credentialId: uuid("credential_id").references(() => agentCredentials.id, { onDelete: "set null" }),
+  tool: text("tool").notNull(),
+  keyHint: varchar("key_hint", { length: 8 }),
+  outcome: text("outcome", { enum: ["success", "denied", "error"] }).notNull(),
+  detail: text("detail"),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export type AgentCredential = typeof agentCredentials.$inferSelect;
+export type TrustPolicy = typeof trustPolicies.$inferSelect;
+export type CredentialAuditLog = typeof credentialAuditLog.$inferSelect;
