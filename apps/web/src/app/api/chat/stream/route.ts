@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { auth } from "@/server/auth";
 import { providerRegistry } from "@agenthub/ai-providers";
 import { fetchAcceptedMemoriesForAgent, formatMemoryBlock, appendMemoryBlockToSystemPrompt, extractMemories, storePendingMemories } from "@/server/memory";
+import { substituteVariables } from "@/server/prompt-variables";
 import { sql } from "drizzle-orm";
 import { documentChunks, documents, knowledgeBases } from "@/server/db/schema";
 
@@ -77,7 +78,11 @@ export async function POST(req: NextRequest) {
 
   // RAG: Knowledge Base retrieval (appends to resolvedPrompt, providing grounded context)
   let ragSourcesForStream: Array<{ id: string; documentId: string; content: string; similarity: number }> = [];
-  let resolvedPrompt = systemPrompt || "";
+  let resolvedPrompt = substituteVariables(systemPrompt || "", {
+    userName: session.user.name ?? undefined,
+    date: new Date(),
+    agentName: sessionAgent?.name ?? undefined,
+  });
   if (sessionAgent?.knowledgeBaseId) {
     const kb = await db.select().from(knowledgeBases)
       .where(and(eq(knowledgeBases.id, sessionAgent.knowledgeBaseId), eq(knowledgeBases.userId, session.user.id)))

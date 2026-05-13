@@ -231,6 +231,12 @@ export function AgentBuilder() {
               rows={9}
               className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
             />
+            <p className="text-xs text-muted-foreground">
+              Supports variables: <code className="font-mono">{"{{USER_NAME}}"}</code>,{" "}
+              <code className="font-mono">{"{{CURRENT_DATE}}"}</code>,{" "}
+              <code className="font-mono">{"{{CURRENT_TIME}}"}</code>,{" "}
+              <code className="font-mono">{"{{AGENT_NAME}}"}</code>
+            </p>
           </label>
         </section>
 
