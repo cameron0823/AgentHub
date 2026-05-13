@@ -22,7 +22,7 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
-      DATABASE_URL: "file:./data/e2e-agenthub.db",
+      DATABASE_URL: process.env.DATABASE_URL ?? "postgres://agenthub:agenthub_password@localhost:5432/agenthub_e2e",
     },
   },
 });
