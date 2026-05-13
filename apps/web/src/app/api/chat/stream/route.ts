@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import { AgentRuntime, MCPClient } from "@agenthub/agent-runtime";
+import { AgentRuntime, MCPClient, SequentialOrchestrator, ParallelOrchestrator, SupervisorOrchestrator, DebateOrchestrator, GroupChatOrchestrator } from "@agenthub/agent-runtime";
 import { db } from "@/server/db";
-import { agents, messages as messagesTable, chatSessions, providerCredentials, mcpServers } from "@/server/db/schema";
+import { agents, messages as messagesTable, chatSessions, providerCredentials, mcpServers, agentGroups, groupMembers } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@/server/auth";
 import { providerRegistry } from "@agenthub/ai-providers";
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   const { sessionId, model, messages: chatMessages, temperature, maxTokens, tools } = await req.json();
 
-  const [chatSession] = await db.select({ id: chatSessions.id, agentId: chatSessions.agentId, model: chatSessions.model })
+  const [chatSession] = await db.select({ id: chatSessions.id, agentId: chatSessions.agentId, groupId: chatSessions.groupId, model: chatSessions.model })
     .from(chatSessions)
     .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, session.user.id)))
     .limit(1);
@@ -184,6 +184,19 @@ export async function POST(req: NextRequest) {
     }
   }));
 
+  // Fetch group config if session has a groupId
+  let groupConfig: { id: string; name: string; pattern: string; members: { agentId: string; role: string | null; sortOrder: number | null }[] } | null = null;
+  if (chatSession.groupId) {
+    const [grp] = await db.select().from(agentGroups).where(eq(agentGroups.id, chatSession.groupId)).limit(1);
+    if (grp) {
+      const members = await db
+        .select({ agentId: groupMembers.agentId, role: groupMembers.role, sortOrder: groupMembers.sortOrder })
+        .from(groupMembers)
+        .where(eq(groupMembers.groupId, grp.id));
+      groupConfig = { id: grp.id, name: grp.name, pattern: grp.pattern, members };
+    }
+  }
+
   const agent = new AgentRuntime({
     model: effectiveModel,
     systemPrompt: resolvedPrompt,
@@ -201,6 +214,79 @@ export async function POST(req: NextRequest) {
       try {
         if (ragSourcesForStream.length > 0) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "rag_sources", sources: ragSourcesForStream })}\n\n`));
+        }
+
+        // Group orchestration path
+        if (groupConfig) {
+          const groupAgents = await Promise.all(
+            groupConfig.members.map(async (m) => {
+              const [a] = await db.select().from(agents).where(eq(agents.id, m.agentId)).limit(1);
+              if (!a) return null;
+              return {
+                id: a.id,
+                name: a.name,
+                role: m.role,
+                sortOrder: m.sortOrder,
+                tools: parseAgentTools(a.tools),
+                runtimeOptions: {
+                  model: a.model ?? effectiveModel,
+                  systemPrompt: a.systemPrompt,
+                  temperature: a.temperature ?? 0.7,
+                  maxTokens: a.maxTokens ?? 4096,
+                },
+              };
+            })
+          );
+          const validAgents = groupAgents.filter(Boolean) as NonNullable<typeof groupAgents[number]>[];
+          const lastUserMsg = [...chatMessages].reverse().find((m: any) => m.role === "user");
+          const task = lastUserMsg?.content ?? "";
+
+          const orchestratorMap: Record<string, new () => { run: (opts: any) => AsyncGenerator<any> }> = {
+            sequential: SequentialOrchestrator,
+            parallel: ParallelOrchestrator,
+            supervisor: SupervisorOrchestrator,
+            debate: DebateOrchestrator,
+            groupchat: GroupChatOrchestrator,
+          };
+          const OrchestratorClass = orchestratorMap[groupConfig.pattern] ?? SequentialOrchestrator;
+          const orchestrator = new OrchestratorClass();
+          const orchStream = orchestrator.run({
+            group: { id: groupConfig.id, name: groupConfig.name, pattern: groupConfig.pattern as any },
+            agents: validAgents,
+            task,
+            sessionId,
+            messages: chatMessages,
+            signal: req.signal,
+          });
+
+          const startMs = Date.now();
+          for await (const event of orchStream) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "orchestrator_event", event })}\n\n`));
+            if (event.type === "agent_output" && event.chunk.type === "content") {
+              fullContent += event.chunk.content ?? "";
+            }
+            if (event.type === "group_complete") {
+              fullContent = event.synthesis;
+            }
+          }
+          const latencyMs = Date.now() - startMs;
+          const approxTokens = Math.ceil(fullContent.length / 4);
+          if (fullContent) {
+            await db.insert(messagesTable).values({
+              sessionId,
+              role: "assistant",
+              content: fullContent,
+              tokensUsed: approxTokens,
+              latencyMs,
+            });
+            const extracted = await extractMemories(task, fullContent, effectiveModel);
+            if (sessionAgent?.id && session.user.id && extracted.length > 0) {
+              await storePendingMemories(sessionAgent.id, session.user.id, extracted);
+            }
+          }
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          return;
         }
 
         const agentStream = agent.run({

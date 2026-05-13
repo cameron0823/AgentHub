@@ -184,11 +184,12 @@ export function AgentGroupBuilder() {
               <span>Pattern</span>
               <select
                 value={form.pattern}
-                onChange={(event) => setForm({ ...form, pattern: event.target.value as "sequential" | "parallel" })}
+                onChange={(event) => setForm({ ...form, pattern: event.target.value as AgentGroup["pattern"] })}
                 className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
               >
-                <option value="sequential">Sequential</option>
-                <option value="parallel">Parallel</option>
+                {ALL_PATTERNS.map((p) => (
+                  <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)} — {PATTERN_DESCRIPTIONS[p]}</option>
+                ))}
               </select>
             </label>
             <label className="space-y-1 text-sm md:col-span-2">
