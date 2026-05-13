@@ -2,6 +2,7 @@
 
 import { ProviderSettings } from "@/components/ProviderSettings";
 import { McpSettings } from "@/components/McpSettings";
+import { PromptLibraryManager } from "@/components/PromptLibraryManager";
 import { useSession } from "next-auth/react";
 
 export default function SettingsPage() {
@@ -28,6 +29,13 @@ export default function SettingsPage() {
 
         <section>
           <McpSettings />
+        </section>
+
+        <hr className="border-border" />
+
+        <section>
+          <h2 className="text-lg font-semibold mb-4">Prompt Library</h2>
+          <PromptLibraryManager />
         </section>
       </div>
     </div>

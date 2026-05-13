@@ -6,6 +6,7 @@ import { kbRouter, filesRouter } from "./kb";
 import { providersRouter, providerCredentialsRouter } from "./providers";
 import { marketplaceRouter } from "./marketplace";
 import { mcpRouter } from "./mcp";
+import { promptLibraryRouter } from "./promptLibrary";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({ status: "ok" })),
@@ -20,6 +21,7 @@ export const appRouter = router({
   files: filesRouter,
   providerCredentials: providerCredentialsRouter,
   mcpServers: mcpRouter,
+  promptLibrary: promptLibraryRouter,
 });
 
 export type AppRouter = typeof appRouter;

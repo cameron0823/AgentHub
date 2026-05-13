@@ -221,6 +221,18 @@ export const mcpServers = pgTable("mcp_servers", {
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+export const promptLibrary = pgTable("prompt_library", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  tags: text("tags").array().default([]),
+  isPinned: boolean("is_pinned").default(false),
+  useCount: integer("use_count").default(0),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   agents: many(agents),

@@ -1,8 +1,10 @@
 "use client";
 
 import type { ChangeEvent, KeyboardEvent } from "react";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Send, Square, Paperclip, X, FileText, Image } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+
 interface Attachment {
   file: File;
   url?: string;
@@ -19,8 +21,31 @@ interface ChatInputProps {
 export function ChatInput({ onSend, onStop, isGenerating }: ChatInputProps) {
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [slashQuery, setSlashQuery] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: slashResults } = trpc.promptLibrary.list.useQuery(
+    { search: slashQuery ?? "" },
+    { enabled: slashQuery !== null }
+  );
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [slashQuery]);
+
+  const insertPrompt = useCallback((content: string) => {
+    setInput(content);
+    setSlashQuery(null);
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+        textareaRef.current.focus();
+      }
+    }, 0);
+  }, []);
 
   const handleSubmit = useCallback(() => {
     const trimmed = input.trim();
@@ -33,12 +58,34 @@ export function ChatInput({ onSend, onStop, isGenerating }: ChatInputProps) {
     onSend(trimmed, uploadedAttachments);
     setInput("");
     setAttachments([]);
+    setSlashQuery(null);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
   }, [input, attachments, isGenerating, onSend]);
 
   const handleKeyDown = (e: KeyboardEvent) => {
+    if (slashQuery !== null && slashResults && slashResults.length > 0) {
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.max(0, i - 1));
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIndex((i) => Math.min(slashResults.length - 1, i + 1));
+        return;
+      }
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        insertPrompt(slashResults[selectedIndex].content);
+        return;
+      }
+      if (e.key === "Escape") {
+        setSlashQuery(null);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
@@ -46,9 +93,16 @@ export function ChatInput({ onSend, onStop, isGenerating }: ChatInputProps) {
   };
 
   const handleInput = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
+    const value = e.target.value;
+    setInput(value);
     e.target.style.height = "auto";
     e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+
+    if (value.startsWith("/")) {
+      setSlashQuery(value.slice(1));
+    } else {
+      setSlashQuery(null);
+    }
   };
 
   const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -133,12 +187,38 @@ export function ChatInput({ onSend, onStop, isGenerating }: ChatInputProps) {
         )}
 
         <div className="relative">
+          {/* Slash command popover */}
+          {slashQuery !== null && slashResults && slashResults.length > 0 && (
+            <div className="absolute bottom-full mb-2 left-0 right-0 z-50 rounded-lg border bg-popover shadow-md overflow-hidden">
+              {slashResults.slice(0, 8).map((prompt, i) => (
+                <button
+                  key={prompt.id}
+                  className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 transition-colors ${
+                    i === selectedIndex ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
+                  }`}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    insertPrompt(prompt.content);
+                  }}
+                  onMouseEnter={() => setSelectedIndex(i)}
+                >
+                  <span className="font-medium truncate">{prompt.title}</span>
+                  {prompt.tags && prompt.tags.length > 0 && (
+                    <span className="ml-auto text-xs text-muted-foreground shrink-0">
+                      {prompt.tags[0]}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
           <textarea
             ref={textareaRef}
             value={input}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
-            placeholder="Message your local AI..."
+            placeholder="Message your local AI... (type / for prompts)"
             disabled={isGenerating}
             rows={1}
             className="w-full resize-none rounded-xl border bg-muted/50 px-4 py-3 pr-24 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
