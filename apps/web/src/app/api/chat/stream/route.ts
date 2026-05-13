@@ -85,22 +85,46 @@ export async function POST(req: NextRequest) {
     if (kb[0]) {
       const lastUserMessage = [...chatMessages].reverse().find((m) => m.role === "user");
       if (lastUserMessage?.content) {
-        const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-        const embedRes = await fetch(`${ollamaUrl}/api/embeddings`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ model: kb[0].embeddingModel || "nomic-embed-text", prompt: lastUserMessage.content }),
-        });
+        // Validate OLLAMA_URL to prevent SSRF to internal services
+        const rawOllamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+        const ollamaUrl = (() => {
+          try {
+            const parsed = new URL(rawOllamaUrl);
+            if (!["http:", "https:"].includes(parsed.protocol)) return "http://localhost:11434";
+            return rawOllamaUrl;
+          } catch {
+            return "http://localhost:11434";
+          }
+        })();
 
-        if (embedRes.ok) {
-          const embedData = (await embedRes.json()) as { embedding?: number[] };
-          if (embedData.embedding) {
-            const embStr = `[${embedData.embedding.join(",")}]`;
+        let embedData: { embedding?: unknown[] } | undefined;
+        try {
+          const embedRes = await fetch(`${ollamaUrl}/api/embeddings`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ model: kb[0].embeddingModel || "nomic-embed-text", prompt: lastUserMessage.content }),
+          });
+          if (embedRes.ok) {
+            embedData = (await embedRes.json()) as { embedding?: unknown[] };
+          }
+        } catch (e) {
+          console.error("Ollama embedding request failed (non-fatal):", e);
+        }
+
+        if (embedData?.embedding) {
+          // Validate all entries are finite numbers — prevents injection if Ollama API is compromised
+          const rawEmb = embedData.embedding;
+          if (!Array.isArray(rawEmb) || !rawEmb.every((v) => typeof v === "number" && isFinite(v))) {
+            console.error("Invalid embedding from Ollama: non-numeric values, skipping RAG");
+          } else {
+            const safeEmbedding = rawEmb as number[];
+            const embStr = `[${safeEmbedding.join(",")}]`;
+            // Use sql.param() to bind embStr as a SQL parameter — prevents raw string injection
             const ragResults = await db.select({
               id: documentChunks.id,
               content: documentChunks.content,
               documentId: documentChunks.documentId,
-              similarity: sql<number>`1 - (${documentChunks.embedding} <=> ${embStr}::vector)`,
+              similarity: sql<number>`1 - (${documentChunks.embedding} <=> ${sql.param(embStr)}::vector)`,
             })
               .from(documentChunks)
               .innerJoin(documents, eq(documentChunks.documentId, documents.id))
@@ -108,7 +132,7 @@ export async function POST(req: NextRequest) {
                 eq(documents.knowledgeBaseId, kb[0].id),
                 eq(documents.status, "indexed")
               ))
-              .orderBy(sql`${documentChunks.embedding} <=> ${embStr}::vector`)
+              .orderBy(sql`${documentChunks.embedding} <=> ${sql.param(embStr)}::vector`)
               .limit(5);
 
             if (ragResults.length > 0) {
