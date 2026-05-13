@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { DEFAULT_MODEL_ID, useChatStore, type Agent, type AgentGroup, type ChatSession } from "@/stores/chatStore";
 import { trpc } from "@/lib/trpc";
-import { Plus, MessageSquare, Trash2, Bot, Users, Database, Store, FileText, Search, Pin, Settings, BarChart2, X, GitBranch } from "lucide-react";
+import { Plus, MessageSquare, Trash2, Bot, Users, Database, Store, FileText, Search, Pin, Settings, BarChart2, X, GitBranch, Zap } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { AgentList } from "./AgentList";
 import { AgentGroupList } from "./AgentGroupList";
@@ -358,6 +358,13 @@ export function Sidebar() {
         >
           <BarChart2 className="w-4 h-4" />
           Analytics
+        </a>
+        <a
+          href="/automations"
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors mb-1"
+        >
+          <Zap className="w-4 h-4" />
+          Automations
         </a>
         <a
           href="/settings"

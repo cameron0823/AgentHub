@@ -238,6 +238,29 @@ export const promptLibrary = pgTable("prompt_library", {
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });
 
+export const automations = pgTable("automations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  agentId: uuid("agent_id").references(() => agents.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  prompt: text("prompt").notNull(),
+  cronExpression: text("cron_expression").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  lastRunAt: timestamp("last_run_at", { mode: "date" }),
+  webhookUrl: text("webhook_url"),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const automationRuns = pgTable("automation_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  automationId: uuid("automation_id").notNull().references(() => automations.id, { onDelete: "cascade" }),
+  status: text("status", { enum: ["pending", "running", "success", "error"] }).notNull().default("pending"),
+  output: text("output"),
+  error: text("error"),
+  startedAt: timestamp("started_at", { mode: "date" }),
+  completedAt: timestamp("completed_at", { mode: "date" }),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   agents: many(agents),
@@ -285,3 +308,5 @@ export type Document = typeof documents.$inferSelect;
 export type DocumentChunk = typeof documentChunks.$inferSelect;
 export type File = typeof files.$inferSelect;
 export type McpServer = typeof mcpServers.$inferSelect;
+export type Automation = typeof automations.$inferSelect;
+export type AutomationRun = typeof automationRuns.$inferSelect;
