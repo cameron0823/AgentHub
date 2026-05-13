@@ -424,10 +424,33 @@ export function ChatInterface() {
           />
         )}
         {activeSession.messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">New Conversation</h2>
-              <p className="text-sm">Send a message to start chatting with {activeGroup?.name || activeAgent?.name || selectedModel}.</p>
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center max-w-lg px-4">
+              {(activeAgent as any)?.openingMessage ? (
+                <>
+                  <div className="rounded-xl bg-muted/50 border px-5 py-4 text-sm text-left mb-4">
+                    {(activeAgent as any).openingMessage}
+                  </div>
+                  {((activeAgent as any).openingQuestions as string[] | undefined)?.length ? (
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {((activeAgent as any).openingQuestions as string[]).map((q, i) => (
+                        <button
+                          key={i}
+                          onClick={() => handleSend(q)}
+                          className="px-3 py-1.5 rounded-full border text-sm hover:bg-muted transition-colors"
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div className="text-muted-foreground">
+                  <h2 className="text-xl font-semibold mb-2">New Conversation</h2>
+                  <p className="text-sm">Send a message to start chatting with {activeGroup?.name || activeAgent?.name || selectedModel}.</p>
+                </div>
+              )}
             </div>
           </div>
         ) : (

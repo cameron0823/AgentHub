@@ -16,6 +16,8 @@ const agentInput = z.object({
   memoryEnabled: z.boolean().optional(),
   knowledgeBaseId: z.string().uuid().optional().nullable(),
   tags: z.array(z.string()).optional(),
+  openingMessage: z.string().optional().nullable(),
+  openingQuestions: z.array(z.string()).optional(),
 });
 
 const groupMemberInput = z.object({

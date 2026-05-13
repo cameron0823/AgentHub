@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Save, Trash2, Download } from "lucide-react";
+import { Save, Trash2, Download, Plus, X } from "lucide-react";
 import { DEFAULT_MODEL_ID, useChatStore, type Agent } from "@/stores/chatStore";
 import { trpc } from "@/lib/trpc";
 
@@ -23,6 +23,8 @@ function emptyForm() {
     tools: ["calculator", "datetime"],
     memoryEnabled: true,
     knowledgeBaseId: null as string | null,
+    openingMessage: "",
+    openingQuestions: [] as string[],
   };
 }
 
@@ -39,6 +41,8 @@ function formFromAgent(agent?: Agent) {
     tools: agent.tools || [],
     memoryEnabled: agent.memoryEnabled,
     knowledgeBaseId: agent.knowledgeBaseId || null,
+    openingMessage: (agent as any).openingMessage || "",
+    openingQuestions: (agent as any).openingQuestions || [],
   };
 }
 
@@ -127,6 +131,8 @@ export function AgentBuilder() {
       tools: form.tools,
       memoryEnabled: form.memoryEnabled,
       knowledgeBaseId: form.knowledgeBaseId,
+      openingMessage: form.openingMessage.trim() || undefined,
+      openingQuestions: form.openingQuestions.filter(Boolean),
     };
 
     if (activeAgent) {
@@ -225,6 +231,51 @@ export function AgentBuilder() {
               className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
             />
           </label>
+        </section>
+
+        <section className="rounded-xl border bg-card p-4">
+          <h3 className="mb-3 font-semibold">Opening Experience</h3>
+          <div className="space-y-3">
+            <label className="space-y-1 text-sm">
+              <span>Opening message <span className="text-muted-foreground">(shown when chat starts)</span></span>
+              <textarea
+                value={form.openingMessage}
+                onChange={(e) => setForm({ ...form, openingMessage: e.target.value })}
+                rows={3}
+                placeholder="Hi! I'm your research assistant. What can I help you with today?"
+                className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
+              />
+            </label>
+            <div className="space-y-1 text-sm">
+              <span>Starter questions</span>
+              {form.openingQuestions.map((q: string, i: number) => (
+                <div key={i} className="flex gap-2">
+                  <input
+                    value={q}
+                    onChange={(e) => {
+                      const next = [...form.openingQuestions];
+                      next[i] = e.target.value;
+                      setForm({ ...form, openingQuestions: next });
+                    }}
+                    placeholder="Ask me anything..."
+                    className="flex-1 rounded-lg border bg-background px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <button
+                    onClick={() => setForm({ ...form, openingQuestions: form.openingQuestions.filter((_: string, j: number) => j !== i) })}
+                    className="p-2 hover:bg-muted rounded-lg text-muted-foreground"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => setForm({ ...form, openingQuestions: [...form.openingQuestions, ""] })}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <Plus className="w-4 h-4" /> Add question
+              </button>
+            </div>
+          </div>
         </section>
 
         <section className="rounded-xl border bg-card p-4">

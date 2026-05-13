@@ -56,6 +56,8 @@ export const agents = pgTable("agents", {
   knowledgeBaseId: uuid("knowledge_base_id").references(() => knowledgeBases.id, { onDelete: "set null" }),
   tags: text("tags").default("[]"),
   isPublic: boolean("is_public").default(false),
+  openingMessage: text("opening_message"),
+  openingQuestions: jsonb("opening_questions").default([]),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });
