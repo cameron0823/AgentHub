@@ -1,6 +1,7 @@
 "use client";
 
 import { ProviderSettings } from "@/components/ProviderSettings";
+import { McpSettings } from "@/components/McpSettings";
 import { useSession } from "next-auth/react";
 
 export default function SettingsPage() {
@@ -21,6 +22,12 @@ export default function SettingsPage() {
       <div className="space-y-8">
         <section>
           <ProviderSettings />
+        </section>
+
+        <hr className="border-border" />
+
+        <section>
+          <McpSettings />
         </section>
       </div>
     </div>
