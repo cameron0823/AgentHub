@@ -115,7 +115,7 @@ Sprints 0–5 per `IMPLEMENTATION_ROADMAP.md` (committed, verified):
 
 ### Sprint 12: Polish & Production
 
-- [x] i18n framework + 3 languages (next-intl) [S12.2] — cookie-based locale detection (en/es/fr), `NextIntlClientProvider` in root layout, `LocaleSwitcher` component, server action to persist locale, `messages/*.json` translation files
+- [x] i18n framework + 3 languages (next-intl) [S12.2] — cookie-based locale detection (en/es/fr), `NextIntlClientProvider` in root layout, `LocaleSwitcher` component wired in settings page, server action to persist locale, `messages/*.json` translation files
 - [x] PWA manifest + service worker [S12.3] (icons generated: icon-192.png + icon-512.png)
 - [x] Token tracking dashboard (aggregate tokensUsed + latency) [S12.4]
 - [x] Admin panel UI (user management, quotas) [S12.6]

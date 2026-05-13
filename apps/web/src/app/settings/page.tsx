@@ -4,6 +4,7 @@ import { ProviderSettings } from "@/components/ProviderSettings";
 import { McpSettings } from "@/components/McpSettings";
 import { PromptLibraryManager } from "@/components/PromptLibraryManager";
 import { TrustSettings } from "@/components/TrustSettings";
+import { LocaleSwitcher } from "@/components/LocaleSwitcher";
 import { useSession } from "next-auth/react";
 
 export default function SettingsPage() {
@@ -22,6 +23,15 @@ export default function SettingsPage() {
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
 
       <div className="space-y-8">
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Language</h2>
+            <LocaleSwitcher />
+          </div>
+        </section>
+
+        <hr className="border-border" />
+
         <section>
           <ProviderSettings />
         </section>
