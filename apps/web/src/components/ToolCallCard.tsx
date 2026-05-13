@@ -27,8 +27,59 @@ function formatResult(result: unknown) {
   return JSON.stringify(result, null, 2);
 }
 
+interface CodeResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
 function isSearchResults(result: unknown): result is SearchResult[] {
   return Array.isArray(result) && result.length > 0 && typeof (result[0] as any)?.url === "string";
+}
+
+function isCodeResult(result: unknown): result is CodeResult {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "exitCode" in result &&
+    typeof (result as CodeResult).exitCode === "number"
+  );
+}
+
+function CodeResultCard({ result, code }: { result: CodeResult; code?: string }) {
+  const isBase64Png = (s: string) => s.startsWith("iVBORw0KGgo");
+  const pngLines = result.stdout.split("\n").filter(isBase64Png);
+
+  return (
+    <div className="space-y-2">
+      {code && (
+        <pre className="overflow-x-auto rounded bg-background p-2 text-xs font-mono">{code}</pre>
+      )}
+      {result.stdout && !pngLines.length && (
+        <div>
+          <div className="mb-0.5 text-xs text-muted-foreground">stdout</div>
+          <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-background p-2 text-xs">{result.stdout}</pre>
+        </div>
+      )}
+      {pngLines.map((png, i) => (
+        <img
+          key={i}
+          src={`data:image/png;base64,${png}`}
+          alt="code output"
+          className="max-w-full rounded border"
+        />
+      ))}
+      {result.stderr && (
+        <div>
+          <div className="mb-0.5 text-xs text-muted-foreground">stderr</div>
+          <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-red-50 dark:bg-red-950/30 p-2 text-xs text-red-700 dark:text-red-400">
+            {result.stderr}
+          </pre>
+        </div>
+      )}
+      <div className="text-xs text-muted-foreground">exit code: {result.exitCode}</div>
+    </div>
+  );
 }
 
 function SearchResultsCard({ results }: { results: SearchResult[] }) {
@@ -68,15 +119,24 @@ export function ToolCallCard({ toolCall, toolResult }: ToolCallCardProps) {
             {formatArguments(toolCall.function.arguments)}
           </pre>
         )}
-        {toolResult && (
-          isSearchResults(toolResult.result) ? (
-            <SearchResultsCard results={toolResult.result} />
-          ) : (
+        {toolResult && (() => {
+          if (isSearchResults(toolResult.result)) {
+            return <SearchResultsCard results={toolResult.result} />;
+          }
+          if (isCodeResult(toolResult.result)) {
+            let code: string | undefined;
+            try {
+              const args = toolCall?.function.arguments ? JSON.parse(toolCall.function.arguments) : {};
+              code = typeof args?.code === "string" ? args.code : undefined;
+            } catch { /* ignore */ }
+            return <CodeResultCard result={toolResult.result} code={code} />;
+          }
+          return (
             <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-background p-2 text-xs">
               {formatResult(toolResult.result)}
             </pre>
-          )
-        )}
+          );
+        })()}
       </div>
     </details>
   );
