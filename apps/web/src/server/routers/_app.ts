@@ -11,6 +11,8 @@ import { analyticsRouter } from "./analytics";
 import { automationsRouter } from "./automations";
 import { tasksRouter } from "./tasks";
 import { adminRouter } from "./admin";
+import { apiKeysRouter } from "./apiKeys";
+import { trustRouter } from "./trust";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({ status: "ok" })),
@@ -30,6 +32,8 @@ export const appRouter = router({
   automations: automationsRouter,
   tasks: tasksRouter,
   admin: adminRouter,
+  apiKeys: apiKeysRouter,
+  trust: trustRouter,
 });
 
 export type AppRouter = typeof appRouter;
