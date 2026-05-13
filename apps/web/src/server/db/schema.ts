@@ -1,4 +1,4 @@
-import { pgTable, text, integer, real, boolean, timestamp, jsonb, uuid, vector, index, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, real, boolean, timestamp, jsonb, uuid, vector, index, primaryKey, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
@@ -91,6 +91,8 @@ export const chatSessions = pgTable("chat_sessions", {
   title: text("title").default("New Chat"),
   model: text("model").default("ollama:qwen2.5:7b"),
   metadata: jsonb("metadata"),
+  isPublic: boolean("is_public").default(false),
+  publicSlug: varchar("public_slug", { length: 20 }).unique(),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
 });

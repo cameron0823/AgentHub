@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { eq, desc, and } from "drizzle-orm";
 import { sql } from "drizzle-orm";
-import { router, authedProcedure } from "../trpc";
+import { nanoid } from "nanoid";
+import { router, authedProcedure, publicProcedure } from "../trpc";
 import { db } from "../db";
 import { chatSessions, messages, agents, agentGroups } from "../db/schema";
 
@@ -107,6 +108,37 @@ export const sessionsRouter = router({
         });
       }
       return newSession;
+    }),
+
+  publish: authedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const slug = nanoid(10);
+      const [updated] = await db.update(chatSessions)
+        .set({ isPublic: true, publicSlug: slug, updatedAt: new Date() })
+        .where(and(eq(chatSessions.id, input.id), eq(chatSessions.userId, ctx.user.id)))
+        .returning();
+      if (!updated) throw new Error("Session not found");
+      return { slug };
+    }),
+
+  unpublish: authedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await db.update(chatSessions)
+        .set({ isPublic: false, publicSlug: null, updatedAt: new Date() })
+        .where(and(eq(chatSessions.id, input.id), eq(chatSessions.userId, ctx.user.id)));
+    }),
+
+  getPublic: publicProcedure
+    .input(z.object({ slug: z.string() }))
+    .query(async ({ input }) => {
+      const [session] = await db.select().from(chatSessions)
+        .where(and(eq(chatSessions.publicSlug, input.slug), eq(chatSessions.isPublic, true))).limit(1);
+      if (!session) throw new Error("Not found");
+      const msgs = await db.select().from(messages)
+        .where(eq(messages.sessionId, session.id)).orderBy(messages.createdAt);
+      return { session, messages: msgs };
     }),
 });
 

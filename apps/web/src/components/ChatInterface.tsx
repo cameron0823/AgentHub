@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import { Download } from "lucide-react";
+import { Download, Share2 } from "lucide-react";
 import { useChatStore, ChatMessage } from "@/stores/chatStore";
 import { trpc } from "@/lib/trpc";
 import { ChatInput } from "./ChatInput";
@@ -95,6 +95,14 @@ export function ChatInterface() {
         updatedAt: new Date(newSession.updatedAt),
       });
       useChatStore.getState().setActiveSession(newSession.id);
+    },
+  });
+  const publishSession = trpc.sessions.publish.useMutation({
+    onSuccess: ({ slug }) => {
+      const url = `${window.location.origin}/share/${slug}`;
+      void navigator.clipboard.writeText(url).catch(() => {});
+      alert(`Share link copied to clipboard:\n${url}`);
+      utils.sessions.list.invalidate();
     },
   });
   const messageList = trpc.messages.list.useQuery(
@@ -446,15 +454,25 @@ export function ChatInterface() {
           ) : (
             <ModelSelector sessionId={activeSession.id} />
           )}
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
             {activeSession.messages.length > 0 && (
-              <button
-                onClick={() => exportAsMarkdown(activeSession.messages, activeSession.title || "conversation")}
-                title="Export as Markdown"
-                className="p-1.5 rounded hover:bg-muted text-muted-foreground"
-              >
-                <Download className="w-4 h-4" />
-              </button>
+              <>
+                <button
+                  onClick={() => publishSession.mutate({ id: activeSessionId! })}
+                  title="Share conversation"
+                  className="p-1.5 rounded hover:bg-muted text-muted-foreground"
+                  disabled={publishSession.isPending}
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => exportAsMarkdown(activeSession.messages, activeSession.title || "conversation")}
+                  title="Export as Markdown"
+                  className="p-1.5 rounded hover:bg-muted text-muted-foreground"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              </>
             )}
           </div>
         </div>
