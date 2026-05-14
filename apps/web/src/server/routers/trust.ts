@@ -1,16 +1,17 @@
 import { z } from "zod";
 import { and, desc, eq } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { router, authedProcedure } from "../trpc";
 import { db } from "../db";
-import { agentCredentials, credentialAuditLog, trustPolicies } from "../db/schema";
+import { agents, agentCredentials, credentialAuditLog, trustPolicies } from "../db/schema";
 import { encrypt, keyHint } from "../trust-engine";
 
 // ── Credential Vault ──────────────────────────────────────────────────────────
 
 const credentialInput = z.object({
-  name: z.string().min(1),
-  tool: z.string().min(1),
-  value: z.string().min(1),
+  name: z.string().min(1).max(100),
+  tool: z.string().min(1).max(100),
+  value: z.string().min(1).max(65536), // 64 KB max; prevent DB bloat
   agentId: z.string().uuid().optional(),
 });
 
@@ -59,9 +60,13 @@ export const trustRouter = router({
   deleteCredential: authedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      await db
+      const [deleted] = await db
         .delete(agentCredentials)
-        .where(and(eq(agentCredentials.id, input.id), eq(agentCredentials.userId, ctx.user.id)));
+        .where(and(eq(agentCredentials.id, input.id), eq(agentCredentials.userId, ctx.user.id)))
+        .returning({ id: agentCredentials.id });
+      if (!deleted) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Credential not found" });
+      }
       return { success: true };
     }),
 
@@ -70,6 +75,13 @@ export const trustRouter = router({
   getPolicy: authedProcedure
     .input(z.object({ agentId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      const [agent] = await db
+        .select({ id: agents.id })
+        .from(agents)
+        .where(and(eq(agents.id, input.agentId), eq(agents.userId, ctx.user.id)))
+        .limit(1);
+      if (!agent) throw new TRPCError({ code: "FORBIDDEN", message: "Agent not found" });
+
       const [policy] = await db
         .select()
         .from(trustPolicies)
@@ -88,6 +100,13 @@ export const trustRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const [agent] = await db
+        .select({ id: agents.id })
+        .from(agents)
+        .where(and(eq(agents.id, input.agentId), eq(agents.userId, ctx.user.id)))
+        .limit(1);
+      if (!agent) throw new TRPCError({ code: "FORBIDDEN", message: "Agent not found" });
+
       const [existing] = await db
         .select({ id: trustPolicies.id })
         .from(trustPolicies)
@@ -115,6 +134,13 @@ export const trustRouter = router({
   deletePolicy: authedProcedure
     .input(z.object({ agentId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      const [agent] = await db
+        .select({ id: agents.id })
+        .from(agents)
+        .where(and(eq(agents.id, input.agentId), eq(agents.userId, ctx.user.id)))
+        .limit(1);
+      if (!agent) throw new TRPCError({ code: "FORBIDDEN", message: "Agent not found" });
+
       await db
         .delete(trustPolicies)
         .where(and(eq(trustPolicies.agentId, input.agentId), eq(trustPolicies.userId, ctx.user.id)));
@@ -126,6 +152,15 @@ export const trustRouter = router({
   auditLog: authedProcedure
     .input(z.object({ agentId: z.string().uuid().optional(), limit: z.number().int().max(200).default(50) }))
     .query(async ({ ctx, input }) => {
+      if (input.agentId) {
+        const [agent] = await db
+          .select({ id: agents.id })
+          .from(agents)
+          .where(and(eq(agents.id, input.agentId), eq(agents.userId, ctx.user.id)))
+          .limit(1);
+        if (!agent) throw new TRPCError({ code: "FORBIDDEN", message: "Agent not found" });
+      }
+
       const where = input.agentId
         ? and(eq(credentialAuditLog.userId, ctx.user.id), eq(credentialAuditLog.agentId, input.agentId))
         : eq(credentialAuditLog.userId, ctx.user.id);

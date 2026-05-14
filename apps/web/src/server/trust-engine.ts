@@ -1,14 +1,22 @@
-import { createCipheriv, createDecipheriv, randomBytes, createHash } from "crypto";
+import { createCipheriv, createDecipheriv, randomBytes, createHash, pbkdf2Sync } from "crypto";
 import { db } from "./db";
 import { agentCredentials, credentialAuditLog } from "./db/schema";
 import { and, eq } from "drizzle-orm";
 
 const ALGORITHM = "aes-256-gcm";
-const KEY_LENGTH = 32; // bytes
+// Fixed salt — intentionally constant for cross-restart consistency (not a secret)
+const KDF_SALT = Buffer.from("trust-engine-salt-do-not-change", "utf8");
+const KDF_ITERATIONS = 100_000;
 
 function getDerivedKey(): Buffer {
-  const secret = process.env.TRUST_ENGINE_SECRET ?? process.env.NEXTAUTH_SECRET ?? "insecure-dev-only-key";
-  return createHash("sha256").update(secret).digest();
+  const secret = process.env.TRUST_ENGINE_SECRET;
+  if (!secret) {
+    throw new Error(
+      "TRUST_ENGINE_SECRET environment variable is not set. " +
+        "Generate one with: openssl rand -base64 32"
+    );
+  }
+  return pbkdf2Sync(secret, KDF_SALT, KDF_ITERATIONS, 32, "sha256");
 }
 
 export function encrypt(plaintext: string): { encryptedValue: string; iv: string; authTag: string } {
@@ -35,8 +43,9 @@ export function decrypt(encryptedValue: string, iv: string, authTag: string): st
   return decrypted.toString("utf8");
 }
 
+// Non-reversible fingerprint — last 8 hex chars of SHA-256, never exposes plaintext
 export function keyHint(rawValue: string): string {
-  return rawValue.slice(0, 4) + "****";
+  return createHash("sha256").update(rawValue).digest("hex").slice(-8);
 }
 
 interface ResolveOptions {
@@ -73,7 +82,8 @@ export async function resolveCredential(opts: ResolveOptions): Promise<string | 
 
     try {
       return decrypt(cred.encryptedValue, cred.iv, cred.authTag);
-    } catch {
+    } catch (err) {
+      const errorType = err instanceof Error ? err.message : "Unknown error";
       await db.insert(credentialAuditLog).values({
         userId,
         agentId: agentId ?? undefined,
@@ -81,7 +91,7 @@ export async function resolveCredential(opts: ResolveOptions): Promise<string | 
         tool,
         keyHint: cred.keyHint ?? undefined,
         outcome: "error",
-        detail: "Decryption failed",
+        detail: `Decryption failed: ${errorType}`,
       });
       return null;
     }

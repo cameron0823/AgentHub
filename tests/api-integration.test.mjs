@@ -297,3 +297,63 @@ test("Trust engine uses AES-256-GCM encryption with separate iv and authTag", as
   assert.match(src, /getAuthTag/, "must capture GCM auth tag for integrity");
   assert.match(src, /setAuthTag/, "must verify auth tag on decryption");
 });
+
+test("Trust engine throws if TRUST_ENGINE_SECRET env var is missing", async () => {
+  const src = await readText("apps/web/src/server/trust-engine.ts");
+
+  // Must NOT fall back to a hardcoded key or NEXTAUTH_SECRET for encryption
+  assert.doesNotMatch(src, /insecure-dev-only-key/, "must not contain hardcoded fallback key");
+  assert.doesNotMatch(
+    src,
+    /NEXTAUTH_SECRET.*insecure|insecure.*NEXTAUTH_SECRET/,
+    "must not cascade from NEXTAUTH_SECRET to insecure fallback"
+  );
+  // Must explicitly check for missing env var and throw
+  assert.match(src, /TRUST_ENGINE_SECRET/, "must reference TRUST_ENGINE_SECRET");
+  assert.match(src, /throw new Error/, "must throw if TRUST_ENGINE_SECRET is not set");
+});
+
+test("Trust engine uses PBKDF2 key derivation, not a raw hash", async () => {
+  const src = await readText("apps/web/src/server/trust-engine.ts");
+
+  assert.match(src, /pbkdf2Sync/, "must use pbkdf2Sync for key derivation");
+  assert.doesNotMatch(
+    src,
+    /createHash\("sha256"\)\.update\(secret\)\.digest\(\)/,
+    "must not use single SHA-256 hash for key derivation"
+  );
+});
+
+test("Trust engine keyHint is a hash fingerprint, not plaintext prefix", async () => {
+  const src = await readText("apps/web/src/server/trust-engine.ts");
+
+  // Must not slice plaintext (first 4 chars exposure)
+  assert.doesNotMatch(src, /rawValue\.slice\(0, 4\)/, "keyHint must not expose first 4 chars of plaintext");
+  // Must use SHA-256 hash fingerprint
+  assert.match(src, /createHash\("sha256"\).*keyHint|keyHint.*createHash\("sha256"\)/s, "keyHint must use SHA-256 fingerprint");
+});
+
+test("Trust engine deleteCredential returns NOT_FOUND for non-existent credentials", async () => {
+  const src = await readText("apps/web/src/server/routers/trust.ts");
+
+  assert.match(src, /\.returning\(/, "deleteCredential must use .returning() to verify deletion occurred");
+  assert.match(src, /NOT_FOUND/, "must throw NOT_FOUND for missing or cross-user credential deletion");
+});
+
+test("Trust engine policy procedures verify agent ownership", async () => {
+  const src = await readText("apps/web/src/server/routers/trust.ts");
+
+  // All three policy procedures must check agent ownership
+  assert.match(src, /import.*agents.*from.*schema|agents.*from.*db\/schema/, "must import agents table");
+  assert.match(src, /FORBIDDEN/, "must throw FORBIDDEN for cross-user agent access");
+  // Ownership check: look for agents table query within policy procedures context
+  const agentOwnershipCount = (src.match(/eq\(agents\.userId, ctx\.user\.id\)/g) ?? []).length;
+  assert.ok(agentOwnershipCount >= 3, `must check agent ownership in ≥3 procedures, found ${agentOwnershipCount}`);
+});
+
+test(".env.example documents TRUST_ENGINE_SECRET as required", async () => {
+  const env = await readText(".env.example");
+
+  assert.match(env, /TRUST_ENGINE_SECRET/, "must document TRUST_ENGINE_SECRET");
+  assert.match(env, /openssl rand/, "must include generation instructions");
+});
