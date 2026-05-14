@@ -122,7 +122,7 @@ Sprints 0–5 per `IMPLEMENTATION_ROADMAP.md` (committed, verified):
 
 ### Phase 32: Integration Test Coverage · Est. 2–3 days
 
-- [x] Auth + session isolation tests [P32.1] — `tests/api-integration.test.mjs` (30 tests: S11.1, S11.2, S11.4, S10.5, S12.3, S10.8 trust engine migration + encryption + ownership)
+- [x] Auth + session isolation tests [P32.1] — `tests/api-integration.test.mjs` (36 tests: S11.1, S11.2, S11.4, S10.5, S12.3, S10.8 trust engine migration + encryption + ownership + security hardening); suite total: 244 pass, 0 fail
 - [x] Chat stream tests — structural source analysis [P32.2] — `tests/chat-stream.test.mjs` (19 tests: auth, SSE format, DB persistence, group orchestration, HITL, memory, RAG, MCP)
 - [ ] Behavioral SSE stream tests — live HTTP request → SSE parse → assert chunks [P32.2b] · requires test DB + mock AgentRuntime provider injection; blocked on test infrastructure
 - [x] Agent CRUD + user isolation tests [P32.3] — `tests/agent-crud-isolation.test.mjs` (19 tests: agents/agentGroups/sessions/messages CRUD isolation, schema FK checks)
