@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { DEFAULT_MODEL_ID, useChatStore, type Agent, type AgentGroup, type ChatSession } from "@/stores/chatStore";
 import { trpc } from "@/lib/trpc";
-import { Plus, MessageSquare, Trash2, Bot, Users, Database, Store, FileText, Search, Pin, Settings, BarChart2, X, GitBranch, Zap, ListTodo, ShieldCheck } from "lucide-react";
+import {
+  Plus, MessageSquare, Trash2, Bot, Users, Database, Store, FileText,
+  Search, Pin, Settings, BarChart2, X, GitBranch, Zap, ListTodo,
+  ShieldCheck, ChevronLeft, ChevronRight,
+} from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { AgentList } from "./AgentList";
 import { AgentGroupList } from "./AgentGroupList";
@@ -100,11 +104,65 @@ function toAgent(agent: {
   };
 }
 
+function NavItem({
+  icon,
+  label,
+  onClick,
+  href,
+  active,
+  collapsed,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick?: () => void;
+  href?: string;
+  active?: boolean;
+  collapsed: boolean;
+}) {
+  const cls = `w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors ${
+    active
+      ? "bg-primary/15 text-primary"
+      : "hover:bg-accent text-muted-foreground hover:text-accent-foreground"
+  } ${collapsed ? "justify-center px-0" : ""}`;
+
+  const inner = (
+    <>
+      <span className="flex-shrink-0">{icon}</span>
+      {!collapsed && <span className="truncate">{label}</span>}
+    </>
+  );
+
+  if (href) {
+    return (
+      <a href={href} className={cls} title={collapsed ? label : undefined}>
+        {inner}
+      </a>
+    );
+  }
+  return (
+    <button onClick={onClick} className={cls} title={collapsed ? label : undefined}>
+      {inner}
+    </button>
+  );
+}
+
 export function Sidebar() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchFocused, setSearchFocused] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const { data: authSession } = useSession();
   const isAdmin = (authSession?.user as { role?: string } | undefined)?.role === "admin";
+
+  useEffect(() => {
+    const saved = localStorage.getItem("sidebar-collapsed");
+    if (saved === "true") setCollapsed(true);
+  }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      localStorage.setItem("sidebar-collapsed", String(!prev));
+      return !prev;
+    });
+  };
 
   const {
     sessions,
@@ -161,21 +219,15 @@ export function Sidebar() {
   });
 
   useEffect(() => {
-    if (sessionList.data) {
-      setSessions(sessionList.data.map(toChatSession));
-    }
+    if (sessionList.data) setSessions(sessionList.data.map(toChatSession));
   }, [sessionList.data, setSessions]);
 
   useEffect(() => {
-    if (agentList.data) {
-      setAgents(agentList.data.map(toAgent));
-    }
+    if (agentList.data) setAgents(agentList.data.map(toAgent));
   }, [agentList.data, setAgents]);
 
   useEffect(() => {
-    if (groupList.data) {
-      setAgentGroups(groupList.data.map(toAgentGroup));
-    }
+    if (groupList.data) setAgentGroups(groupList.data.map(toAgentGroup));
   }, [groupList.data, setAgentGroups]);
 
   const startRename = (session: ChatSession) => {
@@ -191,53 +243,40 @@ export function Sidebar() {
     updateServerSession.mutate({ id: session.id, title });
   };
 
-  const handleNewAgent = () => {
-    setActiveAgent(null);
-    setMainView("agent-builder");
-  };
+  const handleNewAgent = () => { setActiveAgent(null); setMainView("agent-builder"); };
+  const handleNewGroup = () => { setActiveGroup(null); setMainView("group-builder"); };
+  const handleEditAgent = (agentId: string) => { setActiveAgent(agentId); setMainView("agent-builder"); };
+  const handleStartAgentChat = (agentId: string) => { createSession.mutate({ agentId }); };
+  const handleEditGroup = (groupId: string) => { setActiveGroup(groupId); setMainView("group-builder"); };
+  const handleStartGroupChat = (groupId: string) => { createSession.mutate({ groupId }); };
 
-  const handleNewGroup = () => {
-    setActiveGroup(null);
-    setMainView("group-builder");
-  };
-
-  const handleEditAgent = (agentId: string) => {
-    setActiveAgent(agentId);
-    setMainView("agent-builder");
-  };
-
-  const handleStartAgentChat = (agentId: string) => {
-    createSession.mutate({ agentId });
-  };
-
-  const handleEditGroup = (groupId: string) => {
-    setActiveGroup(groupId);
-    setMainView("group-builder");
-  };
-
-  const handleStartGroupChat = (groupId: string) => {
-    createSession.mutate({ groupId });
-  };
+  const w = collapsed ? "w-14" : "w-60";
 
   return (
     <>
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          className="fixed inset-0 z-40 bg-black/60 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
       <div className={`
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         md:translate-x-0 fixed md:relative z-50 md:z-auto
-        w-64 h-full border-r bg-card flex flex-col
-        transition-transform duration-200 ease-in-out
+        ${w} h-full border-r border-border bg-card flex flex-col
+        transition-all duration-200 ease-in-out flex-shrink-0
       `}>
-      <div className="p-4 border-b">
-        <div className="flex items-center gap-2 mb-4">
-          <Bot className="w-6 h-6 text-primary" />
-          <h1 className="font-bold text-lg">AgentHub</h1>
+
+        {/* Header */}
+        <div className={`flex items-center border-b border-border ${collapsed ? "justify-center p-3" : "px-4 py-3 gap-2"}`}>
+          {!collapsed && (
+            <>
+              <Bot className="w-5 h-5 text-primary flex-shrink-0" />
+              <span className="font-semibold text-sm tracking-tight flex-1">AgentHub</span>
+            </>
+          )}
+          {collapsed && <Bot className="w-5 h-5 text-primary" />}
           <button
             className="md:hidden ml-auto p-1 rounded hover:bg-muted"
             onClick={() => setSidebarOpen(false)}
@@ -245,175 +284,192 @@ export function Sidebar() {
             <X className="w-4 h-4" />
           </button>
         </div>
-        <button
-          onClick={() => createSession.mutate({ model: selectedModel })}
-          disabled={createSession.isPending}
-          className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          New Chat
-        </button>
-        <button
-          onClick={handleNewAgent}
-          className="mt-2 w-full flex items-center justify-center gap-2 border rounded-lg px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
-        >
-          <Bot className="w-4 h-4" />
-          New Agent
-        </button>
-        <button
-          onClick={handleNewGroup}
-          className="mt-2 w-full flex items-center justify-center gap-2 border rounded-lg px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
-        >
-          <Users className="w-4 h-4" />
-          New Group
-        </button>
-        <button
-          onClick={() => setMainView("memory-editor")}
-          className="mt-2 w-full flex items-center justify-center gap-2 border rounded-lg px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
-        >
-          <Database className="w-4 h-4" />
-          Memory
-        </button>
-        <button
-          onClick={() => setMainView("marketplace")}
-          className="mt-2 w-full flex items-center justify-center gap-2 border rounded-lg px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
-        >
-          <Store className="w-4 h-4" />
-          Marketplace
-        </button>
-      </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
-        <div className="mb-4">
-          <div className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Agents
-          </div>
-          {agentList.isLoading ? (
-            <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">Loading agents...</div>
-          ) : agentList.isError ? (
-            <div className="rounded-lg border border-destructive/30 p-3 text-xs text-destructive">Could not load agents.</div>
-          ) : (
-            <AgentList
-              agents={agents}
-              activeAgentId={activeAgentId}
-              onEditAgent={handleEditAgent}
-              onStartChat={handleStartAgentChat}
-              isStartingChat={createSession.isPending}
-            />
-          )}
-        </div>
-
-        <div className="mb-4">
-          <div className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Groups
-          </div>
-          {groupList.isLoading ? (
-            <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">Loading groups...</div>
-          ) : groupList.isError ? (
-            <div className="rounded-lg border border-destructive/30 p-3 text-xs text-destructive">Could not load groups.</div>
-          ) : (
-            <AgentGroupList
-              groups={agentGroups}
-              agents={agents}
-              activeGroupId={activeGroupId}
-              onEditGroup={handleEditGroup}
-              onStartChat={handleStartGroupChat}
-              isStartingChat={createSession.isPending}
-            />
-          )}
-        </div>
-
-        <div className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center justify-between">
-          <span>Chats</span>
-          <span className="text-[10px]">{sessions.length}</span>
-        </div>
-        <div className="relative mb-2">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search messages..."
-            className="w-full pl-7 pr-2 py-1 text-xs rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-        </div>
-        <SessionList
-          sessions={sessions}
-          activeSessionId={activeSessionId}
-          searchQuery={searchQuery}
-          isLoading={sessionList.isLoading}
-          isError={sessionList.isError}
-          editingSessionId={editingSessionId}
-          draftTitle={draftTitle}
-          setDraftTitle={setDraftTitle}
-          finishRename={finishRename}
-          startRename={startRename}
-          setEditingSessionId={setEditingSessionId}
-          updateServerSession={updateServerSession}
-          deleteServerSession={deleteServerSession}
-          setActiveSession={setActiveSession}
-          pin={pin}
-        />
-      </div>
-
-      <div className="p-2 border-t">
-        <a
-          href="/kb"
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors mb-1"
-        >
-          <FileText className="w-4 h-4" />
-          Knowledge Base
-        </a>
-        <a
-          href="/analytics"
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors mb-1"
-        >
-          <BarChart2 className="w-4 h-4" />
-          Analytics
-        </a>
-        <a
-          href="/automations"
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors mb-1"
-        >
-          <Zap className="w-4 h-4" />
-          Automations
-        </a>
-        <a
-          href="/tasks"
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors mb-1"
-        >
-          <ListTodo className="w-4 h-4" />
-          Tasks
-        </a>
-        {isAdmin && (
-          <a
-            href="#"
-            onClick={(e) => { e.preventDefault(); setMainView("admin"); }}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors mb-1"
+        {/* Action buttons */}
+        <div className={`${collapsed ? "flex flex-col items-center gap-1 py-3 px-1" : "flex flex-col gap-1.5 p-3"}`}>
+          <button
+            onClick={() => createSession.mutate({ model: selectedModel })}
+            disabled={createSession.isPending}
+            title={collapsed ? "New Chat" : undefined}
+            className={`flex items-center gap-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors ${
+              collapsed ? "p-2.5 justify-center" : "w-full px-3 py-2 justify-center"
+            }`}
           >
-            <ShieldCheck className="w-4 h-4" />
-            Admin
-          </a>
+            <Plus className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && "New Chat"}
+          </button>
+
+          <button
+            onClick={handleNewAgent}
+            title={collapsed ? "New Agent" : undefined}
+            className={`flex items-center gap-2 border border-border rounded-md text-sm font-medium hover:bg-muted transition-colors text-muted-foreground hover:text-foreground ${
+              collapsed ? "p-2.5 justify-center" : "w-full px-3 py-1.5 justify-start"
+            }`}
+          >
+            <Bot className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && "New Agent"}
+          </button>
+
+          <button
+            onClick={handleNewGroup}
+            title={collapsed ? "New Group" : undefined}
+            className={`flex items-center gap-2 border border-border rounded-md text-sm font-medium hover:bg-muted transition-colors text-muted-foreground hover:text-foreground ${
+              collapsed ? "p-2.5 justify-center" : "w-full px-3 py-1.5 justify-start"
+            }`}
+          >
+            <Users className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && "New Group"}
+          </button>
+
+          <button
+            onClick={() => setMainView("memory-editor")}
+            title={collapsed ? "Memory" : undefined}
+            className={`flex items-center gap-2 border border-border rounded-md text-sm font-medium hover:bg-muted transition-colors text-muted-foreground hover:text-foreground ${
+              collapsed ? "p-2.5 justify-center" : "w-full px-3 py-1.5 justify-start"
+            }`}
+          >
+            <Database className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && <span>Memory</span>}
+          </button>
+
+          <button
+            onClick={() => setMainView("marketplace")}
+            title={collapsed ? "Marketplace" : undefined}
+            className={`flex items-center gap-2 border border-border rounded-md text-sm font-medium hover:bg-muted transition-colors text-muted-foreground hover:text-foreground ${
+              collapsed ? "p-2.5 justify-center" : "w-full px-3 py-1.5 justify-start"
+            }`}
+          >
+            <Store className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && <span>Marketplace</span>}
+          </button>
+        </div>
+
+        {/* Scrollable content — hidden when collapsed */}
+        {!collapsed && (
+          <div className="flex-1 overflow-y-auto px-2 pb-2">
+            <div className="mb-4">
+              <div className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                Agents
+              </div>
+              {agentList.isLoading ? (
+                <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">Loading agents...</div>
+              ) : agentList.isError ? (
+                <div className="rounded-md border border-destructive/30 p-3 text-xs text-destructive">Could not load agents.</div>
+              ) : (
+                <AgentList
+                  agents={agents}
+                  activeAgentId={activeAgentId}
+                  onEditAgent={handleEditAgent}
+                  onStartChat={handleStartAgentChat}
+                  isStartingChat={createSession.isPending}
+                />
+              )}
+            </div>
+
+            <div className="mb-4">
+              <div className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                Groups
+              </div>
+              {groupList.isLoading ? (
+                <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">Loading groups...</div>
+              ) : groupList.isError ? (
+                <div className="rounded-md border border-destructive/30 p-3 text-xs text-destructive">Could not load groups.</div>
+              ) : (
+                <AgentGroupList
+                  groups={agentGroups}
+                  agents={agents}
+                  activeGroupId={activeGroupId}
+                  onEditGroup={handleEditGroup}
+                  onStartChat={handleStartGroupChat}
+                  isStartingChat={createSession.isPending}
+                />
+              )}
+            </div>
+
+            <div className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground flex items-center justify-between">
+              <span>Chats</span>
+              <span>{sessions.length}</span>
+            </div>
+            <div className="relative mb-2">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search messages..."
+                className="w-full pl-7 pr-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <SessionList
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              searchQuery={searchQuery}
+              isLoading={sessionList.isLoading}
+              isError={sessionList.isError}
+              editingSessionId={editingSessionId}
+              draftTitle={draftTitle}
+              setDraftTitle={setDraftTitle}
+              finishRename={finishRename}
+              startRename={startRename}
+              setEditingSessionId={setEditingSessionId}
+              updateServerSession={updateServerSession}
+              deleteServerSession={deleteServerSession}
+              setActiveSession={setActiveSession}
+              pin={pin}
+            />
+          </div>
         )}
-        <a
-          href="/settings"
-          className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors mb-1"
+
+        {collapsed && <div className="flex-1" />}
+
+        {/* Footer nav */}
+        <div className={`border-t border-border ${collapsed ? "flex flex-col items-center gap-1 py-3 px-1" : "p-2"}`}>
+          <NavItem icon={<FileText className="w-4 h-4" />} label="Knowledge Base" href="/kb" collapsed={collapsed} />
+          <NavItem icon={<BarChart2 className="w-4 h-4" />} label="Analytics" href="/analytics" collapsed={collapsed} />
+          <NavItem icon={<Zap className="w-4 h-4" />} label="Automations" href="/automations" collapsed={collapsed} />
+          <NavItem icon={<ListTodo className="w-4 h-4" />} label="Tasks" href="/tasks" collapsed={collapsed} />
+          {isAdmin && (
+            <NavItem
+              icon={<ShieldCheck className="w-4 h-4" />}
+              label="Admin"
+              onClick={() => setMainView("admin")}
+              collapsed={collapsed}
+            />
+          )}
+          <NavItem icon={<Settings className="w-4 h-4" />} label="Settings" href="/settings" collapsed={collapsed} />
+
+          {!collapsed && (
+            <div className="flex items-center justify-between px-3 py-2">
+              <UserNav />
+              <ThemeToggle />
+            </div>
+          )}
+          {collapsed && (
+            <div className="flex flex-col items-center gap-1 mt-1">
+              <UserNav />
+              <ThemeToggle />
+            </div>
+          )}
+
+          {!collapsed && updateServerSession.isError && (
+            <div className="mt-1 text-xs text-destructive px-3">Rename failed. Try again.</div>
+          )}
+          {!collapsed && (
+            <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground px-3">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+              PostgreSQL + pgvector
+            </div>
+          )}
+        </div>
+
+        {/* Collapse toggle — absolute on the right edge, desktop only */}
+        <button
+          onClick={toggleCollapsed}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-6 h-6 items-center justify-center rounded-full bg-card border border-border shadow-sm hover:bg-muted transition-colors"
         >
-          <Settings className="w-4 h-4" />
-          Settings
-        </a>
-        <div className="flex items-center justify-between px-3 py-2">
-          <UserNav />
-          <ThemeToggle />
-        </div>
-        {updateServerSession.isError ? (
-          <div className="mt-2 text-xs text-destructive">Rename failed. Try again.</div>
-        ) : null}
-        <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground px-3">
-          <div className="w-2 h-2 rounded-full bg-green-500" />
-          PostgreSQL + pgvector
-        </div>
-      </div>
+          {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
+        </button>
       </div>
     </>
   );
@@ -459,55 +515,36 @@ function SessionList({
   );
 
   if (isLoading) {
-    return (
-      <div className="text-center text-muted-foreground text-sm py-8">
-        Loading conversations...
-      </div>
-    );
+    return <div className="text-center text-muted-foreground text-sm py-8">Loading conversations...</div>;
   }
-
   if (isError) {
-    return (
-      <div className="text-center text-destructive text-sm py-8">
-        Could not load conversations.
-      </div>
-    );
+    return <div className="text-center text-destructive text-sm py-8">Could not load conversations.</div>;
   }
-
   if (sessions.length === 0) {
-    return (
-      <div className="text-center text-muted-foreground text-sm py-8">
-        No conversations yet
-      </div>
-    );
+    return <div className="text-center text-muted-foreground text-sm py-8">No conversations yet</div>;
   }
 
-  // When searching, show message-level results grouped by session
   if (searchQuery.trim().length > 0) {
     if (searchResults.isLoading) {
       return <div className="text-center text-muted-foreground text-xs py-4">Searching...</div>;
     }
-
     const results = searchResults.data || [];
     if (results.length === 0) {
       return <div className="text-center text-muted-foreground text-xs py-4">No matches found.</div>;
     }
-
-    // Group by session
     const bySession = new Map<string, typeof results>();
     for (const r of results) {
       const list = bySession.get(r.sessionId) || [];
       list.push(r);
       bySession.set(r.sessionId, list);
     }
-
     return (
       <div className="space-y-3" data-testid="search-results">
         {Array.from(bySession.entries()).map(([sessionId, msgs]) => {
           const session = sessions.find((s) => s.id === sessionId);
           if (!session) return null;
           return (
-            <div key={sessionId} className="rounded-lg border bg-muted/30 p-2">
+            <div key={sessionId} className="rounded-md border border-border bg-muted/30 p-2">
               <div
                 className="text-xs font-medium mb-1 cursor-pointer hover:text-primary truncate"
                 onClick={() => setActiveSession(sessionId)}
@@ -537,23 +574,22 @@ function SessionList({
     );
   }
 
-  // Default: list sessions split into pinned and unpinned
   const pinned = sessions.filter((s) => s.isPinned);
   const unpinned = sessions.filter((s) => !s.isPinned);
 
   const renderSession = (session: ChatSession) => (
     <div
       key={session.id}
-      className={`group flex items-center gap-2 rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors ${
+      className={`group flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm cursor-pointer transition-colors ${
         session.id === activeSessionId
           ? "bg-primary/10 text-primary"
-          : "hover:bg-muted"
+          : "hover:bg-muted text-muted-foreground hover:text-foreground"
       } ${session.parentMessageId ? "ml-4" : ""}`}
       onClick={() => setActiveSession(session.id)}
     >
       {session.parentMessageId
-        ? <GitBranch className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
-        : <MessageSquare className="w-4 h-4 flex-shrink-0" />}
+        ? <GitBranch className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+        : <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" />}
       {editingSessionId === session.id ? (
         <input
           value={draftTitle}
@@ -566,21 +602,16 @@ function SessionList({
           onClick={(e) => e.stopPropagation()}
           autoFocus
           disabled={updateServerSession.isPending}
-          className="min-w-0 flex-1 rounded bg-background px-1 py-0.5 text-sm outline-none ring-1 ring-primary disabled:opacity-60"
+          className="min-w-0 flex-1 rounded bg-background px-1 py-0.5 text-xs outline-none ring-1 ring-primary disabled:opacity-60"
         />
       ) : (
         <span
-          className="flex-1 truncate"
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            startRename(session);
-          }}
+          className="flex-1 truncate text-xs"
+          onDoubleClick={(e) => { e.stopPropagation(); startRename(session); }}
           title="Double-click to rename"
         >
-          <span className="flex items-center gap-1">
-            {session.parentMessageId && <span className="text-muted-foreground text-[10px]" title="Branch">⑂</span>}
-            {session.title}
-          </span>
+          {session.parentMessageId && <span className="text-muted-foreground text-[10px] mr-0.5">⑂</span>}
+          {session.title}
         </span>
       )}
       <button
@@ -592,7 +623,7 @@ function SessionList({
         className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity ${
           session.isPinned ? "text-primary opacity-100" : "hover:bg-muted text-muted-foreground"
         }`}
-        aria-label={session.isPinned ? "Unpin conversation" : "Pin conversation"}
+        aria-label={session.isPinned ? "Unpin" : "Pin"}
       >
         <Pin className="w-3 h-3" />
       </button>
@@ -612,15 +643,15 @@ function SessionList({
   );
 
   return (
-    <div className="space-y-1" data-testid="session-list">
+    <div className="space-y-0.5" data-testid="session-list">
       {pinned.length > 0 && (
         <>
-          <div className="px-1 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="px-1 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
             Pinned
           </div>
           {pinned.map(renderSession)}
           {unpinned.length > 0 && (
-            <div className="px-1 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="px-1 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
               Recent
             </div>
           )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { locales, type Locale } from "@/i18n/request";
+import { locales, type Locale } from "@/i18n/config";
 import { setLocale } from "@/i18n/actions";
 
 const LOCALE_LABELS: Record<Locale, string> = {
