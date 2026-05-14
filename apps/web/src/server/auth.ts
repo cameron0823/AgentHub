@@ -1,9 +1,12 @@
 import NextAuth, { type NextAuthOptions } from "next-auth";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
+import { eq } from "drizzle-orm";
 import { db } from "./db";
 import { accounts, sessions, users, verificationTokens } from "./db/schema";
 
 const casdoorIssuer = process.env.AUTH_CASDOOR_ISSUER || "http://localhost:8000";
+const isDev = process.env.NODE_ENV === "development";
 
 export const authOptions: NextAuthOptions = {
   adapter: DrizzleAdapter(db, {
@@ -13,6 +16,28 @@ export const authOptions: NextAuthOptions = {
     verificationTokensTable: verificationTokens,
   }) as any,
   providers: [
+    // Dev-only credentials provider — auto-creates user on first sign-in
+    ...(isDev ? [CredentialsProvider({
+      id: "dev-credentials",
+      name: "Dev Login",
+      credentials: {
+        email: { label: "Email", type: "email", placeholder: "admin@localhost" },
+        password: { label: "Password", type: "password", placeholder: "any" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email) return null;
+        const email = credentials.email.trim().toLowerCase();
+        let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+        if (!user) {
+          const [created] = await db
+            .insert(users)
+            .values({ email, name: email.split("@")[0], role: "admin" })
+            .returning();
+          user = created;
+        }
+        return { id: user.id, email: user.email!, name: user.name, role: (user as any).role };
+      },
+    })] : []),
     {
       id: "casdoor",
       name: "Casdoor",
@@ -53,11 +78,7 @@ export const authOptions: NextAuthOptions = {
     },
   },
   session: {
-    strategy: "database",
-  },
-  pages: {
-    signIn: "/auth/signin",
-    error: "/auth/error",
+    strategy: isDev ? "jwt" : "database",
   },
 };
 
@@ -70,5 +91,7 @@ export async function auth() {
   const { getServerSession } = await import("next-auth/next");
   return getServerSession(authOptions);
 }
+
+export { authOptions as config };
 
 // Client components should import signIn/signOut directly from "next-auth/react"
