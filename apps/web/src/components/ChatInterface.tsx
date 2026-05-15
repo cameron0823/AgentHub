@@ -391,7 +391,7 @@ export function ChatInterface() {
         });
       }
     },
-    [activeSessionId, activeSession, activeAgent, activeGroup, selectedModel, addMessage, updateMessage, replaceMessageId, setIsGenerating, createMessage, updateServerSession, utils.messages.list]
+    [activeSessionId, activeSession, activeAgent, activeGroup, selectedModel, contextLimit, addMessage, updateMessage, replaceMessageId, setIsGenerating, createMessage, updateServerSession, utils.messages.list]
   );
 
   const handleCheckpoint = useCallback(async (approved: boolean) => {

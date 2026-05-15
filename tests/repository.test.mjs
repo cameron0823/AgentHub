@@ -36,9 +36,9 @@ test("Playwright browser smoke stack is configured for deterministic local e2e",
   assert.ok(webPkg.devDependencies["@playwright/test"], "missing @playwright/test devDependency");
   assert.match(config, /devices\["Desktop Chrome"\]/);
   assert.match(config, /command: "pnpm dev"/);
-  assert.match(config, /url: "http:\/\/127\.0\.0\.1:3000"/);
+  assert.match(config, /url: "http:\/\/localhost:3000"/);
   assert.match(config, /DATABASE_URL.*postgres/);
-  assert.match(authSpec, /\/api\/trpc\//);
+  assert.match(authSpec, /\/api\/export/);
 });
 
 test("workspace packages and required project files exist", async () => {
@@ -122,7 +122,7 @@ test("Next 15 migration keeps React 18 and uses supported lint/config paths", as
   assert.equal(pkg.dependencies["react-dom"], "18.3.1");
   assert.match(pkg.devDependencies["eslint-config-next"], /^15\./);
   assert.equal(pkg.scripts.lint, "eslint .");
-  assert.match(nextConfig, /serverExternalPackages:\s*\["postgres"\]/);
+  assert.match(nextConfig, /serverExternalPackages:\s*\["postgres", "bullmq", "node-cron"\]/);
   assert.doesNotMatch(nextConfig, /serverComponentsExternalPackages/);
   assert.match(gitignore, /^\.turbo\/$/m);
 });
@@ -138,15 +138,20 @@ test("SQLite-backed route handlers explicitly use the Node runtime", async () =>
 });
 
 test("Provider catalog powers model selector and persisted session model", async () => {
-  const [router, chatInterface, modelSelector] = await Promise.all([
+  const [router, chatInterface, modelSelector, copilotProvider, moonshotProvider] = await Promise.all([
     readText("apps/web/src/server/routers/providers.ts"),
     readText("apps/web/src/components/ChatInterface.tsx"),
     readText("apps/web/src/components/ModelSelector.tsx"),
+    readText("packages/ai-providers/src/providers/github-copilot.ts"),
+    readText("packages/ai-providers/src/providers/moonshot.ts"),
   ]);
 
   assert.match(router, /catalog:\s*authedProcedure\.query/);
   assert.match(router, /providerStatus/);
   assert.match(router, /providerLatency/);
+  assert.match(router, /createCloudProvider/);
+  assert.match(router, /cloudProvider\.listModels\(\)/);
+  assert.doesNotMatch(router, /gpt-4o", "gpt-4o-mini", "claude-3\.5-sonnet", "o1", "o3-mini"/);
   assert.match(chatInterface, /<ModelSelector sessionId=\{activeSession\.id\} \/>/);
   assert.doesNotMatch(chatInterface, /<option value="qwen2\.5:14b">/);
   assert.match(modelSelector, /trpc\.providers\.catalog\.useQuery/);
@@ -154,6 +159,12 @@ test("Provider catalog powers model selector and persisted session model", async
   assert.match(modelSelector, /DEFAULT_MODEL_ID/);
   assert.match(modelSelector, /displayModelLabel/);
   assert.match(modelSelector, /Local Ollama is unavailable/);
+  assert.match(copilotProvider, /fetch\(`\$\{COPILOT_BASE_URL\}\/models`/);
+  assert.match(copilotProvider, /COPILOT_FALLBACK_MODELS/);
+  assert.match(copilotProvider, /gpt-5\.5/);
+  assert.match(copilotProvider, /claude-sonnet-4\.6/);
+  assert.match(copilotProvider, /gemini-3\.1-pro/);
+  assert.match(moonshotProvider, /getDefaultModels/);
 });
 
 test("Chat runtime and stream route use qualified providers and abort signals", async () => {
@@ -477,12 +488,18 @@ test("Agent Marketplace MVP exposes strict local manifests, API procedures, and 
   assert.doesNotMatch(manifest, /DATABASE_URL/);
 
   assert.match(router, /marketplaceRouter = router\(\{/);
-  for (const procedure of ["catalog", "validateManifest", "installManifest", "installCatalogItem", "exportAgent"]) {
+  for (const procedure of ["catalog", "validateManifest"]) {
     assert.match(router, new RegExp(`${procedure}: publicProcedure`));
+  }
+  for (const procedure of ["installManifest", "installCatalogItem", "exportAgent"]) {
+    assert.match(router, new RegExp(`${procedure}: authedProcedure`));
   }
   assert.match(router, /parseMarketplaceManifest\(input\)/);
   assert.match(router, /db\.insert\(agents\)/);
   assert.match(router, /id: crypto\.randomUUID\(\)/);
+  assert.match(router, /userId,/);
+  assert.match(router, /installMarketplaceManifest\(input, ctx\.user\.id\)/);
+  assert.match(router, /eq\(agents\.userId, ctx\.user\.id\)/);
   assert.match(router, /tools: JSON\.stringify\(agent\.tools\)/);
   assert.match(router, /createAgentExportManifest\(agent\)/);
 
@@ -499,6 +516,7 @@ test("Agent Marketplace MVP exposes strict local manifests, API procedures, and 
   assert.match(marketplace, /trpc\.marketplace\.validateManifest\.useMutation/);
   assert.match(marketplace, /trpc\.marketplace\.installManifest\.useMutation/);
   assert.match(marketplace, /trpc\.marketplace\.exportAgent\.useMutation/);
+  assert.match(marketplace, /trpc\.agents\.list\.useQuery/);
   assert.match(marketplace, /utils\.agents\.list\.invalidate\(\)/);
   assert.match(marketplace, /without remote marketplace fetches/);
 });

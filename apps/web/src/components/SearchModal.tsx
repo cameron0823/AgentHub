@@ -76,6 +76,9 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Search conversations"
         className="w-full max-w-xl bg-background rounded-xl border shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >

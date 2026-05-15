@@ -2,7 +2,7 @@
 
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Send, Square, Paperclip, X, FileText, Image } from "lucide-react";
+import { Send, Square, Paperclip, X, FileText, Image as ImageIcon } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { VoiceInput } from "./VoiceInput";
 
@@ -158,7 +158,7 @@ export function ChatInput({ onSend, onStop, isGenerating }: ChatInputProps) {
   };
 
   const getFileIcon = (type: string) => {
-    if (type.startsWith("image/")) return <Image className="w-4 h-4" />;
+    if (type.startsWith("image/")) return <ImageIcon className="w-4 h-4" />;
     return <FileText className="w-4 h-4" />;
   };
 

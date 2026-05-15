@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Chat attachments are arbitrary user-provided URLs/data that cannot be predeclared for next/image. */
+
 import { ChatMessage as ChatMessageType, RagSource } from "@/stores/chatStore";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";

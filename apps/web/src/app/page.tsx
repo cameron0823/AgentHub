@@ -55,7 +55,7 @@ export default function Home() {
             Sign In with Casdoor
           </button>
           <p className="mt-4 text-xs text-muted-foreground">
-            Default login: admin / admin12345
+            Dev login: admin@localhost / admin12345
           </p>
         </div>
       </div>

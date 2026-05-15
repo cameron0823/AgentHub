@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { Download, Search, Store, Upload } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { useChatStore } from "@/stores/chatStore";
 
 function formatTools(tools: string[]) {
   return tools.length > 0 ? tools.join(", ") : "No tools";
@@ -19,9 +18,9 @@ export function AgentMarketplace() {
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [exportAgentId, setExportAgentId] = useState("");
   const [exportText, setExportText] = useState("");
-  const agents = useChatStore((state) => state.agents);
   const utils = trpc.useUtils();
   const catalog = trpc.marketplace.catalog.useQuery();
+  const agentList = trpc.agents.list.useQuery();
   const validateManifest = trpc.marketplace.validateManifest.useMutation();
   const installManifest = trpc.marketplace.installManifest.useMutation({
     onSuccess: (result) => {
@@ -95,6 +94,7 @@ export function AgentMarketplace() {
 
   const validationSummary = validateManifest.data?.summary;
   const actionError = validateManifest.error || installManifest.error || installCatalogItem.error || exportAgent.error;
+  const agents = agentList.data || [];
 
   return (
     <div className="flex-1 overflow-y-auto bg-background">
@@ -137,7 +137,7 @@ export function AgentMarketplace() {
           ) : filteredCatalog.length === 0 ? (
             <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">No catalog items match your search.</div>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-4 lg:grid-cols-2" data-testid="catalog-grid">
               {filteredCatalog.map((item) => (
                 <div key={item.summary.slug} className="rounded-xl border bg-background p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -207,8 +207,16 @@ export function AgentMarketplace() {
                 Validated {validationSummary.name}: {validationSummary.agentCount} agent(s), tags {validationSummary.tags.join(", ") || "none"}.
               </div>
             ) : null}
-            {importMessage ? <div className="mt-3 text-sm text-muted-foreground">{importMessage}</div> : null}
-            {actionError ? <div className="mt-3 text-sm text-destructive">{actionError.message}</div> : null}
+            {importMessage ? (
+              <div role="status" className="mt-3 text-sm text-muted-foreground">
+                {importMessage}
+              </div>
+            ) : null}
+            {actionError ? (
+              <div role="alert" className="mt-3 text-sm text-destructive">
+                {actionError.message}
+              </div>
+            ) : null}
           </div>
 
           <div className="rounded-2xl border bg-card p-5 shadow-sm">

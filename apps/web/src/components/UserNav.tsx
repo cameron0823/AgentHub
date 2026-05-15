@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Provider avatars come from arbitrary auth providers outside next/image remotePatterns. */
+
 import { useSession, signIn, signOut } from "next-auth/react";
 import { User, LogIn, LogOut } from "lucide-react";
 

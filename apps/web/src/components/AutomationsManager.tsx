@@ -11,6 +11,8 @@ const CRON_EXAMPLES = [
   { label: "Every 30 minutes", value: "*/30 * * * *" },
 ];
 
+const darkReaderSafeIconProps = { suppressHydrationWarning: true };
+
 function cronDescription(expr: string): string {
   const parts = expr.split(" ");
   if (parts.length !== 5) return expr;
@@ -182,7 +184,7 @@ function CreateForm({ agents, onClose, onCreated }: CreateFormProps) {
           disabled={create.isPending}
           className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1"
         >
-          {create.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+          {create.isPending && <Loader2 {...darkReaderSafeIconProps} className="w-3 h-3 animate-spin" />}
           Create
         </button>
         <button
@@ -228,7 +230,7 @@ export function AutomationsManager() {
           onClick={() => setShowCreate(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
         >
-          <Plus className="w-4 h-4" />
+          <Plus {...darkReaderSafeIconProps} className="w-4 h-4" />
           New
         </button>
       </div>
@@ -243,7 +245,7 @@ export function AutomationsManager() {
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
-          <Loader2 className="w-5 h-5 animate-spin mr-2" />
+          <Loader2 {...darkReaderSafeIconProps} className="w-5 h-5 animate-spin mr-2" />
           Loading…
         </div>
       ) : automations.length === 0 ? (
@@ -253,7 +255,7 @@ export function AutomationsManager() {
       ) : (
         <div className="space-y-2">
           {automations.map((auto) => (
-            <div key={auto.id} className="border rounded-lg bg-card overflow-hidden">
+            <div key={auto.id} data-testid="automation-card" className="border rounded-lg bg-card overflow-hidden">
               <div className="flex items-center gap-3 px-4 py-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -261,7 +263,7 @@ export function AutomationsManager() {
                     <StatusBadge status={auto.lastRunStatus} />
                   </div>
                   <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                    <Clock className="w-3 h-3" />
+                    <Clock {...darkReaderSafeIconProps} className="w-3 h-3" />
                     <span className="font-mono">{auto.cronExpression}</span>
                     <span>— {cronDescription(auto.cronExpression)}</span>
                     {auto.agentName && <span>· {auto.agentName}</span>}
@@ -273,23 +275,25 @@ export function AutomationsManager() {
                     onClick={() => trigger.mutate({ id: auto.id })}
                     disabled={trigger.isPending}
                     className="p-1.5 rounded hover:bg-muted transition-colors"
+                    aria-label={`Run ${auto.name} now`}
                     title="Run now"
                   >
                     {trigger.isPending ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 {...darkReaderSafeIconProps} className="w-4 h-4 animate-spin" />
                     ) : (
-                      <Play className="w-4 h-4" />
+                      <Play {...darkReaderSafeIconProps} className="w-4 h-4" />
                     )}
                   </button>
                   <button
                     onClick={() => toggle.mutate({ id: auto.id, isActive: !auto.isActive })}
                     className="p-1.5 rounded hover:bg-muted transition-colors"
+                    aria-label={auto.isActive ? `Disable ${auto.name}` : `Enable ${auto.name}`}
                     title={auto.isActive ? "Disable" : "Enable"}
                   >
                     {auto.isActive ? (
-                      <ToggleRight className="w-4 h-4 text-green-600" />
+                      <ToggleRight {...darkReaderSafeIconProps} className="w-4 h-4 text-green-600" />
                     ) : (
-                      <ToggleLeft className="w-4 h-4 text-muted-foreground" />
+                      <ToggleLeft {...darkReaderSafeIconProps} className="w-4 h-4 text-muted-foreground" />
                     )}
                   </button>
                   <button
@@ -297,19 +301,21 @@ export function AutomationsManager() {
                       if (confirm(`Delete "${auto.name}"?`)) remove.mutate({ id: auto.id });
                     }}
                     className="p-1.5 rounded hover:bg-muted transition-colors"
+                    aria-label={`Delete ${auto.name}`}
                     title="Delete"
                   >
-                    <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+                    <Trash2 {...darkReaderSafeIconProps} className="w-4 h-4 text-muted-foreground hover:text-destructive" />
                   </button>
                   <button
                     onClick={() => setExpanded(expanded === auto.id ? null : auto.id)}
                     className="p-1.5 rounded hover:bg-muted transition-colors"
+                    aria-label={expanded === auto.id ? `Hide run history for ${auto.name}` : `Show run history for ${auto.name}`}
                     title="Run history"
                   >
                     {expanded === auto.id ? (
-                      <ChevronUp className="w-4 h-4" />
+                      <ChevronUp {...darkReaderSafeIconProps} className="w-4 h-4" />
                     ) : (
-                      <ChevronDown className="w-4 h-4" />
+                      <ChevronDown {...darkReaderSafeIconProps} className="w-4 h-4" />
                     )}
                   </button>
                 </div>

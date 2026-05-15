@@ -1,38 +1,43 @@
 import { test, expect } from "@playwright/test";
 
+const agentName = `E2E CRUD Agent ${Date.now()}`;
+const updatedAgentName = `${agentName} Updated`;
+
 test.describe("Agent CRUD", () => {
+  test.describe.configure({ mode: "serial" });
+
   test.beforeEach(async ({ page }) => {
-    await page.goto("http://localhost:3001");
+    await page.goto("/");
   });
 
   test("user creates an agent", async ({ page }) => {
     await page.getByRole("button", { name: /new agent/i }).click();
 
-    await page.fill("[name='name']", "Test Agent");
+    await page.fill("[name='name']", agentName);
     await page.fill("[name='systemPrompt']", "You are a helpful test assistant.");
-    await page.selectOption("[name='model']", "ollama:qwen2.5:7b");
+    await page.fill("[name='model']", "ollama:qwen2.5:7b");
 
-    await page.getByRole("button", { name: /save/i }).click();
+    await page.getByRole("button", { name: /save agent/i }).click();
 
     // Should appear in sidebar
-    await expect(page.getByTestId("agent-list")).toContainText("Test Agent");
+    await expect(page.getByTestId("agent-list")).toContainText(agentName);
   });
 
   test("user edits an agent", async ({ page }) => {
-    await page.getByText("Test Agent").click();
-    await page.getByRole("button", { name: /edit/i }).click();
+    await page.getByTestId("agent-card").filter({ hasText: agentName }).getByRole("button").first().click();
 
-    await page.fill("[name='name']", "Test Agent Updated");
-    await page.getByRole("button", { name: /save/i }).click();
+    await page.fill("[name='name']", updatedAgentName);
+    await page.getByRole("button", { name: /save agent/i }).click();
 
-    await expect(page.getByTestId("agent-list")).toContainText("Test Agent Updated");
+    await expect(page.getByTestId("agent-list")).toContainText(updatedAgentName);
   });
 
   test("user chats with an agent", async ({ page }) => {
-    await page.getByText("Test Agent").click();
-    await page.getByRole("button", { name: /start chat/i }).click();
+    test.skip(!process.env.E2E_OLLAMA, "Set E2E_OLLAMA=1 to run live local-model chat tests.");
 
-    const input = page.getByPlaceholder(/type a message/i);
+    await page.getByTestId("agent-card").filter({ hasText: updatedAgentName }).getByRole("button", { name: /start chat/i }).click();
+
+    const input = page.getByPlaceholder(/message your local ai/i);
     await input.fill("Hello from test");
     await input.press("Enter");
 
@@ -41,10 +46,9 @@ test.describe("Agent CRUD", () => {
   });
 
   test("user deletes an agent", async ({ page }) => {
-    await page.getByText("Test Agent Updated").click();
-    await page.getByRole("button", { name: /delete/i }).click();
-    await page.getByRole("button", { name: /confirm/i }).click();
+    await page.getByTestId("agent-card").filter({ hasText: updatedAgentName }).getByRole("button").first().click();
+    await page.getByRole("button", { name: "Delete", exact: true }).click();
 
-    await expect(page.getByTestId("agent-list")).not.toContainText("Test Agent Updated");
+    await expect(page.getByTestId("agent-list")).not.toContainText(updatedAgentName);
   });
 });

@@ -194,6 +194,7 @@ export function AgentBuilder() {
             <label className="space-y-1 text-sm">
               <span>Name</span>
               <input
+                name="name"
                 value={form.name}
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
                 placeholder="Research Assistant"
@@ -203,6 +204,7 @@ export function AgentBuilder() {
             <label className="space-y-1 text-sm">
               <span>Avatar</span>
               <input
+                name="avatar"
                 value={form.avatar}
                 onChange={(event) => setForm({ ...form, avatar: event.target.value })}
                 placeholder="RA"
@@ -212,6 +214,7 @@ export function AgentBuilder() {
             <label className="space-y-1 text-sm md:col-span-2">
               <span>Description</span>
               <input
+                name="description"
                 value={form.description}
                 onChange={(event) => setForm({ ...form, description: event.target.value })}
                 placeholder="Summarizes sources and proposes next steps."
@@ -226,6 +229,7 @@ export function AgentBuilder() {
           <label className="space-y-1 text-sm">
             <span>System prompt</span>
             <textarea
+              name="systemPrompt"
               value={form.systemPrompt}
               onChange={(event) => setForm({ ...form, systemPrompt: event.target.value })}
               rows={9}
@@ -291,6 +295,7 @@ export function AgentBuilder() {
             <label className="space-y-1 text-sm md:col-span-3">
               <span>Model</span>
               <input
+                name="model"
                 value={form.model}
                 onChange={(event) => setForm({ ...form, model: event.target.value })}
                 className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-1 focus:ring-primary"

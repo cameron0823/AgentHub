@@ -23,7 +23,7 @@ export function AgentList({ agents, activeAgentId, onEditAgent, onStartChat, isS
   }, [agents, query]);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-testid="agent-list">
       <div className="relative">
         <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
         <input
@@ -43,6 +43,7 @@ export function AgentList({ agents, activeAgentId, onEditAgent, onStartChat, isS
           {filteredAgents.map((agent) => (
             <div
               key={agent.id}
+              data-testid="agent-card"
               className={`rounded-lg border p-2 text-xs transition-colors ${
                 agent.id === activeAgentId ? "border-primary bg-primary/5" : "hover:bg-muted/60"
               }`}

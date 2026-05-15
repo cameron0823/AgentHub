@@ -3,7 +3,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { router, authedProcedure } from "../trpc";
 import { db } from "../db";
 import { providerCredentials } from "../db/schema";
-import { providerRegistry } from "@agenthub/ai-providers";
+import { createCloudProvider, providerRegistry } from "@agenthub/ai-providers";
 
 type ProviderCred = typeof providerCredentials.$inferSelect;
 
@@ -26,8 +26,21 @@ async function getUserCreds(userId: string) {
 async function fetchModelsForCredential(cred: ProviderCred): Promise<string[]> {
   const pid = cred.providerId;
 
-  if (pid === "github-copilot") {
-    return ["gpt-4o", "gpt-4o-mini", "claude-3.5-sonnet", "o1", "o3-mini"];
+  const cloudProvider = createCloudProvider({
+    providerId: cred.providerId,
+    authType: cred.authType as "api_key" | "oauth",
+    apiKey: cred.apiKey || undefined,
+    baseUrl: cred.baseUrl || undefined,
+    accessToken: cred.accessToken || undefined,
+  });
+
+  if (cloudProvider) {
+    try {
+      const models = await cloudProvider.listModels();
+      return Array.from(new Set(models.map((model) => model.id)));
+    } catch {
+      return [];
+    }
   }
 
   try {

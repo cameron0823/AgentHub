@@ -5,7 +5,7 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
-  serverExternalPackages: ["postgres"],
+  serverExternalPackages: ["postgres", "bullmq", "node-cron"],
   async rewrites() {
     return [];
   },

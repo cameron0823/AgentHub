@@ -1,8 +1,17 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+
+async function createAgent(page: Page, agentName: string) {
+  await page.getByRole("button", { name: /new agent/i }).click();
+  await page.fill("[name='name']", agentName);
+  await page.fill("[name='systemPrompt']", "You are an e2e marketplace export fixture.");
+  await page.getByRole("button", { name: /save agent/i }).click();
+  await expect(page.getByTestId("agent-list")).toContainText(agentName);
+}
 
 test.describe("Agent Marketplace", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("http://localhost:3001/marketplace");
+    await page.goto("/");
+    await page.getByRole("button", { name: /marketplace/i }).click();
   });
 
   test("user browses bundled catalog", async ({ page }) => {
@@ -12,27 +21,34 @@ test.describe("Agent Marketplace", () => {
   });
 
   test("user installs catalog item", async ({ page }) => {
-    await page.getByText("Research Copilot").click();
-    await page.getByRole("button", { name: /install/i }).click();
+    await page
+      .getByTestId("catalog-grid")
+      .locator("> div")
+      .filter({ hasText: "Research Copilot" })
+      .getByRole("button", { name: /^install$/i })
+      .click();
 
-    // Should show success toast
-    await expect(page.getByText(/installed/i)).toBeVisible();
+    await expect(page.getByRole("status")).toContainText("Installed 1 agent(s) from Research Copilot.");
 
     // Agent should appear in sidebar
-    await page.goto("http://localhost:3001");
-    await expect(page.getByTestId("agent-list")).toContainText("Research Copilot");
+    await page.goto("/");
+    await expect(page.getByTestId("agent-list")).toContainText("Research Analyst");
   });
 
   test("user exports an agent to manifest", async ({ page }) => {
-    await page.goto("http://localhost:3001");
-    await page.getByText("Research Copilot").click();
-    await page.getByRole("button", { name: /export/i }).click();
+    const agentName = `E2E Export Agent ${Date.now()}`;
+    await page.goto("/");
+    await createAgent(page, agentName);
+    await page.getByRole("button", { name: /marketplace/i }).click();
+    const researchOptionValue = await page
+      .getByRole("combobox")
+      .locator("option", { hasText: agentName })
+      .getAttribute("value");
 
-    // Verify download
-    const downloadPromise = page.waitForEvent("download");
-    await page.getByRole("button", { name: /download manifest/i }).click();
-    const download = await downloadPromise;
+    expect(researchOptionValue).toBeTruthy();
+    await page.getByRole("combobox").selectOption(researchOptionValue!);
+    await page.getByRole("button", { name: /generate export json/i }).click();
 
-    expect(download.suggestedFilename()).toMatch(/\.json$/);
+    await expect(page.getByPlaceholder(/exported manifest json/i)).toContainText(agentName);
   });
 });

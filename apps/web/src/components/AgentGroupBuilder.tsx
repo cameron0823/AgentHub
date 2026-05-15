@@ -175,6 +175,7 @@ export function AgentGroupBuilder() {
             <label className="space-y-1 text-sm">
               <span>Name</span>
               <input
+                name="name"
                 value={form.name}
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
                 placeholder="Research Team"
@@ -184,6 +185,7 @@ export function AgentGroupBuilder() {
             <label className="space-y-1 text-sm">
               <span>Pattern</span>
               <select
+                name="pattern"
                 value={form.pattern}
                 onChange={(event) => setForm({ ...form, pattern: event.target.value as AgentGroup["pattern"] })}
                 className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
@@ -196,6 +198,7 @@ export function AgentGroupBuilder() {
             <label className="space-y-1 text-sm md:col-span-2">
               <span>Description</span>
               <input
+                name="description"
                 value={form.description}
                 onChange={(event) => setForm({ ...form, description: event.target.value })}
                 placeholder="Runs specialists and returns a combined synthesis."
@@ -227,6 +230,7 @@ export function AgentGroupBuilder() {
                   <div key={agent.id} className="grid gap-2 rounded-lg border p-3 text-sm md:grid-cols-[1fr_220px]">
                     <label className="flex items-start gap-2">
                       <input
+                        data-testid="agent-checkbox"
                         type="checkbox"
                         checked={selected}
                         onChange={(event) => setMember(agent.id, event.target.checked)}

@@ -31,6 +31,6 @@ Thumbs.db
 .idea/
 
 # Playwright
-playwright/.auth/
-test-results/
-playwright-report/
+**/playwright/.auth/
+**/test-results/
+**/playwright-report/

@@ -20,10 +20,11 @@ export function AgentGroupList({ groups, agents, activeGroupId, onEditGroup, onS
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1" data-testid="group-list">
       {groups.map((group) => (
         <div
           key={group.id}
+          data-testid="group-card"
           className={`rounded-lg border p-2 text-xs transition-colors ${
             group.id === activeGroupId ? "border-primary bg-primary/5" : "hover:bg-muted/60"
           }`}

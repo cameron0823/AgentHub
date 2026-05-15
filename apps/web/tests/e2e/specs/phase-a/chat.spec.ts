@@ -1,14 +1,16 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Core Chat @ollama", () => {
+  test.skip(!process.env.E2E_OLLAMA, "Set E2E_OLLAMA=1 to run live local-model chat tests.");
+
   test.beforeEach(async ({ page }) => {
-    await page.goto("http://localhost:3001");
+    await page.goto("/");
     // Start a new chat if not already in one
-    await page.getByRole("button", { name: /new chat/i }).click();
+    await page.getByRole("button", { name: /^new chat$/i }).click();
   });
 
   test("user sends message and receives streaming response", async ({ page }) => {
-    const input = page.getByPlaceholder(/type a message/i);
+    const input = page.getByPlaceholder(/message your local ai/i);
     await input.fill("What is 2+2?");
     await input.press("Enter");
 
@@ -25,7 +27,7 @@ test.describe("Core Chat @ollama", () => {
   });
 
   test("auto title generation works", async ({ page }) => {
-    const input = page.getByPlaceholder(/type a message/i);
+    const input = page.getByPlaceholder(/message your local ai/i);
     await input.fill("Explain quantum computing in simple terms");
     await input.press("Enter");
 
@@ -38,7 +40,7 @@ test.describe("Core Chat @ollama", () => {
   });
 
   test("stop generation button works", async ({ page }) => {
-    const input = page.getByPlaceholder(/type a message/i);
+    const input = page.getByPlaceholder(/message your local ai/i);
     await input.fill("Write a 500-word essay about the history of computing");
     await input.press("Enter");
 

@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Tool output images can be arbitrary base64 data from runtime execution. */
+
 import { Wrench, ExternalLink } from "lucide-react";
 import { ToolCall, ToolResult } from "@/stores/chatStore";
 

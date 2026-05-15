@@ -3,13 +3,69 @@ import type { ChatOptions, ChatStreamChunk, ModelInfo, ProviderHealth } from "..
 
 const COPILOT_BASE_URL = "https://api.githubcopilot.com";
 
-const COPILOT_MODELS: ModelInfo[] = [
-  { id: "gpt-4o",            name: "GPT-4o",            capabilities: ["chat", "tools"] },
-  { id: "gpt-4o-mini",       name: "GPT-4o Mini",       capabilities: ["chat", "tools"] },
-  { id: "claude-3.5-sonnet", name: "Claude 3.5 Sonnet", capabilities: ["chat", "tools"] },
-  { id: "o1",                name: "o1",                capabilities: ["chat"] },
-  { id: "o3-mini",           name: "o3-mini",           capabilities: ["chat"] },
+interface CopilotApiModel {
+  id?: string;
+  name?: string;
+  capabilities?: unknown;
+}
+
+type CopilotModelsPayload =
+  | CopilotApiModel[]
+  | {
+      data?: CopilotApiModel[];
+      models?: CopilotApiModel[];
+    };
+
+const COPILOT_FALLBACK_MODELS: ModelInfo[] = [
+  { id: "gpt-4.1", name: "GPT-4.1", capabilities: ["chat", "tools"] },
+  { id: "gpt-5-mini", name: "GPT-5 mini", capabilities: ["chat", "tools"] },
+  { id: "gpt-5.2", name: "GPT-5.2", capabilities: ["chat", "tools", "reasoning"] },
+  { id: "gpt-5.2-codex", name: "GPT-5.2-Codex", capabilities: ["chat", "tools", "reasoning"] },
+  { id: "gpt-5.3-codex", name: "GPT-5.3-Codex", capabilities: ["chat", "tools", "reasoning"] },
+  { id: "gpt-5.4", name: "GPT-5.4", capabilities: ["chat", "tools", "reasoning"] },
+  { id: "gpt-5.4-mini", name: "GPT-5.4 mini", capabilities: ["chat", "tools"] },
+  { id: "gpt-5.4-nano", name: "GPT-5.4 nano", capabilities: ["chat", "tools"] },
+  { id: "gpt-5.5", name: "GPT-5.5", capabilities: ["chat", "tools", "reasoning"] },
+  { id: "claude-haiku-4.5", name: "Claude Haiku 4.5", capabilities: ["chat", "tools"] },
+  { id: "claude-opus-4.5", name: "Claude Opus 4.5", capabilities: ["chat", "tools", "reasoning"] },
+  { id: "claude-opus-4.6", name: "Claude Opus 4.6", capabilities: ["chat", "tools", "reasoning"] },
+  { id: "claude-opus-4.6-fast", name: "Claude Opus 4.6 (fast mode)", capabilities: ["chat", "tools", "reasoning"] },
+  { id: "claude-opus-4.7", name: "Claude Opus 4.7", capabilities: ["chat", "tools", "reasoning"] },
+  { id: "claude-sonnet-4.5", name: "Claude Sonnet 4.5", capabilities: ["chat", "tools", "reasoning"] },
+  { id: "claude-sonnet-4.6", name: "Claude Sonnet 4.6", capabilities: ["chat", "tools", "reasoning"] },
+  { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", capabilities: ["chat", "vision", "tools"] },
+  { id: "gemini-3-flash", name: "Gemini 3 Flash", capabilities: ["chat", "vision", "tools"] },
+  { id: "gemini-3.1-pro", name: "Gemini 3.1 Pro", capabilities: ["chat", "vision", "tools"] },
+  { id: "grok-code-fast-1", name: "Grok Code Fast 1", capabilities: ["chat", "tools"] },
+  { id: "raptor-mini", name: "Raptor mini", capabilities: ["chat", "tools"] },
+  { id: "goldeneye", name: "Goldeneye", capabilities: ["chat", "tools", "reasoning"] },
 ];
+
+function getCopilotModelRecords(payload: CopilotModelsPayload): CopilotApiModel[] {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload.data)) return payload.data;
+  if (Array.isArray(payload.models)) return payload.models;
+  return [];
+}
+
+function normalizeCapabilities(value: unknown): ModelInfo["capabilities"] {
+  const capabilities = new Set<ModelInfo["capabilities"][number]>(["chat"]);
+  const text = (typeof value === "string" ? value : JSON.stringify(value ?? "")).toLowerCase();
+  if (text.includes("vision") || text.includes("image") || text.includes("multimodal")) capabilities.add("vision");
+  if (text.includes("tool") || text.includes("function")) capabilities.add("tools");
+  if (text.includes("reason") || text.includes("thinking")) capabilities.add("reasoning");
+  return Array.from(capabilities);
+}
+
+function normalizeCopilotModel(model: CopilotApiModel): ModelInfo | null {
+  const id = model.id || model.name;
+  if (!id) return null;
+  return {
+    id,
+    name: model.name || id,
+    capabilities: normalizeCapabilities(model.capabilities),
+  };
+}
 
 export class GitHubCopilotProvider extends OpenAICompatibleProvider {
   private accessToken: string;
@@ -20,7 +76,23 @@ export class GitHubCopilotProvider extends OpenAICompatibleProvider {
   }
 
   override async listModels() {
-    return COPILOT_MODELS;
+    try {
+      const res = await fetch(`${COPILOT_BASE_URL}/models`, {
+        headers: this.copilotHeaders(),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return COPILOT_FALLBACK_MODELS;
+
+      const payload = (await res.json()) as CopilotModelsPayload;
+      const models = getCopilotModelRecords(payload)
+        .map(normalizeCopilotModel)
+        .filter((model): model is ModelInfo => Boolean(model));
+      if (models.length === 0) return COPILOT_FALLBACK_MODELS;
+
+      return Array.from(new Map(models.map((model) => [model.id, model])).values());
+    } catch {
+      return COPILOT_FALLBACK_MODELS;
+    }
   }
 
   override async healthCheck(): Promise<ProviderHealth> {
