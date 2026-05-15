@@ -11,7 +11,8 @@
     "typecheck": "turbo run typecheck",
     "db:generate": "pnpm -C apps/web exec drizzle-kit generate",
     "db:migrate": "pnpm -C apps/web exec drizzle-kit migrate",
-    "db:push": "pnpm -C apps/web exec drizzle-kit push"
+    "db:push": "pnpm -C apps/web exec drizzle-kit push",
+    "validate": "turbo run typecheck && turbo run test"
   },
   "devDependencies": {
     "turbo": "^2.9.12",
