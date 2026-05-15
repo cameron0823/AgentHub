@@ -105,7 +105,7 @@ test("OpenAI-compatible endpoint response includes usage token counts", async ()
 test("Export endpoint requires session authentication", async () => {
   const src = await readText("apps/web/src/app/api/export/route.ts");
 
-  assert.match(src, /const session = await auth\(\)/, "must call auth()");
+  assert.match(src, /const session = await auth\(req\.headers\)/, "must call auth(req.headers)");
   assert.match(src, /if \(!session\?\.user\)/, "must check session.user");
   assert.match(src, /status: 401/, "must return 401 when unauthenticated");
 });
@@ -150,7 +150,7 @@ test("Export ZIP writer uses valid ZIP local file header signature", async () =>
 test("A2A delegate endpoint requires session authentication", async () => {
   const src = await readText("apps/web/src/app/api/a2a/delegate/route.ts");
 
-  assert.match(src, /const session = await auth\(\)/, "must call auth()");
+  assert.match(src, /const session = await auth\(req\.headers\)/, "must call auth(req.headers)");
   assert.match(src, /status: 401/, "must return 401 when unauthenticated");
 });
 

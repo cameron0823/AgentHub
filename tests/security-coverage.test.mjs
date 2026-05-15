@@ -12,7 +12,7 @@ test("Authentication and session isolation guardrails are enforced across all ro
   ]);
 
   // Stream route performs auth check before any DB access
-  assert.match(route, /const session = await auth\(\)/);
+  assert.match(route, /const session = await auth\(req\.headers\)/);
   assert.match(route, /if \(!session\?\.user\)/);
   assert.match(route, /status: 401/);
 

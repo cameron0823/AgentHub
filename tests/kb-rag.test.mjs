@@ -66,7 +66,7 @@ test("KB router create stamps userId from session — not from client input", as
 test("KB query API route requires session authentication", async () => {
   const src = await readText("apps/web/src/app/api/kb/query/route.ts");
 
-  assert.match(src, /const session = await auth\(\)/, "must call auth()");
+  assert.match(src, /const session = await auth\(req\.headers\)/, "must call auth(req.headers)");
   assert.match(src, /status: 401/, "must return 401 when unauthenticated");
 });
 

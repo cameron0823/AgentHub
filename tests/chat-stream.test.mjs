@@ -9,7 +9,7 @@ const readText = async (path) => readFile(new URL(`../${path}`, import.meta.url)
 test("stream route rejects unauthenticated requests with 401", async () => {
   const src = await readText("apps/web/src/app/api/chat/stream/route.ts");
 
-  assert.match(src, /const session = await auth\(\)/, "must call auth()");
+  assert.match(src, /const session = await auth\(req\.headers\)/, "must call auth(req.headers)");
   assert.match(src, /if \(!session\?\.user\)/, "must check session.user before any DB access");
   assert.match(src, /status: 401/, "must return 401 on missing session");
 });
@@ -120,7 +120,7 @@ test("checkpoint registry resolves and rejects promises correctly", async () => 
 test("checkpoint HTTP endpoint validates input and requires auth before resolving", async () => {
   const src = await readText("apps/web/src/app/api/chat/checkpoint/route.ts");
 
-  assert.match(src, /const session = await auth\(\)/, "checkpoint endpoint must require auth");
+  assert.match(src, /const session = await auth\(req\.headers\)/, "checkpoint endpoint must require auth");
   assert.match(src, /status: 401/, "must return 401 when unauthenticated");
   assert.match(src, /typeof approved !== "boolean"/, "must validate approved is boolean");
   assert.match(src, /resolveCheckpoint\(checkpointId, approved\)/, "must call resolveCheckpoint with approved value");
