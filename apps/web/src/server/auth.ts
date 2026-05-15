@@ -62,10 +62,13 @@ export const authOptions: NextAuthOptions = {
     },
   ],
   callbacks: {
-    async session({ session, user }) {
+    async session({ session, token, user }) {
       if (user && session.user) {
         (session.user as any).id = user.id;
         (session.user as any).role = (user as any).role || "user";
+      } else if (token && session.user) {
+        (session.user as any).id = (token as any).id as string;
+        (session.user as any).role = (token as any).role || "user";
       }
       return session;
     },
@@ -86,10 +89,36 @@ const handler = NextAuth(authOptions);
 export const GET = handler;
 export const POST = handler;
 
-// Server-side session helper for tRPC context
-export async function auth() {
-  const { getServerSession } = await import("next-auth/next");
-  return getServerSession(authOptions);
+// Server-side session helper for tRPC context.
+// Uses getToken() instead of getServerSession() to avoid Next.js 15's async cookies()
+// incompatibility — getServerSession() internally calls synchronous cookies() which throws
+// in Next.js 15 App Router when a session cookie is present.
+export async function auth(headers?: Headers) {
+  const { getToken } = await import("next-auth/jwt");
+  const cookieHeader = headers?.get("cookie") ?? "";
+  const cookies: Record<string, string> = {};
+  cookieHeader.split(";").forEach((pair) => {
+    const eqIdx = pair.indexOf("=");
+    if (eqIdx === -1) return;
+    const k = pair.slice(0, eqIdx).trim();
+    const v = pair.slice(eqIdx + 1).trim();
+    if (k) cookies[k] = decodeURIComponent(v);
+  });
+  const req = {
+    headers: headers ? Object.fromEntries(headers.entries()) : {},
+    cookies,
+  } as any;
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  if (!token) return null;
+  return {
+    user: {
+      id: token.id as string,
+      email: token.email as string,
+      name: token.name as string,
+      role: ((token as any).role as string) || "user",
+    },
+    expires: new Date(((token.exp as number) ?? 0) * 1000).toISOString(),
+  };
 }
 
 export { authOptions as config };

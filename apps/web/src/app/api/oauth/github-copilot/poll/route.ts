@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 const CLIENT_ID = process.env.GITHUB_COPILOT_CLIENT_ID ?? "Iv1.b507a08c87ecfe98";
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
+  const session = await auth(req.headers);
   if (!session?.user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }

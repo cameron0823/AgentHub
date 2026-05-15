@@ -46,7 +46,7 @@ function randomUUID(): string {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
+  const session = await auth(req.headers);
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

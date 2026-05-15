@@ -27,7 +27,7 @@ function parseAgentTools(value: string | null) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
+  const session = await auth(req.headers);
   if (!session?.user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
@@ -377,8 +377,25 @@ export async function POST(req: NextRequest) {
 
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done", tokensUsed: approxTokens, latencyMs })}\n\n`));
       } catch (err) {
-        const errorMsg = (err as Error).message;
+        const rawMsg = (err as Error).message;
+        // Extract the human-readable part from JSON error blobs like "Ollama error: {...}"
+        let errorMsg = rawMsg;
+        const jsonStart = rawMsg.indexOf("{");
+        if (jsonStart !== -1) {
+          try {
+            const parsed = JSON.parse(rawMsg.slice(jsonStart));
+            if (typeof parsed.error === "string") {
+              errorMsg = parsed.error.split("\n")[0].trim();
+            }
+          } catch { /* keep rawMsg */ }
+        }
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", error: errorMsg })}\n\n`));
+        // Persist the error as an assistant message so conversation history and share pages show it
+        await db.insert(messagesTable).values({
+          sessionId,
+          role: "assistant",
+          content: `⚠️ ${errorMsg}`,
+        }).catch(() => { /* non-fatal — don't mask the original error */ });
       } finally {
         mcpClients.forEach(c => { try { c.disconnect(); } catch { /* ignore */ } });
         controller.close();

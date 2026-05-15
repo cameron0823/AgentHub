@@ -102,7 +102,7 @@ function crc32Table(): number[] {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
+  const session = await auth(req.headers);
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
