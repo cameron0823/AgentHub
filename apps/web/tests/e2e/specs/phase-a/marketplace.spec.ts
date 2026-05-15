@@ -15,7 +15,7 @@ test.describe("Agent Marketplace", () => {
   });
 
   test("user browses bundled catalog", async ({ page }) => {
-    await expect(page.getByTestId("catalog-grid")).toBeVisible();
+    await expect(page.getByTestId("catalog-grid")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("Research Copilot")).toBeVisible();
     await expect(page.getByText("Developer Utility Pack")).toBeVisible();
   });

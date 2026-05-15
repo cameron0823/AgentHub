@@ -176,7 +176,7 @@ export function McpSettings() {
         )}
 
         {servers.data?.map(srv => (
-          <div key={srv.id} className="flex items-center gap-3 border rounded-lg p-3">
+          <div key={srv.id} className="flex items-center gap-3 border rounded-lg p-3" data-testid="mcp-server-row">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-medium text-sm truncate">{srv.name}</span>

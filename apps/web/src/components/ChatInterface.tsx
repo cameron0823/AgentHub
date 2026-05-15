@@ -135,6 +135,7 @@ export function ChatInterface() {
 
         return {
           id: message.id,
+          sessionId: message.sessionId,
           role: message.role,
           content: message.content,
           reasoning: message.reasoning || undefined,

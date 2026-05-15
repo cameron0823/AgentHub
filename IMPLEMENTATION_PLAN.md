@@ -1,10 +1,11 @@
 # Master Implementation Plan: AgentHub
 
 > **Version:** 2.0  
-> **Status:** Planning — Ready for Review  
+> **Status:** Archived planning snapshot. `TODO.md` is the canonical current tracker.
 > **Target:** Full feature parity with LobeHub, 100% local-first, zero mandatory cloud dependencies  
 > **Timeline:** 16 Weeks (Phased Rollout)  
 > **Team Size:** 1-3 developers (scales with contributors)
+> **Completion note (2026-05-15):** Current execution plans through Sprint 12 and Phase 32 are complete; unchecked historical rows below are not the active backlog.
 
 ---
 

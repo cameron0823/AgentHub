@@ -1,8 +1,9 @@
 # AgentHub Implementation Roadmap
 
 > **Version:** 2.0  
-> **Last Updated:** 2026-05-11  
-> **Status:** Living document — updated after each sprint
+> **Last Updated:** 2026-05-15
+> **Status:** Archived roadmap snapshot. `TODO.md` is the canonical current tracker.
+> Sprints 0-12 and Phase 32 are complete there; rows below preserve historical planning context and may show superseded open items.
 
 ---
 
@@ -155,7 +156,7 @@
 
 ---
 
-## Sprint 6: Chat Polish (NEXT SPRINT)
+## Sprint 6: Chat Polish (HISTORICAL SNAPSHOT — COMPLETE IN `TODO.md`)
 
 **Sprint Goal:** Close chat parity gaps for daily-use quality.
 

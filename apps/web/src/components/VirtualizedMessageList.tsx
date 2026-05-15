@@ -56,7 +56,13 @@ export function VirtualizedMessageList({ messages, onBranch, onEdit, onRegenerat
       increaseViewportBy={{ top: 600, bottom: 600 }}
       components={{ List: MessageList }}
       itemContent={(_, message) => (
-        <ChatMessageItem message={message} />
+        <ChatMessageItem
+          message={message}
+          onBranch={onBranch}
+          onEdit={onEdit}
+          onRegenerate={onRegenerate}
+          onFeedback={onFeedback}
+        />
       )}
     />
   );

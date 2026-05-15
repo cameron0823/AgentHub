@@ -2,7 +2,8 @@
 
 > **Purpose:** A curated inventory of features not currently implemented or on the active roadmap, organized by implementation complexity.  
 > **Source:** Competitive analysis of OpenWebUI, LobeChat, LibreChat, Onyx, ChatGPT, Claude, and Gemini.  
-> **Last Updated:** 2026-05-11
+> **Last Updated:** 2026-05-15
+> **Status:** Reference backlog catalog. `TODO.md` is the canonical current tracker; catalog entries are ideas/backlog unless explicitly promoted there.
 
 ---
 

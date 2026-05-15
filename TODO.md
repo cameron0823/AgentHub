@@ -1,10 +1,12 @@
 # AgentHub — Canonical Task Tracker
 
-> **Last updated:** 2026-05-14  
+> **Last updated:** 2026-05-15
 > **This is the single source of truth for all remaining work.**  
 > Implementation details → `IMPLEMENTATION_PLANS.md` (phase numbers referenced inline).  
 > Other planning docs (`MASTER_PLAN.md`, `IMPLEMENTATION_PLAN.md`, `E2E_FEATURE_PLANS.md`,  
 > `FEATURE_CATALOG.md`, `REQUIREMENTS_AUDIT*.md`, `FEATURE_TRACKER.md`) are reference/archive only.
+> **Completion audit:** Current execution plans through Sprint 12 and Phase 32 are complete.
+> Items under "Future / Tier 3" are design-first backlog, not active incomplete plan work.
 
 ---
 
@@ -84,7 +86,7 @@ Sprints 0–5 per `IMPLEMENTATION_ROADMAP.md` (committed, verified):
 
 ---
 
-## MEDIUM PRIORITY — Next Sprint
+## Completed — Sprints 8-9 ✅
 
 ### Sprint 8: Memory Advanced ✓ COMPLETE
 
@@ -99,7 +101,7 @@ Sprints 0–5 per `IMPLEMENTATION_ROADMAP.md` (committed, verified):
 
 ---
 
-## LOW PRIORITY
+## Completed — Sprints 10-12 + Phase 32 ✅
 
 ### Sprint 10: MCP & Extensibility
 
@@ -145,14 +147,14 @@ Sprints 0–5 per `IMPLEMENTATION_ROADMAP.md` (committed, verified):
 
 ## Acceptance Criteria (Every Phase)
 
-1. `npm run typecheck` exits 0 (all 3 packages)
-2. `npm test` exits 0 (143 baseline tests — no regressions)
+1. `pnpm typecheck` exits 0 (all 3 packages)
+2. `pnpm test` exits 0 (no regressions)
 3. Feature works end-to-end in browser (start dev server, exercise golden path)
 4. Security phases: `security-auditor` clearance required before merging
 
 ```bash
 # Run from /home/coxar/projects/AgentHub
-npm run typecheck
-npm test
-cd apps/web && pnpm playwright test   # E2E (requires Docker stack)
+pnpm typecheck
+pnpm test
+pnpm -C apps/web test:e2e
 ```

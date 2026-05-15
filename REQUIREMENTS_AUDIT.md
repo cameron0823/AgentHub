@@ -3,6 +3,7 @@
 > **Date:** 2026-05-05  
 > **Purpose:** Explicit verification that all requested enterprise-grade features exist in project plans before implementation proceeds.  
 > **Status:** ✅ All features now mapped and documented
+> **Current tracker note (2026-05-15):** This is a requirements-mapping archive, not the active completion tracker. Use `TODO.md` for current plan completion state.
 
 ---
 

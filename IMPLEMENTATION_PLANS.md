@@ -2,6 +2,7 @@
 > Generated: 2026-05-12 · Based on FEATURE_TRACKER.md + FEATURE_CATALOG.md
 > All phases build on Plans 0–10 (already committed).
 > Meta-skills listed per phase; spawn before implementation, not after.
+> **Status note (2026-05-15):** Detailed execution playbook for completed Phases 11-32. `TODO.md` is the canonical current tracker; Future/Tier 3 work remains design-first backlog.
 
 ---
 

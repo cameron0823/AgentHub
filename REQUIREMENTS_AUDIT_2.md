@@ -3,6 +3,7 @@
 > **Date:** 2026-05-05  
 > **Purpose:** Verify second batch of requested features against updated project plans  
 > **Status:** ✅ All 20 features verified and documented
+> **Current tracker note (2026-05-15):** This is a requirements-mapping archive, not the active completion tracker. Use `TODO.md` for current plan completion state.
 
 ---
 

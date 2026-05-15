@@ -1,8 +1,8 @@
 # AgentHub E2E Feature Plans
 
 > **Version:** 1.0  
-> **Last Updated:** 2026-05-12  
-> **Status:** Living document — updated after each phase completion
+> **Last Updated:** 2026-05-15
+> **Status:** Archived feature-test planning matrix. `TODO.md` is the canonical current tracker; current E2E commands and runnable coverage live in `apps/web/tests/e2e/README.md` and the Playwright specs.
 
 ---
 

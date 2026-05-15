@@ -3,23 +3,15 @@
 ## Running Tests
 
 ```bash
-# 1. Start infrastructure
-docker compose up -d postgresql minio casdoor
+# Run the configured Playwright suite from the repo root.
+# The setup project signs in with the dev credentials provider and stores auth state.
+pnpm -C apps/web test:e2e
 
-# 2. Run migrations
-pnpm drizzle-kit migrate
+# Run a specific phase
+pnpm -C apps/web exec playwright test tests/e2e/specs/phase-a
 
-# 3. Seed test data
-pnpm tsx tests/e2e/seed.ts
-
-# 4. Run tests
-pnpm playwright test
-
-# Run specific phase
-pnpm playwright test specs/phase-a
-
-# Run without Ollama-dependent tests
-pnpm playwright test --grep-invert @ollama
+# Include live local-model tests that are skipped by default
+E2E_OLLAMA=1 pnpm -C apps/web test:e2e
 ```
 
 ## Test Organization
@@ -36,7 +28,6 @@ pnpm playwright test --grep-invert @ollama
 
 ## Tags
 
-- `@ollama` — Requires Ollama running with models
-- `@auth` — Requires Casdoor auth setup
-- `@kb` — Requires knowledge base with documents
-- `@mcp` — Requires MCP server installed
+- `@ollama` — Requires Ollama running with models and `E2E_OLLAMA=1`
+- Auth setup uses the dev credentials provider: `admin@localhost` / `admin12345`
+- The Playwright web server defaults to `DATABASE_URL=postgres://agenthub:agenthub_password@localhost:5432/agenthub_e2e` when it starts its own server.

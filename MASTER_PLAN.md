@@ -3,6 +3,7 @@
 > **Version:** 1.0  
 > **Date:** 2026-05-11  
 > **Goal:** Exhaustive feature gap analysis + implementation roadmap to match and exceed LobeChat capabilities.
+> **Status note (2026-05-15):** Historical gap analysis only. `TODO.md` is the canonical current tracker; current execution plans through Sprint 12 and Phase 32 are complete, while Future/Tier 3 items remain design-first backlog.
 
 ---
 

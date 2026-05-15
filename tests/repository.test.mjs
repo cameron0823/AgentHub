@@ -262,7 +262,11 @@ test("Chat UI virtualizes variable-height message rendering", async () => {
   assert.match(virtualizedList, /window\.setTimeout\(scrollToLatest, 50\)/);
   assert.match(virtualizedList, /window\.setInterval\(scrollToLatest, 100\)/);
   assert.match(virtualizedList, /increaseViewportBy=\{\{ top: 600, bottom: 600 \}\}/);
-  assert.match(virtualizedList, /<ChatMessageItem message=\{message\} \/>/);
+  assert.match(virtualizedList, /<ChatMessageItem\s+message=\{message\}/);
+  assert.match(virtualizedList, /onBranch=\{onBranch\}/);
+  assert.match(virtualizedList, /onEdit=\{onEdit\}/);
+  assert.match(virtualizedList, /onRegenerate=\{onRegenerate\}/);
+  assert.match(virtualizedList, /onFeedback=\{onFeedback\}/);
 });
 
 test("Markdown rendering supports GFM and KaTeX math", async () => {

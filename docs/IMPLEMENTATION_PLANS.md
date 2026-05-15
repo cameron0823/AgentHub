@@ -1,7 +1,8 @@
 # AgentHub — Concrete Implementation Plans
 
 > **Decisions locked**: Copilot public client ID · Gemini API-key-only · MCP in DB · Memory extraction after every response  
-> **Last updated**: 2026-05-12
+> **Last updated**: 2026-05-15
+> **Status**: Archived early execution plan. Root `TODO.md` is the canonical current tracker; root `IMPLEMENTATION_PLANS.md` preserves the completed detailed playbook.
 
 ---
 

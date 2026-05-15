@@ -3,7 +3,9 @@
 > **Purpose**: Track implementation completeness at the layer level. Each feature shows which of 5 layers is done.  
 > **Layers**: `Schema` · `tRPC/API` · `Server Logic` · `UI` · `Tests`  
 > **Status symbols**: ✅ done · 🔶 partial · ❌ missing  
-> **Last updated**: 2026-05-12
+> **Last updated**: 2026-05-15
+> **Status**: Archived layer-level snapshot. `TODO.md` is the canonical current tracker.
+> Some rows below intentionally preserve stale gap notes from the original audit; use the canonical tracker plus tests for current completion.
 
 ---
 
@@ -43,8 +45,8 @@
 | Anthropic | ✅ | ✅ | ✅ | ✅ | ❌ | API key only; 4 hardcoded models |
 | Google Gemini | ✅ | ✅ | ✅ | ✅ | ❌ | API key only; OAuth possible via GCP, not implemented |
 | Moonshot | ✅ | ✅ | ✅ | ✅ | ❌ | API key only |
-| GitHub Copilot | ❌ | ❌ | ❌ | ❌ | ❌ | Device-flow OAuth viable; not started. See `docs/PROVIDER_AUTH.md` |
-| Dynamic model list fetch | ❌ | ❌ | ❌ | ❌ | ❌ | Models hardcoded in `ProviderSettings.tsx`; no `/v1/models` fetch |
+| GitHub Copilot | ✅ | ✅ | ✅ | ✅ | ✅ | Device-flow OAuth routes + provider implementation + model discovery are implemented; current tests guard against the old hardcoded five-model list. |
+| Dynamic model list fetch | ✅ | ✅ | ✅ | ✅ | ✅ | Settings fetch now calls each provider's `listModels()` implementation; GitHub Copilot and Moonshot are covered by repository tests. |
 | Provider registry hot reload | ❌ | ❌ | 🔶 | ❌ | ❌ | `loadUserCredentials()` called per-request; no streaming registry invalidation |
 
 ---
@@ -173,7 +175,7 @@
 |---------|--------|----------|-------------|-----|-------|-------|
 | Docker Compose stack | ❌ | ❌ | ✅ | ❌ | ❌ | PostgreSQL, Redis, MinIO, Casdoor, app |
 | CI (GitHub Actions) | ❌ | ❌ | ✅ | ❌ | 🔶 | `test → typecheck → lint → build`; test suite minimal |
-| `.env.example` | ❌ | ❌ | ❌ | ❌ | ❌ | **Missing** — `tests/repository.test.mjs` asserts this file exists; CI currently fails |
+| `.env.example` | ✅ | ❌ | ❌ | ❌ | ✅ | Present at repo root; repository tests assert required env documentation. |
 | Health check endpoint | ❌ | ❌ | ❌ | ❌ | ❌ | |
 | Redis integration | ❌ | ❌ | ❌ | ❌ | ❌ | Declared in docker-compose; no application code uses it |
 | Rate limiting | ❌ | ❌ | ❌ | ❌ | ❌ | |
@@ -189,7 +191,7 @@
 | `_app.ts` is 906 lines (200 LOC rule) | `apps/web/src/server/routers/_app.ts` | Hard to maintain; must be split into domain sub-routers |
 | RAG uses `sql.raw(vectorStr)` | `apps/web/src/app/api/chat/stream/route.ts` | SQL injection risk; parameterize embedding vector |
 | `agents.tools` stored as `text` JSON | `apps/web/src/server/db/schema.ts` | Should be `jsonb`; parsed 5+ times across codebase |
-| Missing `.env.example` | repo root | CI test `tests/repository.test.mjs` currently fails |
+| `.env.example` coverage | repo root | Resolved; repo root `.env.example` is committed and guarded by `tests/repository.test.mjs`. |
 | MCP client orphaned | `packages/agent-runtime/src/mcp/client.ts` | Fully implemented but zero integration with tRPC or UI |
 | Redis declared but unused | `docker-compose.yml` | Wasted resource; session caching, rate limiting, pub/sub all missing |
 | Memory extraction never called | `apps/web/src/server/memory.ts` | `extractMemories()` implemented but not invoked in stream route |
