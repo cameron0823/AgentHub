@@ -368,7 +368,7 @@ export function ChatInterface() {
 
               if (chunk.type === "error") {
                 updateMessage(activeSessionId, assistantMsgId, {
-                  content: `Error: ${chunk.error}`,
+                  content: `⚠️ ${chunk.error}`,
                   isStreaming: false,
                 });
               }
@@ -380,7 +380,7 @@ export function ChatInterface() {
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
           updateMessage(activeSessionId, assistantMsgId, {
-            content: `Error: ${(err as Error).message}`,
+            content: `⚠️ ${(err as Error).message}`,
             isStreaming: false,
           });
         }
