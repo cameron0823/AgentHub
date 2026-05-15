@@ -8,14 +8,15 @@ import { Bot, User } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 interface Props {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 export default async function SharePage({ params }: Props) {
+  const { slug } = await params;
   const [session] = await db
     .select()
     .from(chatSessions)
-    .where(and(eq(chatSessions.publicSlug, params.slug), eq(chatSessions.isPublic, true)))
+    .where(and(eq(chatSessions.publicSlug, slug), eq(chatSessions.isPublic, true)))
     .limit(1);
 
   if (!session) notFound();
