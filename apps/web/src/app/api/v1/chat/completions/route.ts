@@ -3,7 +3,7 @@ import { AgentRuntime } from "@agenthub/agent-runtime";
 import { db } from "@/server/db";
 import { agents, providerCredentials } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
-import { providerRegistry } from "@agenthub/ai-providers";
+import { providerRegistry, type ProviderRegistry } from "@agenthub/ai-providers";
 import { validateApiKey } from "@/server/routers/apiKeys";
 import { fetchAcceptedMemoriesForAgent, formatMemoryBlock, appendMemoryBlockToSystemPrompt } from "@/server/memory";
 
@@ -42,6 +42,7 @@ async function resolveRuntime(
   userId: string,
   temperature: number,
   maxTokens: number,
+  registry: ProviderRegistry,
   systemOverride?: string
 ): Promise<ResolvedRuntime | null> {
   if (UUID_RE.test(model)) {
@@ -66,6 +67,7 @@ async function resolveRuntime(
         systemPrompt,
         temperature,
         maxTokens,
+        registry,
       }),
       modelLabel: model,
     };
@@ -73,7 +75,7 @@ async function resolveRuntime(
 
   // Direct provider:model string (e.g. "ollama:qwen2.5:7b", "openai:gpt-4o")
   return {
-    runtime: new AgentRuntime({ model, systemPrompt: systemOverride, temperature, maxTokens }),
+    runtime: new AgentRuntime({ model, systemPrompt: systemOverride, temperature, maxTokens, registry }),
     modelLabel: model,
   };
 }
@@ -113,18 +115,16 @@ export async function POST(req: NextRequest) {
     .select()
     .from(providerCredentials)
     .where(and(eq(providerCredentials.userId, userId), eq(providerCredentials.isEnabled, true)));
-  if (userCreds.length > 0) {
-    providerRegistry.loadUserCredentials(
-      userCreds.map((c) => ({
+  const userRegistry: ProviderRegistry = userCreds.length > 0
+    ? providerRegistry.forUser(userCreds.map((c) => ({
         providerId: c.providerId,
         authType: c.authType as "api_key" | "oauth",
         apiKey: c.apiKey || undefined,
         baseUrl: c.baseUrl || undefined,
         accessToken: c.accessToken || undefined,
         expiresAt: c.expiresAt,
-      }))
-    );
-  }
+      })))
+    : providerRegistry;
 
   const systemMsg = messages.find((m) => m.role === "system");
   const chatMessages = messages
@@ -136,6 +136,7 @@ export async function POST(req: NextRequest) {
     userId,
     temperature ?? 0.7,
     max_tokens ?? 4096,
+    userRegistry,
     systemMsg?.content
   );
   if (!resolved) {

@@ -89,7 +89,7 @@ test("OpenAI-compatible endpoint loads user provider credentials", async () => {
 
   assert.match(src, /providerCredentials/, "must load provider credentials");
   assert.match(src, /isEnabled.*true/, "must filter to enabled credentials");
-  assert.match(src, /loadUserCredentials/, "must call loadUserCredentials");
+  assert.match(src, /forUser/, "must call forUser for per-request registry isolation");
 });
 
 test("OpenAI-compatible endpoint response includes usage token counts", async () => {
