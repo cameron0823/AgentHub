@@ -1,4 +1,6 @@
-import { Message, ChatStreamChunk } from "@agenthub/ai-providers";
+import { Message, ChatStreamChunk, type ReasoningTimelineEvent, type ProviderRegistry } from "@agenthub/ai-providers";
+import type { ApprovalDecision, ApprovalHandler, ApprovalPolicy, ApprovalRequest } from "./approvals";
+import type { ToolExecutionContext } from "./tools/registry";
 
 export interface AgentOptions {
   model: string;
@@ -7,6 +9,8 @@ export interface AgentOptions {
   maxTokens?: number;
   maxToolIterations?: number;
   toolTimeoutMs?: number;
+  /** Per-request provider registry. Falls back to global providerRegistry when omitted. */
+  registry?: ProviderRegistry;
 }
 
 export interface ExtraTool {
@@ -21,12 +25,28 @@ export interface RunOptions {
   messages: Message[];
   tools?: string[];
   extraTools?: ExtraTool[];
+  toolContext?: ToolExecutionContext;
+  deniedTools?: string[];
+  approval?: ApprovalHandler;
+  approvalPolicy?: ApprovalPolicy;
   signal?: AbortSignal;
 }
 
 export type AgentStreamChunk = ChatStreamChunk | {
+  type: "reasoning_event";
+  event: ReasoningTimelineEvent;
+} | {
   type: "tool_result";
   toolName: string;
   toolCallId?: string;
   result: any;
+} | {
+  type: "approval_request";
+  approvalId: string;
+  request: ApprovalRequest;
+} | {
+  type: "approval_result";
+  approvalId: string;
+  toolName?: string;
+  decision: ApprovalDecision;
 };

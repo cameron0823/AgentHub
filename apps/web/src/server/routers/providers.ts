@@ -1,18 +1,27 @@
 import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 import { router, authedProcedure } from "../trpc";
 import { db } from "../db";
 import { providerCredentials } from "../db/schema";
-import { createCloudProvider, providerRegistry } from "@agenthub/ai-providers";
+import {
+  createCloudProvider,
+  getProviderCatalogEntry,
+  providerCatalog,
+  providerRegistry,
+  type ProviderRegistry,
+} from "@agenthub/ai-providers";
+import { validateProviderBaseUrl } from "../security/outbound";
 
 type ProviderCred = typeof providerCredentials.$inferSelect;
 
-function loadUserCreds(creds: ProviderCred[]) {
-  providerRegistry.loadUserCredentials(creds.map((c) => ({
+function registryForUser(creds: ProviderCred[]): ProviderRegistry {
+  if (creds.length === 0) return providerRegistry;
+  return providerRegistry.forUser(creds.map((c) => ({
     providerId: c.providerId,
     authType: c.authType as "api_key" | "oauth",
     apiKey: c.apiKey || undefined,
-    baseUrl: c.baseUrl || undefined,
+    baseUrl: c.baseUrl ? validateProviderBaseUrl(c.baseUrl, c.baseUrl) : undefined,
     accessToken: c.accessToken || undefined,
     expiresAt: c.expiresAt,
   })));
@@ -70,7 +79,7 @@ async function fetchModelsForCredential(cred: ProviderCred): Promise<string[]> {
     }
 
     if (pid === "ollama") {
-      const base = cred.baseUrl ?? "http://localhost:11434";
+      const base = validateProviderBaseUrl(cred.baseUrl, "http://localhost:11434");
       const res = await fetch(`${base}/api/tags`);
       if (!res.ok) return [];
       const data = await res.json() as { models: { name: string }[] };
@@ -78,7 +87,7 @@ async function fetchModelsForCredential(cred: ProviderCred): Promise<string[]> {
     }
 
     if (pid === "lm-studio") {
-      const base = cred.baseUrl ?? "http://localhost:1234";
+      const base = validateProviderBaseUrl(cred.baseUrl, "http://localhost:1234");
       const res = await fetch(`${base}/v1/models`);
       if (!res.ok) return [];
       const data = await res.json() as { data: { id: string }[] };
@@ -94,33 +103,34 @@ async function fetchModelsForCredential(cred: ProviderCred): Promise<string[]> {
 export const providersRouter = router({
   list: authedProcedure.query(async ({ ctx }) => {
     const creds = await getUserCreds(ctx.user.id);
-    if (creds.length > 0) loadUserCreds(creds);
-    return providerRegistry.healthCheckAll();
+    return registryForUser(creds).healthCheckAll();
   }),
 
   models: authedProcedure.query(async ({ ctx }) => {
     const creds = await getUserCreds(ctx.user.id);
-    if (creds.length > 0) loadUserCreds(creds);
-    return providerRegistry.listAllModels();
+    return registryForUser(creds).listAllModels();
   }),
 
   catalog: authedProcedure.query(async ({ ctx }) => {
     const creds = await getUserCreds(ctx.user.id);
-    if (creds.length > 0) loadUserCreds(creds);
+    const registry = registryForUser(creds);
     const [providerHealth, providerModels] = await Promise.all([
-      providerRegistry.healthCheckAll(),
-      providerRegistry.listAllModels(),
+      registry.healthCheckAll(),
+      registry.listAllModels(),
     ]);
     const healthByProvider = new Map(providerHealth.map((p) => [p.id, p]));
     return {
+      catalog: providerCatalog,
       providers: providerHealth.map((p) => ({
         ...p,
+        metadata: getProviderCatalogEntry(p.id),
         models: providerModels.filter((m) => m.providerId === p.id),
       })),
       models: providerModels.map((m) => {
         const health = healthByProvider.get(m.providerId);
         return {
           ...m,
+          providerMetadata: getProviderCatalogEntry(m.providerId),
           providerStatus: health?.status || "unhealthy",
           providerLatency: health?.latency ?? -1,
         };
@@ -184,7 +194,7 @@ export const providerCredentialsRouter = router({
       const [cred] = await db.select().from(providerCredentials)
         .where(and(eq(providerCredentials.id, input.id), eq(providerCredentials.userId, ctx.user.id)))
         .limit(1);
-      if (!cred) throw new Error("Credential not found");
+      if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Credential not found" });
       const { createCloudProvider } = await import("@agenthub/ai-providers");
       const provider = createCloudProvider({
         providerId: cred.providerId,
@@ -193,7 +203,7 @@ export const providerCredentialsRouter = router({
         baseUrl: cred.baseUrl || undefined,
         accessToken: cred.accessToken || undefined,
       });
-      if (!provider) throw new Error("Provider not supported");
+      if (!provider) throw new TRPCError({ code: "BAD_REQUEST", message: "Provider not supported" });
       return provider.healthCheck();
     }),
 
@@ -203,7 +213,7 @@ export const providerCredentialsRouter = router({
       const [cred] = await db.select().from(providerCredentials)
         .where(and(eq(providerCredentials.id, input.credentialId), eq(providerCredentials.userId, ctx.user.id)))
         .limit(1);
-      if (!cred) throw new Error("Credential not found");
+      if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Credential not found" });
       return fetchModelsForCredential(cred);
     }),
 });

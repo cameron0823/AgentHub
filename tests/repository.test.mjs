@@ -12,6 +12,10 @@ test("Turbo uses tasks and exposes required tasks", async () => {
   for (const task of ["build", "lint", "typecheck", "test", "test:e2e"]) {
     assert.ok(turbo.tasks[task], `missing turbo task: ${task}`);
   }
+  assert.ok(
+    turbo.tasks.test.inputs?.includes("../../tests/**/*"),
+    "turbo test cache inputs must include the shared root test suite"
+  );
   assert.equal(turbo.tasks["test:e2e"].cache, false);
 });
 
@@ -35,8 +39,12 @@ test("Playwright browser smoke stack is configured for deterministic local e2e",
   assert.equal(webPkg.scripts["test:e2e"], "playwright test");
   assert.ok(webPkg.devDependencies["@playwright/test"], "missing @playwright/test devDependency");
   assert.match(config, /devices\["Desktop Chrome"\]/);
-  assert.match(config, /command: "pnpm dev"/);
-  assert.match(config, /url: "http:\/\/localhost:3000"/);
+  assert.match(config, /process\.env\.E2E_WEB_SERVER_COMMAND \?\?/);
+  assert.match(config, /scripts\/prepare-standalone-assets\.mjs/);
+  assert.match(config, /\.next\/standalone\/apps\/web\/server\.js/);
+  assert.match(config, /process\.env\.E2E_BASE_URL \?\? "http:\/\/127\.0\.0\.1:3100"/);
+  assert.match(config, /command: webServerCommand/);
+  assert.match(config, /url: baseURL/);
   assert.match(config, /DATABASE_URL.*postgres/);
   assert.match(authSpec, /\/api\/export/);
 });
@@ -90,6 +98,29 @@ test("OpenAI-compatible local providers are registered with default env URLs", a
   assert.match(helper, /mergeToolCallChunk/);
 });
 
+test("Local provider parity contract is explicit and browser-covered", async () => {
+  const [registry, catalog, providerSettings, localProviderSpec] = await Promise.all([
+    readText("packages/ai-providers/src/registry.ts"),
+    readText("packages/ai-providers/src/catalog.ts"),
+    readText("apps/web/src/components/ProviderSettings.tsx"),
+    readText("apps/web/tests/e2e/specs/phase-h/local-providers.spec.ts"),
+  ]);
+
+  assert.match(registry, /LOCAL_PROVIDER_IDS = \["ollama", "lmstudio", "vllm"\]/);
+  assert.match(registry, /createDefaultLocalProviders/);
+  assert.match(registry, /listLocalProviders/);
+  assert.match(registry, /provider\.type === "cloud"/);
+
+  for (const providerId of ["ollama", "lmstudio", "vllm"]) {
+    assert.match(catalog, new RegExp(`id: "${providerId}"[\\s\\S]*?type: "local"`), `${providerId} must remain local`);
+    assert.match(catalog, new RegExp(`id: "${providerId}"[\\s\\S]*?authType: "none"`), `${providerId} must require no credential`);
+    assert.match(catalog, new RegExp(`id: "${providerId}"[\\s\\S]*?enabledByDefault: true`), `${providerId} must remain enabled by default`);
+    assert.match(localProviderSpec, new RegExp(providerId === "lmstudio" ? "LM Studio" : providerId, "i"));
+  }
+
+  assert.match(providerSettings, /Local providers \(Ollama, vLLM, LM Studio\) do not require credentials/);
+});
+
 test("Provider registry emits and resolves qualified model IDs", async () => {
   const registry = await readText("packages/ai-providers/src/registry.ts");
 
@@ -122,7 +153,7 @@ test("Next 15 migration keeps React 18 and uses supported lint/config paths", as
   assert.equal(pkg.dependencies["react-dom"], "18.3.1");
   assert.match(pkg.devDependencies["eslint-config-next"], /^15\./);
   assert.equal(pkg.scripts.lint, "eslint .");
-  assert.match(nextConfig, /serverExternalPackages:\s*\["postgres", "bullmq", "node-cron"\]/);
+  assert.match(nextConfig, /serverExternalPackages:\s*\[.*"postgres".*"bullmq".*"node-cron".*\]/);
   assert.doesNotMatch(nextConfig, /serverComponentsExternalPackages/);
   assert.match(gitignore, /^\.turbo\/$/m);
 });
@@ -138,10 +169,11 @@ test("SQLite-backed route handlers explicitly use the Node runtime", async () =>
 });
 
 test("Provider catalog powers model selector and persisted session model", async () => {
-  const [router, chatInterface, modelSelector, copilotProvider, moonshotProvider] = await Promise.all([
+  const [router, chatInterface, modelSelector, modelSelectorView, copilotProvider, moonshotProvider] = await Promise.all([
     readText("apps/web/src/server/routers/providers.ts"),
     readText("apps/web/src/components/ChatInterface.tsx"),
     readText("apps/web/src/components/ModelSelector.tsx"),
+    readText("packages/ui/src/ModelSelectorView.tsx"),
     readText("packages/ai-providers/src/providers/github-copilot.ts"),
     readText("packages/ai-providers/src/providers/moonshot.ts"),
   ]);
@@ -157,8 +189,9 @@ test("Provider catalog powers model selector and persisted session model", async
   assert.match(modelSelector, /trpc\.providers\.catalog\.useQuery/);
   assert.match(modelSelector, /trpc\.sessions\.update\.useMutation/);
   assert.match(modelSelector, /DEFAULT_MODEL_ID/);
-  assert.match(modelSelector, /displayModelLabel/);
-  assert.match(modelSelector, /Local Ollama is unavailable/);
+  assert.match(modelSelector, /ModelSelectorView/);
+  assert.match(modelSelectorView, /displayModelLabel/);
+  assert.match(modelSelectorView, /Local Ollama is unavailable/);
   assert.match(copilotProvider, /fetch\(`\$\{COPILOT_BASE_URL\}\/models`/);
   assert.match(copilotProvider, /COPILOT_FALLBACK_MODELS/);
   assert.match(copilotProvider, /gpt-5\.5/);
@@ -175,7 +208,7 @@ test("Chat runtime and stream route use qualified providers and abort signals", 
     readText("packages/ai-providers/src/providers/ollama.ts"),
   ]);
 
-  assert.match(runtime, /providerRegistry\.resolveModel\(this\.options\.model\)/);
+  assert.match(runtime, /registry\.resolveModel\(this\.options\.model\)/);
   assert.match(runtime, /model,/);
   assert.match(types, /signal\?: AbortSignal/);
   assert.match(route, /signal: req\.signal/);
@@ -228,7 +261,8 @@ test("Ollama provider streams tool calls and preserves tool metadata", async () 
 });
 
 test("Web UI renders and persists tool-call metadata", async () => {
-  const [toolCallCard, chatMessage, chatInterface, router] = await Promise.all([
+  const [toolCallCard, toolCallCardWrapper, chatMessage, chatInterface, router] = await Promise.all([
+    readText("packages/ui/src/ToolCallCard.tsx"),
     readText("apps/web/src/components/ToolCallCard.tsx"),
     readText("apps/web/src/components/ChatMessage.tsx"),
     readText("apps/web/src/components/ChatInterface.tsx"),
@@ -236,6 +270,7 @@ test("Web UI renders and persists tool-call metadata", async () => {
   ]);
 
   assert.match(toolCallCard, /Tool call/);
+  assert.match(toolCallCardWrapper, /@agenthub\/ui/);
   assert.match(chatMessage, /<ToolCallCard/);
   assert.match(chatInterface, /chunk\.type === "tool_call"/);
   assert.match(chatInterface, /chunk\.type === "tool_result"/);
@@ -343,14 +378,16 @@ test("Agent Builder UI and stream route apply agent runtime configuration", asyn
   assert.match(list, /Search agents/);
   assert.match(list, /Start chat/);
   assert.match(sidebar, /trpc\.agents\.list\.useQuery/);
+  assert.match(sidebar, /onMutate:\s*\(\) => \{/);
+  assert.match(sidebar, /setActiveSession\(null\)/);
   assert.match(sidebar, /createSession\.mutate\(\{ agentId \}\)/);
   assert.match(page, /mainView === "agent-builder" \? <AgentBuilder \/>/);
   assert.match(page, /<ChatInterface \/>/);
-  assert.match(route, /const systemPrompt = appendMemoryBlockToSystemPrompt\(sessionAgent\?\.systemPrompt, memoryBlock\)/);
+  assert.match(route, /const systemPrompt = appendMemoryBlockToSystemPrompt\(runtimeAgent\?\.systemPrompt, memoryBlock\)/);
   assert.match(route, /systemPrompt,/);
-  assert.match(route, /temperature: sessionAgent\?\.temperature \?\? temperature/);
-  assert.match(route, /maxTokens: sessionAgent\?\.maxTokens \?\? maxTokens/);
-  assert.match(route, /const effectiveTools = sessionAgent \? parseAgentTools\(sessionAgent\.tools\) : \(tools \|\| \["calculator", "datetime"\]\)/);
+  assert.match(route, /temperature: runtimeAgent\?\.temperature \?\? temperature/);
+  assert.match(route, /maxTokens: runtimeAgent\?\.maxTokens \?\? maxTokens/);
+  assert.match(route, /const effectiveTools = runtimeAgent \? parseAgentTools\(runtimeAgent\.tools\) : \(tools \|\| \["calculator", "datetime"\]\)/);
   assert.doesNotMatch(route, /tools: tools \|\| \["calculator", "datetime", "read_file"\]/);
 });
 
@@ -452,9 +489,9 @@ test("White-box Memory MVP exposes schema, API, prompt helper, store, and UI", a
   assert.match(helper, /fetchAcceptedMemoriesForAgent/);
   assert.match(helper, /Relevant saved memories:/);
   assert.match(helper, /MAX_MEMORY_ENTRIES/);
-  assert.match(route, /fetchAcceptedMemoriesForAgent\(sessionAgent\.id\)/);
+  assert.match(route, /fetchAcceptedMemoriesForAgent\(runtimeAgent\.id\)/);
   assert.match(route, /appendMemoryBlockToSystemPrompt/);
-  assert.match(route, /sessionAgent\?\.memoryEnabled/);
+  assert.match(route, /runtimeAgent\?\.memoryEnabled/);
   assert.match(store, /export interface MemoryEntry/);
   assert.match(store, /"memory-editor"/);
   assert.match(page, /<MemoryEditor \/>/);
@@ -464,9 +501,10 @@ test("White-box Memory MVP exposes schema, API, prompt helper, store, and UI", a
   assert.match(editor, /Accepted entries are injected transparently/);
 });
 
-test("Agent Marketplace MVP exposes strict local manifests, API procedures, and UI wiring", async () => {
-  const [manifest, router, store, page, sidebar, marketplace] = await Promise.all([
+test("Agent Marketplace MVP exposes strict local and remote manifests, API procedures, and UI wiring", async () => {
+  const [manifest, remote, router, store, page, sidebar, marketplace] = await Promise.all([
     readText("apps/web/src/server/marketplace/manifest.ts"),
+    readText("apps/web/src/server/marketplace/remote.ts"),
     readText("apps/web/src/server/routers/marketplace.ts"),
     readText("apps/web/src/stores/chatStore.ts"),
     readText("apps/web/src/app/page.tsx"),
@@ -485,17 +523,24 @@ test("Agent Marketplace MVP exposes strict local manifests, API procedures, and 
   assert.match(manifest, /research-copilot/);
   assert.match(manifest, /developer-utility-pack/);
   assert.match(manifest, /daily-operator/);
+  assert.match(manifest, /sourceUrl/);
+  assert.match(manifest, /upstreamId/);
   assert.match(manifest, /createAgentExportManifest/);
   assert.doesNotMatch(manifest, /sessions/);
   assert.doesNotMatch(manifest, /messages/);
   assert.doesNotMatch(manifest, /memoryEntries/);
   assert.doesNotMatch(manifest, /DATABASE_URL/);
 
+  assert.match(remote, /AGENTHUB_AGENT_INDEX_URL/);
+  assert.match(remote, /REMOTE_MARKETPLACE_CACHE_TTL_MS/);
+  assert.match(remote, /offlineFallback/);
+  assert.match(remote, /parseMarketplaceManifest/);
+
   assert.match(router, /marketplaceRouter = router\(\{/);
-  for (const procedure of ["catalog", "validateManifest"]) {
+  for (const procedure of ["catalog", "remoteCatalog", "validateManifest"]) {
     assert.match(router, new RegExp(`${procedure}: publicProcedure`));
   }
-  for (const procedure of ["installManifest", "installCatalogItem", "exportAgent"]) {
+  for (const procedure of ["installManifest", "installCatalogItem", "installRemoteItem", "forkRemoteItem", "exportAgent"]) {
     assert.match(router, new RegExp(`${procedure}: authedProcedure`));
   }
   assert.match(router, /parseMarketplaceManifest\(input\)/);
@@ -513,14 +558,20 @@ test("Agent Marketplace MVP exposes strict local manifests, API procedures, and 
   assert.match(sidebar, />\s*Marketplace\s*</);
   assert.match(marketplace, /Agent Marketplace/);
   assert.match(marketplace, /Local Catalog/);
+  assert.match(marketplace, /Remote Catalog/);
+  assert.match(marketplace, /Installed/);
+  assert.match(marketplace, /Updates/);
   assert.match(marketplace, /Paste Import Manifest/);
   assert.match(marketplace, /Export Local Agent/);
   assert.match(marketplace, /trpc\.marketplace\.catalog\.useQuery/);
+  assert.match(marketplace, /trpc\.marketplace\.remoteCatalog\.useQuery/);
   assert.match(marketplace, /trpc\.marketplace\.installCatalogItem\.useMutation/);
+  assert.match(marketplace, /trpc\.marketplace\.installRemoteItem\.useMutation/);
+  assert.match(marketplace, /trpc\.marketplace\.forkRemoteItem\.useMutation/);
   assert.match(marketplace, /trpc\.marketplace\.validateManifest\.useMutation/);
   assert.match(marketplace, /trpc\.marketplace\.installManifest\.useMutation/);
   assert.match(marketplace, /trpc\.marketplace\.exportAgent\.useMutation/);
   assert.match(marketplace, /trpc\.agents\.list\.useQuery/);
   assert.match(marketplace, /utils\.agents\.list\.invalidate\(\)/);
-  assert.match(marketplace, /without remote marketplace fetches/);
+  assert.match(marketplace, /offline fallback/);
 });

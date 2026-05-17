@@ -4,7 +4,7 @@ import { db } from "@/server/db";
 import { agents, providerCredentials } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@/server/auth";
-import { providerRegistry } from "@agenthub/ai-providers";
+import { providerRegistry, type ProviderRegistry } from "@agenthub/ai-providers";
 import { fetchAcceptedMemoriesForAgent, formatMemoryBlock, appendMemoryBlockToSystemPrompt } from "@/server/memory";
 
 export const runtime = "nodejs";
@@ -50,23 +50,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Agent not found" }, { status: 404 });
   }
 
-  // Load user credentials
   const userCreds = await db
     .select()
     .from(providerCredentials)
     .where(and(eq(providerCredentials.userId, session.user.id), eq(providerCredentials.isEnabled, true)));
-  if (userCreds.length > 0) {
-    providerRegistry.loadUserCredentials(
-      userCreds.map((c) => ({
+  const registry: ProviderRegistry = userCreds.length > 0
+    ? providerRegistry.forUser(userCreds.map((c) => ({
         providerId: c.providerId,
         authType: c.authType as "api_key" | "oauth",
         apiKey: c.apiKey || undefined,
         baseUrl: c.baseUrl || undefined,
         accessToken: c.accessToken || undefined,
         expiresAt: c.expiresAt,
-      }))
-    );
-  }
+      })))
+    : providerRegistry;
 
   // Memory injection
   let systemPrompt = agent.systemPrompt;
@@ -81,6 +78,7 @@ export async function POST(req: NextRequest) {
     systemPrompt,
     temperature: agent.temperature ?? 0.7,
     maxTokens: agent.maxTokens ?? 4096,
+    registry,
   });
 
   const startMs = Date.now();

@@ -1321,32 +1321,36 @@ tests/e2e/
 | Marketplace | Bundled catalog + manifest import/export |
 | ThemeProvider | Dark/light mode support (toggle exists but minimal) |
 
+### ✅ Recently Shipped (was Partial or Not Started)
+
+| Feature | Location |
+|---------|----------|
+| MCP client UI | `McpSettings.tsx`, `McpGovernancePanel.tsx`, `mcp-governance.ts` |
+| MCP marketplace UI | `McpMarketplace.tsx` |
+| Theme toggle | `ThemeToggle.tsx`, `ThemeSettings.tsx` |
+| Admin panel UI | `AdminPanel.tsx` |
+| Vision / image input | `packages/agent-runtime/src/tools/builtin/visual-understanding.ts` |
+| Code interpreter / sandbox | `sandbox.ts`, `SandboxOutput.tsx` |
+| TTS & STT voice | `TTSButton.tsx`, `VoiceInput.tsx` |
+| Scheduled automations | `AutomationsManager.tsx`, `automationWorker.ts` |
+| Prompt library / slash commands | `PromptLibraryManager.tsx` |
+| Context window management | `ContextWindowBar.tsx` |
+| Pattern visualizer | `PatternVisualizer.tsx` |
+| A2A protocol | `apps/web/src/app/api/a2a/` |
+
 ### 🔧 Partial (Backend Ready, UI Incomplete)
 
 | Feature | What's Missing |
 |---------|----------------|
-| MCP client | `MCPClient` class exists but no UI for configuration |
-| Token tracking | `tokensUsed`/`latencyMs` columns exist but never populated |
+| Token tracking | `tokensUsed`/`latencyMs` columns exist but not populated in all code paths |
 | Opening messages | Schema missing `openingMessage`/`openingQuestions` |
-| Theme toggle | `ThemeProvider` exists but toggle not prominently placed |
-| Admin panel | `adminProcedure` exists but no admin UI |
 
 ### ⬜ Not Started (On Roadmap)
 
 | Feature | Priority |
 |---------|----------|
-| Vision / image input | P1 |
-| Web search with citations | P1 |
-| Code interpreter / sandbox | P1 |
-| TTS & STT voice | P1 |
-| MCP marketplace UI | P1 |
-| Scheduled automations | P2 |
-| Prompt library / slash commands | P2 |
 | Inline citation UI for RAG | P2 |
-| Context window management | P2 |
-| Pattern visualizer | P2 |
 | A2UI rendering | Strategic |
-| A2A protocol | Strategic |
 | CRDT sync | Strategic |
 | Deep research mode | Strategic |
 

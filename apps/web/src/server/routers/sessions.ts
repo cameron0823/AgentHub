@@ -2,6 +2,7 @@ import { z } from "zod";
 import { eq, desc, and, ilike } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { TRPCError } from "@trpc/server";
 import { router, authedProcedure, publicProcedure } from "../trpc";
 import { db } from "../db";
 import { chatSessions, messages, agents, agentGroups } from "../db/schema";
@@ -66,7 +67,7 @@ export const sessionsRouter = router({
     .mutation(async ({ ctx, input }) => {
       const [session] = await db.select().from(chatSessions)
         .where(and(eq(chatSessions.id, input.id), eq(chatSessions.userId, ctx.user.id))).limit(1);
-      if (!session) throw new Error("Session not found");
+      if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
       await db.update(chatSessions).set({ isPinned: input.isPinned, updatedAt: new Date() })
         .where(eq(chatSessions.id, input.id));
       return { success: true };
@@ -84,28 +85,37 @@ export const sessionsRouter = router({
     }),
 
   fork: authedProcedure
-    .input(z.object({ id: z.string().uuid(), messageId: z.string().uuid() }))
+    .input(z.object({
+      id: z.string().uuid(),
+      messageId: z.string().uuid(),
+      mode: z.enum(["continuation", "standalone"]).optional(),
+    }))
     .mutation(async ({ ctx, input }) => {
+      const branchMode = input.mode ?? "continuation";
       const [session] = await db.select().from(chatSessions)
         .where(and(eq(chatSessions.id, input.id), eq(chatSessions.userId, ctx.user.id))).limit(1);
-      if (!session) throw new Error("Session not found");
+      if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
 
-      const [forkPoint] = await db.select().from(messages).where(eq(messages.id, input.messageId)).limit(1);
-      if (!forkPoint) throw new Error("Message not found");
+      const [forkPoint] = await db.select().from(messages)
+        .where(and(eq(messages.id, input.messageId), eq(messages.sessionId, input.id)))
+        .limit(1);
+      if (!forkPoint) throw new TRPCError({ code: "NOT_FOUND", message: "Message not found in this session" });
 
       const [newSession] = await db.insert(chatSessions).values({
         userId: ctx.user.id,
         agentId: session.agentId,
         groupId: session.groupId,
         parentMessageId: input.messageId,
-        title: `${session.title} (branch)`,
+        title: `${session.title} (${branchMode === "standalone" ? "standalone branch" : "branch"})`,
         model: session.model,
+        metadata: { branchMode, parentSessionId: session.id, forkedFromMessageId: input.messageId },
       }).returning();
 
       const msgsToCopy = await db.select().from(messages)
         .where(eq(messages.sessionId, input.id)).orderBy(messages.createdAt);
       const forkIndex = msgsToCopy.findIndex((m) => m.id === input.messageId);
-      const messagesToCopy = forkIndex >= 0 ? msgsToCopy.slice(0, forkIndex + 1) : msgsToCopy;
+      const continuationMessages = forkIndex >= 0 ? msgsToCopy.slice(0, forkIndex + 1) : [];
+      const messagesToCopy = branchMode === "standalone" ? [forkPoint] : continuationMessages;
 
       for (const msg of messagesToCopy) {
         await db.insert(messages).values({
@@ -115,7 +125,12 @@ export const sessionsRouter = router({
           reasoning: msg.reasoning,
           model: msg.model,
           toolCalls: msg.toolCalls,
-          parentId: msg.parentId,
+          artifacts: msg.artifacts,
+          metadata: msg.metadata,
+          tokensUsed: msg.tokensUsed,
+          latencyMs: msg.latencyMs,
+          feedback: msg.feedback,
+          parentId: branchMode === "standalone" ? null : msg.parentId,
         });
       }
       return newSession;
@@ -129,7 +144,7 @@ export const sessionsRouter = router({
         .set({ isPublic: true, publicSlug: slug, updatedAt: new Date() })
         .where(and(eq(chatSessions.id, input.id), eq(chatSessions.userId, ctx.user.id)))
         .returning();
-      if (!updated) throw new Error("Session not found");
+      if (!updated) throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
       return { slug };
     }),
 
@@ -146,7 +161,7 @@ export const sessionsRouter = router({
     .query(async ({ input }) => {
       const [session] = await db.select().from(chatSessions)
         .where(and(eq(chatSessions.publicSlug, input.slug), eq(chatSessions.isPublic, true))).limit(1);
-      if (!session) throw new Error("Not found");
+      if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
       const msgs = await db.select().from(messages)
         .where(eq(messages.sessionId, session.id)).orderBy(messages.createdAt);
       return { session, messages: msgs };
@@ -159,7 +174,7 @@ export const messagesRouter = router({
     .query(async ({ ctx, input }) => {
       const [session] = await db.select().from(chatSessions)
         .where(and(eq(chatSessions.id, input.sessionId), eq(chatSessions.userId, ctx.user.id))).limit(1);
-      if (!session) throw new Error("Session not found");
+      if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
       return db.select().from(messages).where(eq(messages.sessionId, input.sessionId)).orderBy(messages.createdAt);
     }),
 
@@ -173,11 +188,12 @@ export const messagesRouter = router({
       reasoning: z.string().optional(),
       model: z.string().optional(),
       toolCalls: z.string().optional(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const [session] = await db.select().from(chatSessions)
         .where(and(eq(chatSessions.id, input.sessionId), eq(chatSessions.userId, ctx.user.id))).limit(1);
-      if (!session) throw new Error("Session not found");
+      if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
       const id = input.id || crypto.randomUUID();
       const [message] = await db.insert(messages).values({
         id,
@@ -188,6 +204,7 @@ export const messagesRouter = router({
         reasoning: input.reasoning || null,
         model: input.model || null,
         toolCalls: input.toolCalls || null,
+        metadata: input.metadata ?? null,
       }).returning();
       await db.update(chatSessions).set({ updatedAt: new Date() }).where(eq(chatSessions.id, input.sessionId));
       return message;
@@ -204,10 +221,10 @@ export const messagesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { id, ...updates } = input;
       const [msg] = await db.select().from(messages).where(eq(messages.id, id)).limit(1);
-      if (!msg) throw new Error("Message not found");
+      if (!msg) throw new TRPCError({ code: "NOT_FOUND", message: "Message not found" });
       const [session] = await db.select().from(chatSessions)
         .where(and(eq(chatSessions.id, msg.sessionId), eq(chatSessions.userId, ctx.user.id))).limit(1);
-      if (!session) throw new Error("Session not found");
+      if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
       await db.update(messages).set({
         ...(updates.content !== undefined && { content: updates.content }),
         ...(updates.reasoning !== undefined && { reasoning: updates.reasoning }),
@@ -221,10 +238,10 @@ export const messagesRouter = router({
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [msg] = await db.select().from(messages).where(eq(messages.id, input.id)).limit(1);
-      if (!msg) throw new Error("Message not found");
+      if (!msg) throw new TRPCError({ code: "NOT_FOUND", message: "Message not found" });
       const [session] = await db.select().from(chatSessions)
         .where(and(eq(chatSessions.id, msg.sessionId), eq(chatSessions.userId, ctx.user.id))).limit(1);
-      if (!session) throw new Error("Session not found");
+      if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
       await db.delete(messages).where(eq(messages.id, input.id));
       return { success: true };
     }),
@@ -234,7 +251,7 @@ export const messagesRouter = router({
     .mutation(async ({ ctx, input }) => {
       const [session] = await db.select().from(chatSessions)
         .where(and(eq(chatSessions.id, input.sessionId), eq(chatSessions.userId, ctx.user.id))).limit(1);
-      if (!session) throw new Error("Session not found");
+      if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
       const msgs = await db.select().from(messages)
         .where(eq(messages.sessionId, input.sessionId)).orderBy(messages.createdAt);
       const idx = msgs.findIndex((m) => m.id === input.messageId);
@@ -272,10 +289,10 @@ export const messagesRouter = router({
     .input(z.object({ id: z.string().uuid(), feedback: z.enum(["up", "down"]).nullable() }))
     .mutation(async ({ ctx, input }) => {
       const [msg] = await db.select().from(messages).where(eq(messages.id, input.id)).limit(1);
-      if (!msg) throw new Error("Message not found");
+      if (!msg) throw new TRPCError({ code: "NOT_FOUND", message: "Message not found" });
       const [session] = await db.select().from(chatSessions)
         .where(and(eq(chatSessions.id, msg.sessionId), eq(chatSessions.userId, ctx.user.id))).limit(1);
-      if (!session) throw new Error("Session not found");
+      if (!session) throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
       await db.update(messages).set({ feedback: input.feedback }).where(eq(messages.id, input.id));
       return { success: true };
     }),

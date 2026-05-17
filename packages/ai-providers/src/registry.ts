@@ -1,14 +1,13 @@
 import type { ModelProvider, ProviderHealth, ModelInfo } from "./types";
+import { createProviderFromCatalogCredential, type ProviderCredentialConfig } from "./factories";
 import { OllamaProvider } from "./providers/ollama";
 import { LMStudioProvider } from "./providers/lmstudio";
 import { VLLMProvider } from "./providers/vllm";
-import { OpenAIProvider } from "./providers/openai";
-import { AnthropicProvider } from "./providers/anthropic";
-import { GeminiProvider } from "./providers/gemini";
-import { MoonshotProvider } from "./providers/moonshot";
-import { GitHubCopilotProvider } from "./providers/github-copilot";
 
 export const DEFAULT_QUALIFIED_MODEL_ID = "ollama:qwen2.5:7b";
+export const LOCAL_PROVIDER_IDS = ["ollama", "lmstudio", "vllm"] as const;
+
+export type LocalProviderId = typeof LOCAL_PROVIDER_IDS[number];
 
 export interface QualifiedModelResolution {
   provider: ModelProvider;
@@ -29,43 +28,27 @@ export function splitQualifiedModelId(modelId: string): { providerId: string; mo
   return { providerId, model: modelParts.join(":") };
 }
 
-export interface CredentialConfig {
-  providerId: string;
-  authType: "api_key" | "oauth";
-  apiKey?: string;
-  baseUrl?: string;
-  accessToken?: string;
-}
+export type CredentialConfig = ProviderCredentialConfig;
 
 export function createCloudProvider(config: CredentialConfig): ModelProvider | undefined {
-  switch (config.providerId) {
-    case "openai":
-      if (!config.apiKey) return undefined;
-      return new OpenAIProvider({ apiKey: config.apiKey, baseUrl: config.baseUrl });
-    case "anthropic":
-      if (!config.apiKey) return undefined;
-      return new AnthropicProvider({ apiKey: config.apiKey, baseUrl: config.baseUrl });
-    case "gemini":
-      if (!config.apiKey) return undefined;
-      return new GeminiProvider({ apiKey: config.apiKey, baseUrl: config.baseUrl });
-    case "moonshot":
-      if (!config.apiKey) return undefined;
-      return new MoonshotProvider({ apiKey: config.apiKey, baseUrl: config.baseUrl });
-    case "github-copilot":
-      if (!config.accessToken) return undefined;
-      return new GitHubCopilotProvider(config.accessToken);
-    default:
-      return undefined;
-  }
+  return createProviderFromCatalogCredential(config);
+}
+
+export function createDefaultLocalProviders(): ModelProvider[] {
+  return [
+    new OllamaProvider(),
+    new LMStudioProvider(),
+    new VLLMProvider(),
+  ];
 }
 
 export class ProviderRegistry {
   private providers = new Map<string, ModelProvider>();
 
   constructor() {
-    this.register(new OllamaProvider());
-    this.register(new LMStudioProvider());
-    this.register(new VLLMProvider());
+    for (const provider of createDefaultLocalProviders()) {
+      this.register(provider);
+    }
   }
 
   register(provider: ModelProvider): void {
@@ -84,6 +67,11 @@ export class ProviderRegistry {
     return Array.from(this.providers.values());
   }
 
+  listLocalProviders(): ModelProvider[] {
+    return this.list().filter((provider) => provider.type === "local");
+  }
+
+  /** @deprecated Mutates shared registry — use forUser() for per-request isolation. */
   loadUserCredentials(credentials: Array<CredentialConfig & { expiresAt?: Date | null }>) {
     for (const [id, provider] of this.providers) {
       if (provider.type === "cloud") {
@@ -102,6 +90,20 @@ export class ProviderRegistry {
     }
   }
 
+  forUser(credentials: Array<CredentialConfig & { expiresAt?: Date | null }>): ProviderRegistry {
+    const derived = new ProviderRegistry();
+    for (const config of credentials) {
+      if (config.authType === "oauth" && config.expiresAt && config.expiresAt < new Date()) {
+        continue;
+      }
+      const provider = createCloudProvider(config);
+      if (provider) {
+        derived.register(provider);
+      }
+    }
+    return derived;
+  }
+
   async healthCheckAll(): Promise<ProviderHealth[]> {
     return Promise.all(
       this.list().map(async (p) => p.healthCheck())
@@ -109,24 +111,23 @@ export class ProviderRegistry {
   }
 
   async listAllModels(): Promise<(ModelInfo & { providerId: string; providerName: string })[]> {
-    const results: (ModelInfo & { providerId: string; providerName: string })[] = [];
-    for (const provider of this.list()) {
-      try {
-        const models = await provider.listModels();
-        for (const m of models) {
-          results.push({
+    const results = await Promise.all(
+      this.list().map(async (provider) => {
+        try {
+          const models = await provider.listModels();
+          return models.map((m) => ({
             ...m,
             id: qualifyModelId(provider.id, m.id),
             name: m.name,
             providerId: provider.id,
             providerName: provider.name,
-          });
+          }));
+        } catch {
+          return [];
         }
-      } catch {
-        // Skip unavailable providers
-      }
-    }
-    return results;
+      })
+    );
+    return results.flat();
   }
 
   resolveModel(modelId: string): QualifiedModelResolution {
