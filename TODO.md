@@ -4,6 +4,7 @@
 > Last verified: 2026-05-19 from `/home/coxar/projects/AgentHub`.
 > Source evidence: `docs/reports/2026-05-17-e2e-semantic-debugging-report.md` and `/mnt/e/developer/references/Docs/AgentHub/Kimi_Agent_LobeHub Feature Gaps/lobehub_gap_analysis.agent.final.md`.
 > GitHub issue audit: `docs/reports/2026-05-17-github-issues-audit.md`.
+> GitHub issue state: all tracked issues `#2` through `#46` are closed as of 2026-05-19.
 
 ## Agent Instructions
 
@@ -11,7 +12,7 @@
 - Treat `IMPLEMENTATION_PLAN.md`, `DESIGN.md`, `ARCHITECTURE.md`, `REQUIREMENTS_AUDIT.md`, and `docs/plans/*` as reference/archive unless this file links a task to them.
 - Do not create another canonical roadmap. Add new completion work to this file and keep detailed investigation notes in `docs/reports/`.
 - Do not mark future work complete because static tests pass. Mark it complete only after the listed verification commands pass on the current checkout.
-- Do not close GitHub issues from local-only evidence while the implementation remains uncommitted and unpushed. Use the GitHub issue audit report for closure order.
+- Do not close future GitHub issues from local-only evidence. Land and push the implementation first, then use the GitHub issue audit pattern for closure comments.
 - Keep work scoped. The current tree is heavily dirty; do not revert unrelated user changes.
 - If a task exposes another blocker, add it under the nearest priority section with the command or runtime evidence that proved it.
 
@@ -51,9 +52,9 @@ Also on 2026-05-19, the release hygiene blockers found after provider/desktop ch
 
 The 2026-05-17 LobeHub/Kimi feature-gap pass added important parity foundations but did not close every source-document requirement. Completed slices include persistent route navigation for desktop/web tabs, A2UI schema/rendering/client actions, workspace multi-tenancy, web security headers and CSRF/rate-limit middleware, Vitest and shadcn workspace scaffolding, user quotas, upload tier limits, Ollama pull UX with hardware estimates, A2A JSON-RPC endpoints and Agent Card discovery, BullMQ queue foundations, queue admin metrics, and a stateful graph/checkpoint foundation.
 
-The project should not be described as "100% feature complete" until the open LobeHub/Kimi parity tasks below are either implemented with app-backed verification or explicitly rejected as out of scope.
+No tracked P0/P1/P2 completion task remains open after the 2026-05-19 pass. Future feature requests should be added as new tasks instead of reopening older archive plans.
 
-This does not mean the repository is release-ready on GitHub yet. The remaining work is release hygiene: normalize the dirty tree into intentional commits, push the verified branch, and close GitHub issues with comments that cite committed evidence.
+The repository is release-ready on GitHub for the tracked completion scope: the verified implementation is committed, pushed to `origin/master`, local and remote are in sync, and all tracked GitHub issues are closed with evidence comments.
 
 ## Verified Healthy Through 2026-05-19
 
@@ -94,9 +95,9 @@ There are no active P0 runtime blockers after the latest local verification pass
 
 ### P0.1 Preserve The Green Gate Set
 
-- [ ] Keep the completion gates below green before merging or releasing.
-- [ ] Re-run the full gate set after any migration, auth, provider, Playwright, desktop, or packaging change.
-- [ ] If a gate fails, add the failed command and root-cause task back under this P0 section.
+- [x] Keep the completion gates below green before merging or releasing.
+- [x] Re-run the full gate set after migration, auth, provider, Playwright, desktop, and packaging changes in this pass.
+- [x] No failed gate remains to add back under this P0 section.
 
 Done when:
 
@@ -177,13 +178,13 @@ Done when:
 
 ### P2.3 Close GitHub Issues With Evidence
 
-- [ ] Land or commit the current local implementation before closing GitHub issues.
+- [x] Land or commit the current local implementation before closing GitHub issues: pushed commit `af79461` to `origin/master`.
 - [x] Resolve `#4` formatting debt: `pnpm format:check` passes on the current checkout after Prettier normalization.
 - [x] Add PGlite migration/runtime smoke coverage before closing `#10`: `pnpm -C apps/web db:pglite:smoke` passed on 2026-05-18.
 - [x] Wire OpenAPI plugin loading into install/execution UX before closing `#18`: installed OpenAPI plugins now persist as governed package records, expose generated tool IDs in Marketplace, Tools Manager, and Agent Builder, and inject selected generated tools into the chat runtime. Verified by `node --test tests/openapi-plugin-loader.test.mjs tests/vitest-harness.test.mjs`, `pnpm test:vitest`, `pnpm -C apps/web typecheck`, and `pnpm -C apps/web lint`.
 - [x] Resolve `#33` with a Vitest service-unit suite wired into the root validation gate. Verified by `pnpm test:vitest`, `node --test tests/vitest-harness.test.mjs`, and `pnpm validate`.
 - [x] Rerun the full Playwright MVP suite before closing `#35`: 77/77 tests passed on 2026-05-19 against the standalone app, Docker-backed services, live local Ollama, and SearXNG.
-- [ ] Close epics `#41` through `#45` only after their children are closed or superseded.
+- [x] Close epics `#41` through `#45` only after their children are closed or superseded: completed after non-epic issues `#2` through `#40` and `#46` were closed.
 
 Done when:
 
@@ -192,10 +193,10 @@ Done when:
 
 ### P2.2 Normalize Git / Release State
 
-- [ ] Review the dirty working tree and group intentional changes into coherent commits or a tracked implementation branch.
-- [ ] Ensure migration files, journal metadata, schema changes, tests, routes, packages, and docs are tracked together.
-- [ ] Re-run CI-equivalent gates on the exact tree intended for release.
-- [ ] Do not claim GitHub/release readiness until local branch state and remote state are explicitly checked.
+- [x] Review the dirty working tree and group intentional changes into coherent commits or a tracked implementation branch.
+- [x] Ensure migration files, journal metadata, schema changes, tests, routes, packages, and docs are tracked together.
+- [x] Re-run CI-equivalent gates on the exact tree intended for release.
+- [x] Do not claim GitHub/release readiness until local branch state and remote state are explicitly checked: `git rev-list --left-right --count origin/master...HEAD` returned `0 0` after push.
 
 Done when:
 

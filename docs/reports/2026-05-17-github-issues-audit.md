@@ -1,55 +1,45 @@
 # AgentHub GitHub Issues Audit
 
 Verified on 2026-05-17 from `/home/coxar/projects/AgentHub`.
-Updated on 2026-05-19 for `#4` formatting evidence, `#10` PGlite migration/runtime smoke evidence, `#18` OpenAPI plugin install/execution UX, `#33` Vitest service-unit coverage, `#35` full Playwright MVP suite evidence, desktop packaging evidence, frozen install evidence, and standalone health evidence.
+Updated on 2026-05-19 for `#4` formatting evidence, `#10` PGlite migration/runtime smoke evidence, `#18` OpenAPI plugin install/execution UX, `#33` Vitest service-unit coverage, `#35` full Playwright MVP suite evidence, desktop packaging evidence, frozen install evidence, standalone health evidence, and final issue closure state.
 
 ## Scope
 
-GitHub currently has 45 open issues in `cameron0823/AgentHub`, numbered `#2` through `#46`. This audit tracks which issues have local implementation evidence, which are still blocked, and which must not be closed yet.
+GitHub had 45 open issues in `cameron0823/AgentHub`, numbered `#2` through `#46`, before the 2026-05-19 closure pass. All tracked issues are now closed.
 
 ## Closure Policy
 
-Do not close GitHub issues from local-only evidence while the implementation remains uncommitted and unpushed. Close issues only after one of these is true:
+Do not close future GitHub issues from local-only evidence while the implementation remains uncommitted and unpushed. Close issues only after one of these is true:
 
 - The implementation is committed and pushed to the branch referenced in the issue closure comment.
 - The issue is explicitly obsolete and the closure comment explains the replacement decision.
 - The issue is an epic and every child issue is closed or intentionally superseded.
 
-Current state: no issues were closed in this pass because the worktree is heavily dirty and ahead of what GitHub can verify.
+Current state: all tracked issues `#2` through `#46` are closed. Closures cite pushed commit `af79461` on `origin/master` and the verification commands listed below.
 
 ## Newly Implemented In This Pass
 
-| Issue                                               | Local status     | Evidence                                                                                                                                                                                                                                                                   |
-| --------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `#4` FOUND-3 lint/format/husky/commitlint           | Ready after land | Added Husky commit-msg hook, Commitlint config, Prettier config, root scripts, and `tests/commit-tooling.test.mjs`. `pnpm format:check` passes after repository Prettier normalization on 2026-05-18.                                                                      |
-| `#10` ARCH-3 dual DB client                         | Ready after land | Added `AGENTHUB_DB_DRIVER` Postgres/PGlite selection, PGlite dependency, dual Drizzle client switch, PGlite-aware dependency health, pgvector/pg_trgm PGlite runtime extension loading, `tests/dual-db-client.test.mjs`, and `pnpm -C apps/web db:pglite:smoke`.           |
-| `#18` CORE-6 OpenAPI plugin loader                  | Ready after land | Added guarded parsing/loading, install-from-JSON/URL UX, governed persistence as `source: "openapi"` package records, generated tool inventory in Marketplace/Tools Manager/Agent Builder, and selected-tool runtime injection with guarded, abort-bounded HTTP execution. |
-| `#33` QA-1 Vitest unit suite for services           | Ready after land | Added `tests/service-unit.vitest.test.ts` covering MCP config, tool profile, and media safety services. Root `pnpm validate` now runs `pnpm test:vitest`, and `tests/vitest-harness.test.mjs` guards the CI/validation wiring. `pnpm validate` passed on 2026-05-18.       |
-| `#35` QA-3 Playwright MVP suite                     | Ready after land | Full web E2E suite passed 77/77 on 2026-05-19 against the standalone app with Docker-backed services, live local Ollama, and SearXNG using the final MVP Playwright command listed below.                                                                                  |
-| `#36` QA-4 pino logging + traceId middleware        | Ready after land | Added pino logger, redaction, pure trace constants, and Next middleware propagation for `x-agenthub-trace-id`/`x-request-id`.                                                                                                                                              |
-| `#37` QA-5 Sentry optional flag                     | Ready after land | Added opt-in Sentry initializer, config env vars, and server externalization so disabled Sentry does not add build warnings.                                                                                                                                               |
-| `#38` QA-6 health + metrics endpoints               | Ready after land | Existing health endpoints remain, and `/api/metrics` now emits Prometheus-compatible process metrics.                                                                                                                                                                      |
-| `#40` QA-9 release checklist + changelog automation | Ready after land | Added `CHANGELOG.md`, `docs/deployment/release-checklist.md`, `scripts/generate-changelog.mjs`, root changelog scripts, and `tests/release-checklist.test.mjs`.                                                                                                            |
+| Issue                                               | Final status | Evidence                                                                                                                                                                                                                                                                   |
+| --------------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `#4` FOUND-3 lint/format/husky/commitlint           | Closed       | Added Husky commit-msg hook, Commitlint config, Prettier config, root scripts, and `tests/commit-tooling.test.mjs`. `pnpm format:check` passes after repository Prettier normalization on 2026-05-18.                                                                      |
+| `#10` ARCH-3 dual DB client                         | Closed       | Added `AGENTHUB_DB_DRIVER` Postgres/PGlite selection, PGlite dependency, dual Drizzle client switch, PGlite-aware dependency health, pgvector/pg_trgm PGlite runtime extension loading, `tests/dual-db-client.test.mjs`, and `pnpm -C apps/web db:pglite:smoke`.           |
+| `#18` CORE-6 OpenAPI plugin loader                  | Closed       | Added guarded parsing/loading, install-from-JSON/URL UX, governed persistence as `source: "openapi"` package records, generated tool inventory in Marketplace/Tools Manager/Agent Builder, and selected-tool runtime injection with guarded, abort-bounded HTTP execution. |
+| `#33` QA-1 Vitest unit suite for services           | Closed       | Added `tests/service-unit.vitest.test.ts` covering MCP config, tool profile, and media safety services. Root `pnpm validate` now runs `pnpm test:vitest`, and `tests/vitest-harness.test.mjs` guards the CI/validation wiring. `pnpm validate` passed on 2026-05-18.       |
+| `#35` QA-3 Playwright MVP suite                     | Closed       | Full web E2E suite passed 77/77 on 2026-05-19 against the standalone app with Docker-backed services, live local Ollama, and SearXNG using the final MVP Playwright command listed below.                                                                                  |
+| `#36` QA-4 pino logging + traceId middleware        | Closed       | Added pino logger, redaction, pure trace constants, and Next middleware propagation for `x-agenthub-trace-id`/`x-request-id`.                                                                                                                                              |
+| `#37` QA-5 Sentry optional flag                     | Closed       | Added opt-in Sentry initializer, config env vars, and server externalization so disabled Sentry does not add build warnings.                                                                                                                                               |
+| `#38` QA-6 health + metrics endpoints               | Closed       | Existing health endpoints remain, and `/api/metrics` now emits Prometheus-compatible process metrics.                                                                                                                                                                      |
+| `#40` QA-9 release checklist + changelog automation | Closed       | Added `CHANGELOG.md`, `docs/deployment/release-checklist.md`, `scripts/generate-changelog.mjs`, root changelog scripts, and `tests/release-checklist.test.mjs`.                                                                                                            |
 
-## Already Implemented Locally, Still Needs Land/Issue Closure
+## Implemented And Closed
 
-These issues have strong local evidence in source, docs, or tests but remain open on GitHub. Reverify on the final branch before closing:
+These issues had strong local evidence in source, docs, or tests and are now closed on GitHub:
 
 `#2`, `#3`, `#5`, `#6`, `#7`, `#8`, `#9`, `#11`, `#12`, `#13`, `#14`, `#15`, `#16`, `#17`, `#19`, `#20`, `#21`, `#22`, `#23`, `#24`, `#25`, `#26`, `#27`, `#28`, `#29`, `#30`, `#31`, `#32`, `#34`, `#39`, `#46`.
 
-## Must Stay Open
+## Closed Last
 
-| Issue | Reason                                                                                                                                     |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `#4`  | Formatting/tooling proof now exists locally, but the implementation still must be committed, pushed, and reverified before closure.        |
-| `#10` | PGlite migration/runtime proof now exists locally, but the implementation still must be committed, pushed, and reverified before closure.  |
-| `#18` | OpenAPI install/execution proof now exists locally, but the implementation still must be committed, pushed, and reverified before closure. |
-| `#35` | Full Playwright proof now exists locally, but the implementation still must be committed, pushed, and reverified before closure.           |
-| `#41` | Epic; close only after discovery/product-definition children are closed or superseded.                                                     |
-| `#42` | Epic; close only after local skeleton children are closed or superseded.                                                                   |
-| `#43` | Epic; close only after core MVP children are closed or superseded.                                                                         |
-| `#44` | Epic; close only after reliability/deploy children are closed or superseded.                                                               |
-| `#45` | Epic; close only after polish/parity children are closed or superseded.                                                                    |
+Epics `#41` through `#45` were closed only after non-epic issues `#2` through `#40` and `#46` were closed or superseded by pushed evidence.
 
 ## Verification Run In This Pass
 
@@ -84,15 +74,16 @@ curl --max-time 8 -i http://127.0.0.1:3100/api/health
 curl --max-time 8 -i http://127.0.0.1:3100/api/health/dependencies
 ```
 
-No known failing verification remains in this issue-audit slice after the 2026-05-19 updates. Full release gates still must be rerun on the exact branch intended for closure.
+No known failing verification remains in this issue-audit slice after the 2026-05-19 updates. Full release gates were rerun before closure, the implementation was pushed as commit `af79461`, and local/remote sync was verified with `git rev-list --left-right --count origin/master...HEAD` returning `0 0`.
 
 ## Next Tasks For 100% Issue Completion
 
-1. Commit or otherwise land the current local implementation so GitHub issue closures can reference actual repository evidence.
-2. Land the formatting/tooling work for `#4` and re-run `pnpm format:check` on the final branch.
-3. Use the PGlite smoke evidence for `#10` only after the local implementation is landed and reverified: `pnpm -C apps/web db:pglite:smoke`.
-4. Use the OpenAPI plugin install/execution evidence for `#18` only after the local implementation is landed and reverified.
-5. Use the Vitest service-suite evidence for `#33` only after the local implementation is landed and reverified: `pnpm test:vitest`.
-6. Use the full Playwright MVP suite evidence for `#35` only after the local implementation is landed and reverified with Docker services, live local Ollama, SearXNG, and the intended database.
-7. Close non-epic issues in batches with closure comments that cite paths and validation commands.
-8. Close epics `#41` through `#45` last, after their child issue evidence is complete.
+No issue-completion tasks remain for the tracked `#2` through `#46` scope.
+
+Completed on 2026-05-19:
+
+1. Committed and pushed the implementation as `af79461`.
+2. Reverified formatting, validation, frozen install, migration, E2E, desktop, and standalone health gates.
+3. Closed non-epic issues `#2` through `#40` and `#46` with evidence comments.
+4. Closed epics `#41` through `#45` after their child issue evidence was complete.
+5. Verified `gh issue list --repo cameron0823/AgentHub --state open --limit 100 --json number,title` returned `[]`.
