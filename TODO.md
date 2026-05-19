@@ -50,6 +50,8 @@ On 2026-05-19, the full web Playwright MVP suite was rerun against the standalon
 
 Also on 2026-05-19, the release hygiene blockers found after provider/desktop changes were fixed and reverified. `pnpm install --frozen-lockfile` now passes with the checked-in pnpm peer-install setting, `pnpm -C apps/desktop prepare:web` and `pnpm -C apps/desktop test:e2e` pass after standalone bundle symlink/optional-package handling was hardened, and `node apps/web/scripts/prepare-standalone-assets.mjs` works from the repo root before standalone health probes.
 
+The same 2026-05-19 security pass cleared the remaining GitHub Dependabot banner by pinning transitive `cookie` and `dompurify` resolutions through pnpm overrides. `pnpm audit --audit-level=moderate` now reports no known vulnerabilities, with `cookie@0.7.2` and `dompurify@3.4.5` resolved in the workspace graph.
+
 The 2026-05-17 LobeHub/Kimi feature-gap pass added important parity foundations but did not close every source-document requirement. Completed slices include persistent route navigation for desktop/web tabs, A2UI schema/rendering/client actions, workspace multi-tenancy, web security headers and CSRF/rate-limit middleware, Vitest and shadcn workspace scaffolding, user quotas, upload tier limits, Ollama pull UX with hardware estimates, A2A JSON-RPC endpoints and Agent Card discovery, BullMQ queue foundations, queue admin metrics, and a stateful graph/checkpoint foundation.
 
 No tracked P0/P1/P2 completion task remains open after the 2026-05-19 pass. Future feature requests should be added as new tasks instead of reopening older archive plans.

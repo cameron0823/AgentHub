@@ -41,7 +41,7 @@
     "overrides": {
       "@typescript-eslint/parser": "8.59.2",
       "cookie": "0.7.2",
-      "dompurify": "3.4.2",
+      "dompurify": "3.4.5",
       "esbuild": "0.25.12",
       "glob": "10.5.0",
       "minimatch": "9.0.7",
