@@ -59,7 +59,7 @@ pnpm install --frozen-lockfile
 pnpm test:vitest
 pnpm test:vitest:coverage
 pnpm validate
-pnpm audit --audit-level=high
+pnpm audit --audit-level=moderate
 pnpm -C apps/web i18n:check
 pnpm -C apps/web db:pglite:smoke
 pnpm db:migrate

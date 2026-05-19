@@ -18,7 +18,7 @@
 
 ## Current Status
 
-Latest local verification is green for the current checkout. The previously documented P0 runtime blockers are resolved: production build, Drizzle migration application, web Playwright setup, live Ollama browser E2E, desktop smoke E2E, dependency health, i18n, high-severity audit, frozen install, and standalone health probes all passed on 2026-05-19.
+Latest local verification is green for the current checkout. The previously documented P0 runtime blockers are resolved: production build, Drizzle migration application, web Playwright setup, live Ollama browser E2E, desktop smoke E2E, dependency health, i18n, moderate-level audit, frozen install, and standalone health probes all passed on 2026-05-19.
 
 On 2026-05-18, `pnpm -C apps/web db:pglite:smoke` also passed. That smoke creates a fresh PGlite data directory, installs pgvector and pg_trgm, applies all 32 Drizzle journal migrations through the PGlite simple execution path, verifies key tables and vector indexes, and reopens the app runtime database client with `AGENTHUB_DB_DRIVER=pglite`.
 
@@ -64,7 +64,7 @@ The repository is release-ready on GitHub for the tracked completion scope: the 
 - [x] `pnpm exec turbo run typecheck --force`
 - [x] `pnpm exec turbo run lint --force`
 - [x] `pnpm exec turbo run build --force`
-- [x] `pnpm audit --audit-level=high`
+- [x] `pnpm audit --audit-level=moderate`
 - [x] `pnpm -C apps/web i18n:check`
 - [x] `pnpm -C apps/web db:pglite:smoke` (2026-05-18)
 - [x] `pnpm db:migrate`
@@ -214,7 +214,7 @@ pnpm exec turbo run test --force
 pnpm exec turbo run typecheck --force
 pnpm exec turbo run lint --force
 pnpm exec turbo run build --force
-pnpm audit --audit-level=high
+pnpm audit --audit-level=moderate
 pnpm -C apps/web i18n:check
 pnpm -C apps/web db:pglite:smoke
 pnpm db:migrate

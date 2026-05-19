@@ -10,7 +10,7 @@ pnpm test
 pnpm typecheck
 pnpm lint
 pnpm build
-pnpm audit --audit-level=high
+pnpm audit --audit-level=moderate
 pnpm -C apps/web i18n:check
 pnpm -C apps/web db:pglite:smoke
 pnpm changelog:check

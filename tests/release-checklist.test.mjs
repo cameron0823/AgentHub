@@ -18,7 +18,7 @@ test("release checklist and changelog automation are canonical and runnable", as
   assert.equal(pkg.scripts["changelog:update"], "node scripts/generate-changelog.mjs --write");
   assert.match(changelog, /## 0\.1\.0 - Unreleased/);
   assert.match(checklist, /pnpm changelog:check/);
-  assert.match(checklist, /pnpm audit --audit-level=high/);
+  assert.match(checklist, /pnpm audit --audit-level=moderate/);
   assert.match(checklist, /\/api\/metrics/);
   assert.match(script, /git\(\["log", "--pretty=format:%s"/);
   assert.match(script, /CHANGELOG\.md is missing release header/);
