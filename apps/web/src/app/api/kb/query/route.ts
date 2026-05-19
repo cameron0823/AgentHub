@@ -30,10 +30,7 @@ export async function POST(req: NextRequest) {
   try {
     const results = await hybridKbSearch({ query, knowledgeBaseId, limit });
     return NextResponse.json({ results });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Search failed" },
-      { status: 500 }
-    );
+  } catch {
+    return NextResponse.json({ error: "Knowledge base search failed" }, { status: 500 });
   }
 }

@@ -1,61 +1,158 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-type Theme = "light" | "dark" | "system";
+export type Theme = "light" | "dark" | "system";
+export type AccentPalette = "blue" | "cyan" | "emerald" | "amber" | "rose";
+export type LayoutMode = "chat" | "document";
 
-interface ThemeContextType {
+export const AGENTHUB_THEME_SETTINGS_KEY = "agenthub-theme-settings";
+
+const LEGACY_THEME_KEY = "theme";
+const SETTINGS_VERSION = 1;
+
+export const ACCENT_PALETTES: AccentPalette[] = ["blue", "cyan", "emerald", "amber", "rose"];
+export const LAYOUT_MODES: LayoutMode[] = ["chat", "document"];
+export const THEME_MODES: Theme[] = ["light", "dark", "system"];
+
+type ResolvedTheme = "light" | "dark";
+
+interface ThemeSettingsState {
+  version: typeof SETTINGS_VERSION;
   theme: Theme;
-  setTheme: (theme: Theme) => void;
-  resolvedTheme: "light" | "dark";
+  accentPalette: AccentPalette;
+  layoutMode: LayoutMode;
 }
 
-const ThemeContext = createContext<ThemeContextType>({
-  theme: "system",
-  setTheme: () => {},
-  resolvedTheme: "light",
-});
+interface ThemeContextValue extends ThemeSettingsState {
+  resolvedTheme: ResolvedTheme;
+  setTheme: (theme: Theme) => void;
+  setAccentPalette: (accentPalette: AccentPalette) => void;
+  setLayoutMode: (layoutMode: LayoutMode) => void;
+}
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("dark");
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
-  const [mounted, setMounted] = useState(false);
+const DEFAULT_SETTINGS: ThemeSettingsState = {
+  version: SETTINGS_VERSION,
+  theme: "dark",
+  accentPalette: "blue",
+  layoutMode: "chat",
+};
+
+const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
+
+function isTheme(value: unknown): value is Theme {
+  return typeof value === "string" && THEME_MODES.includes(value as Theme);
+}
+
+function isAccentPalette(value: unknown): value is AccentPalette {
+  return typeof value === "string" && ACCENT_PALETTES.includes(value as AccentPalette);
+}
+
+function isLayoutMode(value: unknown): value is LayoutMode {
+  return typeof value === "string" && LAYOUT_MODES.includes(value as LayoutMode);
+}
+
+function readThemeSettings(): ThemeSettingsState {
+  if (typeof window === "undefined") return DEFAULT_SETTINGS;
+
+  const legacyTheme = window.localStorage.getItem(LEGACY_THEME_KEY);
+  const rawSettings = window.localStorage.getItem(AGENTHUB_THEME_SETTINGS_KEY);
+
+  if (!rawSettings) {
+    return {
+      ...DEFAULT_SETTINGS,
+      theme: isTheme(legacyTheme) ? legacyTheme : DEFAULT_SETTINGS.theme,
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(rawSettings) as Partial<ThemeSettingsState>;
+    return {
+      version: SETTINGS_VERSION,
+      theme: isTheme(parsed.theme) ? parsed.theme : isTheme(legacyTheme) ? legacyTheme : DEFAULT_SETTINGS.theme,
+      accentPalette: isAccentPalette(parsed.accentPalette) ? parsed.accentPalette : DEFAULT_SETTINGS.accentPalette,
+      layoutMode: isLayoutMode(parsed.layoutMode) ? parsed.layoutMode : DEFAULT_SETTINGS.layoutMode,
+    };
+  } catch {
+    return {
+      ...DEFAULT_SETTINGS,
+      theme: isTheme(legacyTheme) ? legacyTheme : DEFAULT_SETTINGS.theme,
+    };
+  }
+}
+
+function getSystemTheme(): ResolvedTheme {
+  if (typeof window === "undefined") return "dark";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyThemeSettings(settings: ThemeSettingsState, resolvedTheme: ResolvedTheme) {
+  const root = document.documentElement;
+  root.classList.remove("light", "dark");
+  root.classList.add(resolvedTheme);
+  root.dataset.agenthubAccent = settings.accentPalette;
+  root.dataset.agenthubLayout = settings.layoutMode;
+}
+
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [settings, setSettings] = useState<ThemeSettingsState>(DEFAULT_SETTINGS);
+  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    const saved = localStorage.getItem("theme") as Theme | null;
-    if (saved) setThemeState(saved);
+    setSettings(readThemeSettings());
+    setHydrated(true);
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleSystemThemeChange = () => setSystemTheme(mediaQuery.matches ? "dark" : "light");
 
-    const root = document.documentElement;
-    const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const isDark = theme === "dark" || (theme === "system" && systemDark);
+    handleSystemThemeChange();
+    mediaQuery.addEventListener("change", handleSystemThemeChange);
+    return () => mediaQuery.removeEventListener("change", handleSystemThemeChange);
+  }, []);
 
-    setResolvedTheme(isDark ? "dark" : "light");
+  const resolvedTheme: ResolvedTheme = settings.theme === "system" ? systemTheme : settings.theme;
 
-    if (isDark) {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
+  useEffect(() => {
+    if (!hydrated) return;
 
-    localStorage.setItem("theme", theme);
-  }, [theme, mounted]);
+    applyThemeSettings(settings, resolvedTheme);
+    window.localStorage.setItem(AGENTHUB_THEME_SETTINGS_KEY, JSON.stringify(settings));
+    window.localStorage.setItem(LEGACY_THEME_KEY, settings.theme);
+  }, [hydrated, resolvedTheme, settings]);
 
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
-  };
+  const setTheme = useCallback((theme: Theme) => {
+    setSettings((current) => ({ ...current, theme }));
+  }, []);
 
-  return (
-    <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme }}>
-      {children}
-    </ThemeContext.Provider>
+  const setAccentPalette = useCallback((accentPalette: AccentPalette) => {
+    setSettings((current) => ({ ...current, accentPalette }));
+  }, []);
+
+  const setLayoutMode = useCallback((layoutMode: LayoutMode) => {
+    setSettings((current) => ({ ...current, layoutMode }));
+  }, []);
+
+  const value = useMemo<ThemeContextValue>(
+    () => ({
+      ...settings,
+      resolvedTheme,
+      setTheme,
+      setAccentPalette,
+      setLayoutMode,
+    }),
+    [resolvedTheme, setAccentPalette, setLayoutMode, setTheme, settings],
   );
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {
-  return useContext(ThemeContext);
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error("useTheme must be used within ThemeProvider");
+  }
+  return context;
 }

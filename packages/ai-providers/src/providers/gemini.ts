@@ -9,13 +9,20 @@ import type {
 } from "../types";
 
 export interface GeminiProviderOptions {
-  apiKey: string;
+  authType?: "api_key" | "oauth";
+  apiKey?: string;
+  accessToken?: string;
   baseUrl?: string;
+  userProject?: string;
 }
 
 interface GeminiContent {
   role?: string;
-  parts?: Array<{ text?: string; functionCall?: { name: string; args: Record<string, unknown> }; functionResponse?: { name: string; response: unknown } }>;
+  parts?: Array<{
+    text?: string;
+    functionCall?: { name: string; args: Record<string, unknown> };
+    functionResponse?: { name: string; response: unknown };
+  }>;
 }
 
 interface GeminiCandidate {
@@ -45,20 +52,28 @@ export class GeminiProvider implements ModelProvider {
   readonly id = "gemini";
   readonly name = "Google Gemini";
   readonly type = "cloud" as const;
-  private readonly apiKey: string;
+  private readonly authType: "api_key" | "oauth";
+  private readonly credential: string;
   private readonly baseUrl: string;
+  private readonly userProject?: string;
 
   constructor(options: GeminiProviderOptions) {
-    this.apiKey = options.apiKey;
+    this.authType = options.authType ?? (options.accessToken ? "oauth" : "api_key");
+    const credential = this.authType === "oauth" ? options.accessToken : options.apiKey;
+    if (!credential) {
+      throw new Error(`Gemini ${this.authType} credential is required`);
+    }
+    this.credential = credential;
     this.baseUrl = (options.baseUrl || "https://generativelanguage.googleapis.com").replace(/\/$/, "");
+    this.userProject = options.userProject;
   }
 
   async listModels(): Promise<ModelInfo[]> {
     try {
-      const res = await fetch(
-        `${this.baseUrl}/v1beta/models?key=${this.apiKey}&pageSize=100`,
-        { signal: AbortSignal.timeout(5000) }
-      );
+      const res = await fetch(this.requestUrl("models", { pageSize: "100" }), {
+        headers: this.requestHeaders(),
+        signal: AbortSignal.timeout(5000),
+      });
       if (!res.ok) return this.getDefaultModels();
       const data = (await res.json()) as { models?: Array<{ name: string }> };
       return (data.models || [])
@@ -75,7 +90,11 @@ export class GeminiProvider implements ModelProvider {
 
   private getDefaultModels(): ModelInfo[] {
     return [
-      { id: "gemini-2.5-pro-preview-03-25", name: "Gemini 2.5 Pro", capabilities: ["chat", "vision", "tools", "reasoning"] },
+      {
+        id: "gemini-2.5-pro-preview-03-25",
+        name: "Gemini 2.5 Pro",
+        capabilities: ["chat", "vision", "tools", "reasoning"],
+      },
       { id: "gemini-2.5-flash-preview-04-17", name: "Gemini 2.5 Flash", capabilities: ["chat", "vision", "tools"] },
       { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", capabilities: ["chat", "vision", "tools"] },
       { id: "gemini-1.5-pro", name: "Gemini 1.5 Pro", capabilities: ["chat", "vision", "tools"] },
@@ -85,10 +104,10 @@ export class GeminiProvider implements ModelProvider {
   async healthCheck(): Promise<ProviderHealth> {
     try {
       const start = Date.now();
-      const res = await fetch(
-        `${this.baseUrl}/v1beta/models?key=${this.apiKey}&pageSize=1`,
-        { signal: AbortSignal.timeout(5000) }
-      );
+      const res = await fetch(this.requestUrl("models", { pageSize: "1" }), {
+        headers: this.requestHeaders(),
+        signal: AbortSignal.timeout(5000),
+      });
       return {
         id: this.id,
         name: this.name,
@@ -101,15 +120,12 @@ export class GeminiProvider implements ModelProvider {
   }
 
   async chat(options: ChatOptions): Promise<ChatResponse> {
-    const res = await fetch(
-      `${this.baseUrl}/v1beta/models/${options.model}:generateContent?key=${this.apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(this.toChatBody(options)),
-        signal: options.signal,
-      }
-    );
+    const res = await fetch(this.requestUrl(`models/${options.model}:generateContent`), {
+      method: "POST",
+      headers: this.requestHeaders({ json: true }),
+      body: JSON.stringify(this.toChatBody(options)),
+      signal: options.signal,
+    });
 
     if (!res.ok) {
       const err = await res.text();
@@ -143,15 +159,12 @@ export class GeminiProvider implements ModelProvider {
   }
 
   async *streamChat(options: ChatOptions): AsyncIterable<ChatStreamChunk> {
-    const res = await fetch(
-      `${this.baseUrl}/v1beta/models/${options.model}:streamGenerateContent?alt=sse&key=${this.apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(this.toChatBody(options)),
-        signal: options.signal,
-      }
-    );
+    const res = await fetch(this.requestUrl(`models/${options.model}:streamGenerateContent`, { alt: "sse" }), {
+      method: "POST",
+      headers: this.requestHeaders({ json: true }),
+      body: JSON.stringify(this.toChatBody(options)),
+      signal: options.signal,
+    });
 
     if (!res.ok) {
       const err = await res.text();
@@ -235,7 +248,10 @@ export class GeminiProvider implements ModelProvider {
 
     for (const message of options.messages) {
       if (message.role === "system") {
-        systemInstruction = typeof message.content === "string" ? message.content : message.content.map((p) => p.type === "text" ? p.text : "").join("\n");
+        systemInstruction =
+          typeof message.content === "string"
+            ? message.content
+            : message.content.map((p) => (p.type === "text" ? p.text : "")).join("\n");
         continue;
       }
 
@@ -303,5 +319,30 @@ export class GeminiProvider implements ModelProvider {
     }
 
     return body;
+  }
+
+  private requestUrl(path: string, params: Record<string, string> = {}) {
+    const url = new URL(`${this.baseUrl}/v1beta/${path}`);
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.set(key, value);
+    }
+    if (this.authType !== "oauth") {
+      url.searchParams.set("key", this.credential);
+    }
+    return url.toString();
+  }
+
+  private requestHeaders(options: { json?: boolean } = {}) {
+    const headers: Record<string, string> = {};
+    if (options.json) {
+      headers["Content-Type"] = "application/json";
+    }
+    if (this.authType === "oauth") {
+      headers.Authorization = `Bearer ${this.credential}`;
+      if (this.userProject) {
+        headers["x-goog-user-project"] = this.userProject;
+      }
+    }
+    return headers;
   }
 }

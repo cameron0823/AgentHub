@@ -22,6 +22,209 @@
       "when": 1778727229273,
       "tag": "0002_missing-tables",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779005275164,
+      "tag": "0002_hybrid_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779005276164,
+      "tag": "0003_memory_embeddings",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779005277164,
+      "tag": "0004_api_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779005278164,
+      "tag": "0005_trust_engine",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779005279164,
+      "tag": "0006_model_routing",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779005280164,
+      "tag": "0007_voice_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1779005281164,
+      "tag": "0008_resources",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1779005282164,
+      "tag": "0009_skills",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1779005283164,
+      "tag": "0010_heterogeneous_agents",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1779005284164,
+      "tag": "0011_automation_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1779005285164,
+      "tag": "0012_agent_task_threads",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1779005286164,
+      "tag": "0013_mcp_transport_parity",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1779005287164,
+      "tag": "0014_sandbox_outputs",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1779005288164,
+      "tag": "0015_mcp_governance_bridge",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1779005289164,
+      "tag": "0016_tool_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1779005290164,
+      "tag": "0017_pages_editor",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1779005291164,
+      "tag": "0018_projects_notebooks",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1779005292164,
+      "tag": "0019_page_edit_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1779005293164,
+      "tag": "0020_daily_brief",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1779005294164,
+      "tag": "0021_agent_signal",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1779005295164,
+      "tag": "0022_channels",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1779005296164,
+      "tag": "0023_structured_runtime_json",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1779019000000,
+      "tag": "0024_workspace_multi_tenancy",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1779019800000,
+      "tag": "0025_user_quotas",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1779021400000,
+      "tag": "0026_durable_orchestration_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1779022200000,
+      "tag": "0027_trust_engine_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1779023000000,
+      "tag": "0028_a2a_communities_discovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1779052000000,
+      "tag": "0029_session_titles_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1779053189865,
+      "tag": "0030_visual_workflow_designer",
+      "breakpoints": true
     }
   ]
 }

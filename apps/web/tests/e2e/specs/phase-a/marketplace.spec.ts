@@ -4,8 +4,10 @@ async function createAgent(page: Page, agentName: string) {
   await page.getByRole("button", { name: /new agent/i }).click();
   await page.fill("[name='name']", agentName);
   await page.fill("[name='systemPrompt']", "You are an e2e marketplace export fixture.");
-  await page.getByRole("button", { name: /save agent/i }).click();
-  await expect(page.getByTestId("agent-list")).toContainText(agentName);
+  const saveAgent = page.getByRole("button", { name: /save agent/i });
+  await expect(saveAgent).toBeEnabled({ timeout: 15_000 });
+  await saveAgent.click();
+  await expect(page.getByTestId("agent-card").filter({ hasText: agentName })).toBeVisible({ timeout: 15_000 });
 }
 
 test.describe("Agent Marketplace", () => {

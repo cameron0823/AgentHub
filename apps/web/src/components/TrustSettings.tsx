@@ -17,10 +17,7 @@ export function TrustSettings() {
   const utils = trpc.useUtils();
 
   const credentials = trpc.trust.listCredentials.useQuery();
-  const auditLog = trpc.trust.auditLog.useQuery(
-    { limit: 20 },
-    { enabled: showAudit }
-  );
+  const auditLog = trpc.trust.auditLog.useQuery({ limit: 20 }, { enabled: showAudit });
 
   const createCredential = trpc.trust.createCredential.useMutation({
     onSuccess: () => {
@@ -41,18 +38,32 @@ export function TrustSettings() {
   });
 
   function resetForm() {
-    setName(""); setTool(""); setValue(""); setAgentId(""); setError("");
+    setName("");
+    setTool("");
+    setValue("");
+    setAgentId("");
+    setError("");
   }
 
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   const handleCreate = () => {
     setError("");
-    if (!name.trim()) { setError("Name is required."); return; }
-    if (!tool.trim()) { setError("Tool name is required."); return; }
-    if (!value.trim()) { setError("Secret value is required."); return; }
+    if (!name.trim()) {
+      setError("Name is required.");
+      return;
+    }
+    if (!tool.trim()) {
+      setError("Tool name is required.");
+      return;
+    }
+    if (!value.trim()) {
+      setError("Secret value is required.");
+      return;
+    }
     if (agentId.trim() && !UUID_RE.test(agentId.trim())) {
-      setError("Agent ID must be a valid UUID or left blank."); return;
+      setError("Agent ID must be a valid UUID or left blank.");
+      return;
     }
     createCredential.mutate({
       name: name.trim(),
@@ -73,23 +84,29 @@ export function TrustSettings() {
       </div>
 
       <p className="text-sm text-muted-foreground">
-        Store encrypted secrets for agent tools. Values are AES-256-GCM encrypted at rest and never returned to the client.
+        Store encrypted secrets for agent tools. Values are AES-256-GCM encrypted at rest and never returned to the
+        client.
       </p>
 
       {/* Credential list */}
       {credentials.data && credentials.data.length > 0 ? (
         <ul className="space-y-2">
           {credentials.data.map((cred) => (
-            <li key={cred.id} className="flex items-center justify-between rounded-md border border-border p-3 text-sm">
+            <li key={cred.id} className="agenthub-list-row flex items-center justify-between p-3 text-sm">
               <div className="flex items-center gap-3 min-w-0">
                 <Key className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0">
                   <p className="font-medium truncate">{cred.name}</p>
                   <p className="text-xs text-muted-foreground">
                     tool: <span className="font-mono">{cred.tool}</span>
-                    {cred.agentId && <> · agent: <span className="font-mono text-xs">{cred.agentId.slice(0, 8)}…</span></>}
-                    {" "}· hint: <span className="font-mono">{cred.keyHint}</span>
-                    {" "}· {new Date(cred.createdAt).toLocaleDateString()}
+                    {cred.agentId && (
+                      <>
+                        {" "}
+                        · agent: <span className="font-mono text-xs">{cred.agentId.slice(0, 8)}…</span>
+                      </>
+                    )}{" "}
+                    · hint: <span className="font-mono">{cred.keyHint}</span> ·{" "}
+                    {new Date(cred.createdAt).toLocaleDateString()}
                   </p>
                 </div>
               </div>
@@ -129,7 +146,7 @@ export function TrustSettings() {
 
       {/* Add form */}
       {showAdd ? (
-        <div className="rounded-md border border-border p-4 space-y-3">
+        <div className="agenthub-glass-panel space-y-3 rounded-2xl p-4">
           <h3 className="text-sm font-semibold">Add Credential</h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -139,7 +156,7 @@ export function TrustSettings() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. OpenWeather API Key"
-                className="w-full rounded border border-input bg-background px-2 py-1.5 text-sm"
+                className="agenthub-field w-full px-2 py-1.5 text-sm"
               />
             </div>
             <div>
@@ -149,7 +166,7 @@ export function TrustSettings() {
                 value={tool}
                 onChange={(e) => setTool(e.target.value)}
                 placeholder="e.g. web_search"
-                className="w-full rounded border border-input bg-background px-2 py-1.5 text-sm"
+                className="agenthub-field w-full px-2 py-1.5 text-sm"
               />
             </div>
           </div>
@@ -160,18 +177,21 @@ export function TrustSettings() {
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder="Paste secret here — stored encrypted, never shown again"
-              className="w-full rounded border border-input bg-background px-2 py-1.5 text-sm"
+              className="agenthub-field w-full px-2 py-1.5 text-sm"
               autoComplete="new-password"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1">Agent ID <span className="text-muted-foreground font-normal">(optional UUID — leave blank for user-scoped)</span></label>
+            <label className="block text-xs font-medium mb-1">
+              Agent ID{" "}
+              <span className="text-muted-foreground font-normal">(optional UUID — leave blank for user-scoped)</span>
+            </label>
             <input
               type="text"
               value={agentId}
               onChange={(e) => setAgentId(e.target.value)}
               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-              className="w-full rounded border border-input bg-background px-2 py-1.5 text-sm font-mono"
+              className="agenthub-field w-full px-2 py-1.5 font-mono text-sm"
             />
           </div>
           {error && <p className="text-xs text-destructive">{error}</p>}
@@ -179,13 +199,16 @@ export function TrustSettings() {
             <button
               onClick={handleCreate}
               disabled={createCredential.isPending}
-              className="rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              className="agenthub-primary-button rounded-xl px-3 py-1.5 text-xs font-medium disabled:opacity-50"
             >
               {createCredential.isPending ? "Saving…" : "Save Credential"}
             </button>
             <button
-              onClick={() => { setShowAdd(false); resetForm(); }}
-              className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:bg-accent"
+              onClick={() => {
+                setShowAdd(false);
+                resetForm();
+              }}
+              className="agenthub-secondary-button px-3 py-1.5 text-xs"
             >
               Cancel
             </button>
@@ -194,7 +217,7 @@ export function TrustSettings() {
       ) : (
         <button
           onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 rounded border border-dashed border-border px-3 py-2 text-sm text-muted-foreground hover:border-primary hover:text-foreground transition-colors"
+          className="flex items-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-primary/70 hover:text-foreground"
         >
           <Plus className="h-4 w-4" />
           Add Credential

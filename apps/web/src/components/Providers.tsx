@@ -2,10 +2,32 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { SessionProvider } from "next-auth/react";
 import superjson from "superjson";
+import { sanitizeArtifactHtml } from "@/lib/security/sanitize";
+
+type TrustedTypesLike = {
+  createPolicy: (name: string, rules: { createHTML: (value: string) => string }) => unknown;
+};
+
+let trustedTypesDefaultPolicyInstalled = false;
+
+function installTrustedTypesDefaultPolicy() {
+  if (trustedTypesDefaultPolicyInstalled) return;
+  trustedTypesDefaultPolicyInstalled = true;
+  const trustedTypes = (globalThis as typeof globalThis & { trustedTypes?: TrustedTypesLike }).trustedTypes;
+  if (!trustedTypes) return;
+
+  try {
+    trustedTypes.createPolicy("default", {
+      createHTML: (value) => sanitizeArtifactHtml(value),
+    });
+  } catch {
+    // Another client bundle already installed the default policy.
+  }
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
@@ -15,10 +37,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
         httpBatchLink({
           url: "/api/trpc",
           transformer: superjson,
+          maxItems: 1,
         }),
       ],
-    })
+    }),
   );
+
+  useEffect(() => {
+    installTrustedTypesDefaultPolicy();
+  }, []);
 
   return (
     <SessionProvider>

@@ -4,13 +4,14 @@ services:
     container_name: agenthub-network
     command: tail -f /dev/null
     ports:
-      - "3000:3000"
-      - "5432:5432"
-      - "6379:6379"
-      - "8000:8000"
-      - "9000:9000"
-      - "9001:9001"
-      - "11434:11434"
+      - "${AGENTHUB_HOST_PORT:-3000}:3000"
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+      - "${REDIS_HOST_PORT:-6379}:6379"
+      - "${CASDOOR_HOST_PORT:-8000}:8000"
+      - "${SEARXNG_HOST_PORT:-8080}:8080"
+      - "${MINIO_HOST_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
+      - "${OLLAMA_HOST_PORT:-11434}:11434"
     restart: always
 
   postgresql:
@@ -19,11 +20,11 @@ services:
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
     environment:
-      - POSTGRES_DB=agenthub
-      - POSTGRES_USER=agenthub
-      - POSTGRES_PASSWORD=agenthub_password
+      - POSTGRES_DB=${POSTGRES_DB:-agenthub}
+      - POSTGRES_USER=${POSTGRES_USER:-agenthub}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-agenthub_password}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U agenthub -d agenthub"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-agenthub} -d $${POSTGRES_DB:-agenthub}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -49,8 +50,8 @@ services:
     volumes:
       - ./data/minio:/data
     environment:
-      - MINIO_ROOT_USER=agenthub_minio_user
-      - MINIO_ROOT_PASSWORD=agenthub_minio_password
+      - MINIO_ROOT_USER=${S3_ACCESS_KEY_ID:-agenthub_minio_user}
+      - MINIO_ROOT_PASSWORD=${S3_SECRET_ACCESS_KEY:-agenthub_minio_password}
     command: server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
@@ -66,11 +67,15 @@ services:
       minio:
         condition: service_healthy
     network_mode: service:network
+    environment:
+      - S3_BUCKET=${S3_BUCKET:-agenthub}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-agenthub_minio_user}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-agenthub_minio_password}
     entrypoint: >
       /bin/sh -c "
-      until (/usr/bin/mc alias set myminio http://localhost:9000 agenthub_minio_user agenthub_minio_password) do echo 'Waiting for MinIO...' && sleep 1; done;
-      /usr/bin/mc mb myminio/agenthub || true;
-      /usr/bin/mc anonymous set public myminio/agenthub;
+      until (/usr/bin/mc alias set myminio http://localhost:9000 $${S3_ACCESS_KEY_ID:-agenthub_minio_user} $${S3_SECRET_ACCESS_KEY:-agenthub_minio_password}) do echo 'Waiting for MinIO...' && sleep 1; done;
+      /usr/bin/mc mb myminio/$${S3_BUCKET:-agenthub} || true;
+      /usr/bin/mc anonymous set public myminio/$${S3_BUCKET:-agenthub};
       exit 0;
       "
 
@@ -82,8 +87,8 @@ services:
         condition: service_healthy
     environment:
       - driverName=postgres
-      - dataSourceName=user=agenthub password=agenthub_password host=localhost port=5432 sslmode=disable dbname=casdoor
-      - origin=http://localhost:8000
+      - dataSourceName=user=${POSTGRES_USER:-agenthub} password=${POSTGRES_PASSWORD:-agenthub_password} host=localhost port=5432 sslmode=disable dbname=casdoor
+      - origin=${AUTH_CASDOOR_ISSUER:-http://localhost:8000}
     volumes:
       - ./data/casdoor:/files
     entrypoint: /bin/sh -c './server --createDatabase=true'
@@ -94,7 +99,12 @@ services:
     image: searxng/searxng:latest
     container_name: agenthub-searxng
     environment:
-      - SEARXNG_BASE_URL=http://localhost:8080
+      - SEARXNG_BASE_URL=${SEARXNG_BASE_URL:-http://localhost:8080}
+      - SEARXNG_METHOD=GET
+      - SEARXNG_SECRET=agenthub-local-desktop-searxng-secret
+    volumes:
+      - ./docker/searxng/settings.yml:/etc/searxng/settings.yml
+      - ./docker/searxng/limiter.toml:/etc/searxng/limiter.toml
     network_mode: service:network
     restart: always
 
@@ -111,5 +121,10 @@ services:
       redis:
         condition: service_healthy
     env_file: .env
+    environment:
+      - NODE_ENV=production
+      - AGENTHUB_WORKER_MODE=${AGENTHUB_WORKER_MODE:-inline}
+      - AGENTHUB_ENABLE_INLINE_WORKERS=${AGENTHUB_ENABLE_INLINE_WORKERS:-1}
+      - SEARXNG_BASE_URL=http://localhost:8080
     network_mode: service:network
     restart: always

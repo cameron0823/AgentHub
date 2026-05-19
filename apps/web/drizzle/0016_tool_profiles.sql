@@ -1,0 +1,3 @@
+ALTER TABLE agents
+  ADD COLUMN IF NOT EXISTS tool_profile TEXT NOT NULL DEFAULT 'full',
+  ADD COLUMN IF NOT EXISTS denied_tools JSONB NOT NULL DEFAULT '[]'::jsonb;

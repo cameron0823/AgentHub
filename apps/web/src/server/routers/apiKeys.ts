@@ -34,10 +34,12 @@ export const apiKeysRouter = router({
   }),
 
   create: authedProcedure
-    .input(z.object({
-      name: z.string().trim().min(1).max(100),
-      expiresAt: z.string().datetime().optional(),
-    }))
+    .input(
+      z.object({
+        name: z.string().trim().min(1).max(100),
+        expiresAt: z.string().datetime().optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       const { raw, prefix, hash } = generateKey();
       const [entry] = await db
@@ -54,24 +56,18 @@ export const apiKeysRouter = router({
       return { ...entry, key: raw };
     }),
 
-  revoke: authedProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      await db
-        .update(apiKeys)
-        .set({ isEnabled: false })
-        .where(and(eq(apiKeys.id, input.id), eq(apiKeys.userId, ctx.user.id)));
-      return { success: true };
-    }),
+  revoke: authedProcedure.input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+    await db
+      .update(apiKeys)
+      .set({ isEnabled: false })
+      .where(and(eq(apiKeys.id, input.id), eq(apiKeys.userId, ctx.user.id)));
+    return { success: true };
+  }),
 
-  delete: authedProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      await db
-        .delete(apiKeys)
-        .where(and(eq(apiKeys.id, input.id), eq(apiKeys.userId, ctx.user.id)));
-      return { success: true };
-    }),
+  delete: authedProcedure.input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+    await db.delete(apiKeys).where(and(eq(apiKeys.id, input.id), eq(apiKeys.userId, ctx.user.id)));
+    return { success: true };
+  }),
 });
 
 /** Validate a raw API key against the DB. Returns the userId if valid, null otherwise. */
@@ -86,9 +82,6 @@ export async function validateApiKey(rawKey: string): Promise<string | null> {
   if (!entry || !entry.isEnabled) return null;
   if (entry.expiresAt && entry.expiresAt < new Date()) return null;
   // Update lastUsedAt without blocking the caller
-  void db
-    .update(apiKeys)
-    .set({ lastUsedAt: new Date() })
-    .where(eq(apiKeys.keyHash, hash));
+  void db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.keyHash, hash));
   return entry.userId;
 }

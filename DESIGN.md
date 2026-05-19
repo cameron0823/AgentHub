@@ -1,7 +1,7 @@
 # AgentHub System Design
 
 > **Version:** 1.0  
-> **Status:** Planning / Ready for Review  
+> **Status:** Archived design snapshot. `TODO.md` is the canonical current tracker and completion source.
 > **Goal:** Complete feature-parity design for a local-first AI agent platform matching LobeHub capabilities.
 
 ---
@@ -25,22 +25,26 @@
 ## 1. Design Principles
 
 ### 1.1 Local-First
+
 - The application must function **fully without internet** after initial setup.
 - All AI inference happens locally via Ollama or compatible runtimes.
 - Data is stored locally in SQLite by default.
 - Cloud services are **opt-in only**, never required.
 
 ### 1.2 Zero Configuration
+
 - `npm run dev` should start a working application with sensible defaults.
 - Ollama auto-detection on startup (ping `localhost:11434`).
 - Default models are suggested but not auto-downloaded (respect user bandwidth).
 
 ### 1.3 Privacy by Default
+
 - No telemetry without explicit opt-in.
 - No data sent to external APIs unless user explicitly configures them.
 - All file processing (PDF extraction, image analysis) happens locally.
 
 ### 1.4 Progressive Enhancement
+
 - Core chat works with just Ollama.
 - Knowledge base adds LanceDB.
 - Voice adds Piper + Whisper.
@@ -49,6 +53,7 @@
 - Each feature is independently enableable.
 
 ### 1.5 Model Agnostic
+
 - Abstract `ModelProvider` interface allows swapping between local and cloud models.
 - User can switch models mid-conversation.
 - Each agent can be bound to a specific model.
@@ -62,6 +67,7 @@
 **User Story:** As a user, I want to create a specialized AI agent with a custom role, system prompt, and tools so that it can help me with specific tasks.
 
 **Specification:**
+
 - Agent config object:
   ```typescript
   interface Agent {
@@ -93,13 +99,15 @@
 **User Story:** As a user, I want multiple agents to collaborate on a task so that I get higher quality, cross-checked results.
 
 **Specification:**
+
 - Group config:
+
   ```typescript
   interface AgentGroup {
     id: string;
     name: string;
     description: string;
-    pattern: 'supervisor' | 'parallel' | 'sequential' | 'debate';
+    pattern: "supervisor" | "parallel" | "sequential" | "debate";
     agents: GroupAgent[];
     sharedContext: boolean;
     maxRounds: number; // for debate
@@ -107,7 +115,7 @@
 
   interface GroupAgent {
     agentId: string;
-    role: 'supervisor' | 'executor' | 'critic' | 'judge';
+    role: "supervisor" | "executor" | "critic" | "judge";
     order?: number; // for sequential
   }
   ```
@@ -140,13 +148,14 @@
 **User Story:** As a user, I want to fork a conversation at any point to explore different directions without losing the original thread.
 
 **Specification:**
+
 - Message schema with tree structure:
   ```typescript
   interface Message {
     id: string;
     sessionId: string;
     parentId: string | null; // null = root
-    role: 'user' | 'assistant' | 'system' | 'tool';
+    role: "user" | "assistant" | "system" | "tool";
     content: string;
     reasoning?: string; // CoT content
     artifacts?: Artifact[];
@@ -167,6 +176,7 @@
 **User Story:** As a user, I want to see an AI's reasoning process step by step so I can verify its logic.
 
 **Specification:**
+
 - Detect reasoning content from models that support it:
   - DeepSeek R1: `<think>...</think>` tags
   - QwQ: Implicit reasoning in output
@@ -181,14 +191,19 @@
 **User Story:** As a user, I want the AI to generate and render interactive content (code, SVG, HTML) directly in the chat.
 
 **Specification:**
+
 - Parser detects artifact blocks in LLM output:
+
   ````markdown
   :::artifact{type="react" title="Counter Component"}
+
   ```tsx
   export default function Counter() { ... }
   ```
+
   :::
   ````
+
 - Supported artifact types:
   | Type | Renderer | Sandbox |
   |------|----------|---------|
@@ -204,6 +219,7 @@
 ### 2.6 Custom Themes
 
 **Specification:**
+
 - CSS variable-based theming:
   ```css
   :root {
@@ -412,11 +428,11 @@ CREATE TABLE settings (
 interface ModelProvider {
   readonly id: string;
   readonly name: string;
-  readonly type: 'local' | 'cloud';
+  readonly type: "local" | "cloud";
 
   // Discovery
   listModels(): Promise<ModelInfo[]>;
-  healthCheck(): Promise<{ status: 'healthy' | 'unhealthy'; latency: number }>;
+  healthCheck(): Promise<{ status: "healthy" | "unhealthy"; latency: number }>;
 
   // Chat
   chat(options: ChatOptions): Promise<ChatResponse>;
@@ -438,13 +454,13 @@ interface ChatOptions {
 
 ### 4.2 Provider Implementations
 
-| Provider | Class | Endpoint | Notes |
-|----------|-------|----------|-------|
-| Ollama | `OllamaProvider` | `http://localhost:11434` | Primary. OpenAI-compatible subset. |
-| LM Studio | `LMStudioProvider` | `http://localhost:1234/v1` | OpenAI-compatible |
-| vLLM | `VLLMProvider` | `http://localhost:8000/v1` | OpenAI-compatible |
-| OpenAI | `OpenAIProvider` | `https://api.openai.com/v1` | Optional cloud fallback |
-| Anthropic | `AnthropicProvider` | `https://api.anthropic.com` | Optional cloud fallback |
+| Provider  | Class               | Endpoint                    | Notes                              |
+| --------- | ------------------- | --------------------------- | ---------------------------------- |
+| Ollama    | `OllamaProvider`    | `http://localhost:11434`    | Primary. OpenAI-compatible subset. |
+| LM Studio | `LMStudioProvider`  | `http://localhost:1234/v1`  | OpenAI-compatible                  |
+| vLLM      | `VLLMProvider`      | `http://localhost:8000/v1`  | OpenAI-compatible                  |
+| OpenAI    | `OpenAIProvider`    | `https://api.openai.com/v1` | Optional cloud fallback            |
+| Anthropic | `AnthropicProvider` | `https://api.anthropic.com` | Optional cloud fallback            |
 
 ### 4.3 Tool Calling Flow
 
@@ -504,6 +520,7 @@ data: {}
 ### 5.1 White-Box Memory
 
 Unlike opaque "memory" in most systems, AgentHub memory is:
+
 - **Structured:** Key-value pairs with categories (fact, preference, goal, context)
 - **Editable:** Users can view, modify, or delete any memory entry
 - **Attributed:** Each entry tracks its source (which conversation it came from)
@@ -544,6 +561,7 @@ Conversation History
 ### 5.3 Memory Retrieval
 
 At the start of each conversation:
+
 1. Embed the user's first message
 2. Semantic search over memory entries (top-k = 5)
 3. Inject retrieved memories into system prompt:
@@ -577,19 +595,20 @@ At the start of each conversation:
 
 ### 6.2 Built-in Custom Tools
 
-| Tool | Description | Local Implementation |
-|------|-------------|---------------------|
-| `web_search` | Search the internet | SearxNG API or DuckDuckGo |
-| `read_file` | Read local files | Node.js fs |
-| `write_file` | Write local files | Node.js fs |
-| `execute_code` | Run Python/JS | Deno sandbox or Docker |
-| `calculator` | Math evaluation | mathjs |
-| `datetime` | Current time/date | Native |
-| `fetch_url` | Read web page | fetch + readability |
+| Tool           | Description         | Local Implementation      |
+| -------------- | ------------------- | ------------------------- |
+| `web_search`   | Search the internet | SearxNG API or DuckDuckGo |
+| `read_file`    | Read local files    | Node.js fs                |
+| `write_file`   | Write local files   | Node.js fs                |
+| `execute_code` | Run Python/JS       | Deno sandbox or Docker    |
+| `calculator`   | Math evaluation     | mathjs                    |
+| `datetime`     | Current time/date   | Native                    |
+| `fetch_url`    | Read web page       | fetch + readability       |
 
 ### 6.3 MCP Integration
 
 **Discovery:**
+
 1. User adds MCP server (command + args, or SSE URL)
 2. AgentHub spawns process (stdio) or connects (SSE)
 3. Call `tools/list` to discover available tools
@@ -598,12 +617,14 @@ At the start of each conversation:
 6. Cache tool definitions
 
 **Execution:**
+
 1. LLM generates tool call with name + arguments
 2. MCP client validates arguments against schema
 3. Call `tools/call` with arguments
 4. Return result to LLM
 
 **Security:**
+
 - MCP servers run as separate processes
 - File system access restricted to user-configured directories
 - Network access: prompt user before external HTTP calls
@@ -666,12 +687,14 @@ File Upload
 ### 7.2 Retrieval Strategy
 
 **Hybrid Search:**
+
 1. **Keyword Search:** SQLite FTS5 on document content
 2. **Vector Search:** LanceDB cosine similarity on embeddings
 3. **Reciprocal Rank Fusion (RRF):** Combine keyword + vector scores
 4. **Re-ranking:** Cross-encoder re-ranker (optional, local model)
 
 **Context Injection:**
+
 - Retrieved chunks inserted into system prompt:
   ```
   [Knowledge Base: "Company Docs"]
@@ -711,6 +734,7 @@ Assistant Response
 ```
 
 **Voices:**
+
 - Piper ships with 20+ pre-trained voices
 - User can download additional voice models
 - Voice per agent configurable
@@ -768,7 +792,7 @@ Microphone Input
 
 ```typescript
 interface SearchTool {
-  name: 'web_search';
+  name: "web_search";
   parameters: {
     query: string;
     num_results?: number; // default 5, max 10
@@ -802,7 +826,7 @@ interface SearchTool {
 
 ```typescript
 interface ImageTool {
-  name: 'generate_image';
+  name: "generate_image";
   parameters: {
     prompt: string;
     negative_prompt?: string;
@@ -823,9 +847,10 @@ interface ImageTool {
 ### 10.3 Vision Tool
 
 For image understanding (multimodal):
+
 ```typescript
 interface VisionTool {
-  name: 'analyze_image';
+  name: "analyze_image";
   parameters: {
     image_url: string; // local path or data URL
     query?: string; // specific question about image
@@ -840,14 +865,14 @@ interface VisionTool {
 
 ### 11.1 Threat Model
 
-| Threat | Severity | Mitigation |
-|--------|----------|------------|
-| MCP server executes malicious code | **Critical** | Sandboxed execution; readonly FS default; user approval |
-| LLM generates harmful content | Medium | System prompt hardening; optional moderation model |
-| Local file exfiltration | Medium | Path traversal prevention; sandboxed paths |
-| API key leakage (if cloud used) | Medium | Server-side encryption; no client-side storage |
-| Prompt injection via uploaded files | Medium | Content sanitization; prompt boundary markers |
-| Unauthorized access (multi-user) | Medium | Session management; CSRF protection; rate limiting |
+| Threat                              | Severity     | Mitigation                                              |
+| ----------------------------------- | ------------ | ------------------------------------------------------- |
+| MCP server executes malicious code  | **Critical** | Sandboxed execution; readonly FS default; user approval |
+| LLM generates harmful content       | Medium       | System prompt hardening; optional moderation model      |
+| Local file exfiltration             | Medium       | Path traversal prevention; sandboxed paths              |
+| API key leakage (if cloud used)     | Medium       | Server-side encryption; no client-side storage          |
+| Prompt injection via uploaded files | Medium       | Content sanitization; prompt boundary markers           |
+| Unauthorized access (multi-user)    | Medium       | Session management; CSRF protection; rate limiting      |
 
 ### 11.2 MCP Sandbox
 
@@ -947,6 +972,8 @@ AgentHub/
 
 > **Requirement 1.1:** Conflict-Free Replicated Data Type (CRDT) technology for seamless multi-device synchronization without a central server.
 
+> Current implementation note: ADR 0002 supersedes this CRDT sync design. PostgreSQL + pgvector is the supported system of record in the current app, and IndexedDB/Yjs/WebRTC sync is future experimental work only behind `AGENTHUB_EXPERIMENTAL_LOCAL_SYNC`.
+
 ### 12.1 Design Goals
 
 - **No central server required** for sync — devices communicate peer-to-peer or via optional relay.
@@ -956,12 +983,12 @@ AgentHub/
 
 ### 12.2 Technology Stack
 
-| Layer | Technology | Role |
-|-------|-----------|------|
-| Document sync | **Yjs** | CRDT document for messages, sessions, agent configs |
-| Database sync | **Electric SQL** | SQLite replication with conflict-free merges |
-| Transport | **WebRTC** (P2P) + **WebSocket relay** (fallback) | Direct device-to-device or relayed sync |
-| Discovery | **mDNS** (local network) + **sync tokens** (remote) | Device discovery without central registry |
+| Layer         | Technology                                          | Role                                                |
+| ------------- | --------------------------------------------------- | --------------------------------------------------- |
+| Document sync | **Yjs**                                             | CRDT document for messages, sessions, agent configs |
+| Database sync | **Electric SQL**                                    | SQLite replication with conflict-free merges        |
+| Transport     | **WebRTC** (P2P) + **WebSocket relay** (fallback)   | Direct device-to-device or relayed sync             |
+| Discovery     | **mDNS** (local network) + **sync tokens** (remote) | Device discovery without central registry           |
 
 ### 12.3 Sync Architecture
 
@@ -987,7 +1014,7 @@ Yjs documents are organized by entity type:
 ```typescript
 // y-doc structure per workspace
 interface WorkspaceDoc {
-  sessions: Y.Map<Session>;        // Yjs Map for key-value CRDT
+  sessions: Y.Map<Session>; // Yjs Map for key-value CRDT
   messages: Y.Map<Y.Array<Message>>; // Yjs Array for ordered sequences
   agents: Y.Map<Agent>;
   memory: Y.Array<MemoryEntry>;
@@ -996,6 +1023,7 @@ interface WorkspaceDoc {
 ```
 
 **CRDT rules:**
+
 - `sessions`: Map CRDT — last-write-wins on scalar fields, merge on messages array
 - `messages`: Array CRDT — insertions/deletions merge automatically; concurrent edits to same message: text CRDT resolves
 - `agents`: Map CRDT — full agent config replicated; version vector tracks edits
@@ -1003,12 +1031,12 @@ interface WorkspaceDoc {
 
 ### 12.5 Conflict Resolution
 
-| Conflict Type | Resolution Strategy |
-|--------------|---------------------|
-| Concurrent message edits | Text CRDT (Y.Text) — preserves both edits |
-| Session title changes | Last-write-wins with timestamp |
-| Agent config changes | Merge JSON deeply; conflicting keys → user prompt |
-| Memory entry edits | Flag as "conflicted"; show both versions in UI |
+| Conflict Type                | Resolution Strategy                                 |
+| ---------------------------- | --------------------------------------------------- |
+| Concurrent message edits     | Text CRDT (Y.Text) — preserves both edits           |
+| Session title changes        | Last-write-wins with timestamp                      |
+| Agent config changes         | Merge JSON deeply; conflicting keys → user prompt   |
+| Memory entry edits           | Flag as "conflicted"; show both versions in UI      |
 | Branching conversation forks | Both branches preserved; user chooses active branch |
 
 ### 12.6 Sync Flow
@@ -1092,14 +1120,14 @@ Device B receives update
 
 ### 13.2 Job Types
 
-| Queue | Purpose | Max Runtime | Retry Strategy |
-|-------|---------|-------------|----------------|
-| `ingest` | Document parsing + chunking + embedding | 10 min | 3 retries, exponential backoff |
-| `agent-flow` | Long-running multi-agent workflows | 30 min | 1 retry (checkpoint resume) |
-| `generate-image` | ComfyUI image generation | 5 min | 2 retries |
-| `memory-extract` | Post-session memory extraction | 2 min | 2 retries |
-| `sync` | CRDT sync broadcast | 30s | 5 retries |
-| `email` | Outbound notifications | 1 min | 3 retries |
+| Queue            | Purpose                                 | Max Runtime | Retry Strategy                 |
+| ---------------- | --------------------------------------- | ----------- | ------------------------------ |
+| `ingest`         | Document parsing + chunking + embedding | 10 min      | 3 retries, exponential backoff |
+| `agent-flow`     | Long-running multi-agent workflows      | 30 min      | 1 retry (checkpoint resume)    |
+| `generate-image` | ComfyUI image generation                | 5 min       | 2 retries                      |
+| `memory-extract` | Post-session memory extraction          | 2 min       | 2 retries                      |
+| `sync`           | CRDT sync broadcast                     | 30s         | 5 retries                      |
+| `email`          | Outbound notifications                  | 1 min       | 3 retries                      |
 
 ### 13.3 Celery-Equivalent in Node.js
 
@@ -1109,7 +1137,7 @@ Since AgentHub is TypeScript/Node.js based, we use **BullMQ** (Redis-backed) ins
 // Task definition
 interface AgentFlowJob {
   id: string;
-  type: 'agent-flow';
+  type: "agent-flow";
   payload: {
     groupId: string;
     task: string;
@@ -1121,24 +1149,29 @@ interface AgentFlowJob {
 }
 
 // Worker implementation
-const agentFlowWorker = new Worker('agent-flow', async (job) => {
-  const checkpointManager = new CheckpointManager(job.id);
-  const orchestrator = new StatefulGraphOrchestrator(checkpointManager);
+const agentFlowWorker = new Worker(
+  "agent-flow",
+  async (job) => {
+    const checkpointManager = new CheckpointManager(job.id);
+    const orchestrator = new StatefulGraphOrchestrator(checkpointManager);
 
-  for await (const event of orchestrator.execute(job.data.payload)) {
-    await job.updateProgress(event);
-    // WebSocket broadcast to subscribed clients
-    await broadcastToSession(job.data.payload.sessionId, event);
-  }
-}, {
-  connection: redisConnection,
-  concurrency: 2,
-});
+    for await (const event of orchestrator.execute(job.data.payload)) {
+      await job.updateProgress(event);
+      // WebSocket broadcast to subscribed clients
+      await broadcastToSession(job.data.payload.sessionId, event);
+    }
+  },
+  {
+    connection: redisConnection,
+    concurrency: 2,
+  },
+);
 ```
 
 ### 13.4 Checkpointing for Long-Running Flows
 
 Every 30 seconds (configurable), the worker persists:
+
 - Current node in execution graph
 - Full conversation context
 - Tool call history
@@ -1154,11 +1187,11 @@ On crash/restart: worker resumes from last checkpoint.
 
 ### 14.1 Sandbox Levels
 
-| Level | Technology | Use Case | Isolation |
-|-------|-----------|----------|-----------|
-| **Lightweight** | Deno subprocess | JS/TS execution | Process isolation, no network |
-| **Standard** | Docker container | Python, Rust, Go | Container isolation, readonly FS |
-| **Heavyweight** | Firecracker microVM | Untrusted code | VM isolation, full sandbox |
+| Level           | Technology          | Use Case         | Isolation                        |
+| --------------- | ------------------- | ---------------- | -------------------------------- |
+| **Lightweight** | Deno subprocess     | JS/TS execution  | Process isolation, no network    |
+| **Standard**    | Docker container    | Python, Rust, Go | Container isolation, readonly FS |
+| **Heavyweight** | Firecracker microVM | Untrusted code   | VM isolation, full sandbox       |
 
 ### 14.2 Agent Iterative Coding Loop
 
@@ -1203,6 +1236,7 @@ WORKDIR /workspace
 ```
 
 **Runtime constraints:**
+
 - CPU: 1 core, max 60s execution
 - Memory: 512 MB
 - Network: disabled by default; enabled only for `fetch_url` tool with domain whitelist
@@ -1213,7 +1247,11 @@ WORKDIR /workspace
 
 ```typescript
 interface Sandbox {
-  execute(language: 'javascript' | 'python' | 'rust', code: string, tests?: string): Promise<{
+  execute(
+    language: "javascript" | "python" | "rust",
+    code: string,
+    tests?: string,
+  ): Promise<{
     stdout: string;
     stderr: string;
     exitCode: number;
@@ -1231,6 +1269,7 @@ interface Sandbox {
 ### 15.1 Philosophy
 
 Instead of agents returning Markdown with embedded instructions, agents return **structured UI declarations**. The client renders these natively, enabling:
+
 - Interactive data entry (forms)
 - Sortable/filterable data display (tables)
 - Live visualizations (charts)
@@ -1240,32 +1279,26 @@ Instead of agents returning Markdown with embedded instructions, agents return *
 
 ```typescript
 interface A2UIMessage {
-  version: '1.0';
-  type: 'a2ui';
+  version: "1.0";
+  type: "a2ui";
   components: A2UIComponent[];
 }
 
-type A2UIComponent =
-  | A2UIForm
-  | A2UITable
-  | A2UIChart
-  | A2UIWizard
-  | A2UICard
-  | A2UIButtonRow;
+type A2UIComponent = A2UIForm | A2UITable | A2UIChart | A2UIWizard | A2UICard | A2UIButtonRow;
 
 interface A2UIForm {
-  type: 'form';
+  type: "form";
   id: string;
   title?: string;
   description?: string;
   fields: FormField[];
   submitLabel: string;
   // On submit, client POSTs form data back to agent
-  callback: { action: 'submit_form'; formId: string };
+  callback: { action: "submit_form"; formId: string };
 }
 
 interface A2UITable {
-  type: 'table';
+  type: "table";
   id: string;
   title?: string;
   columns: { key: string; label: string; sortable?: boolean; filterable?: boolean }[];
@@ -1274,9 +1307,9 @@ interface A2UITable {
 }
 
 interface A2UIChart {
-  type: 'chart';
+  type: "chart";
   id: string;
-  chartType: 'bar' | 'line' | 'pie' | 'area';
+  chartType: "bar" | "line" | "pie" | "area";
   title?: string;
   data: { label: string; value: number; series?: string }[];
   xAxis?: string;
@@ -1284,7 +1317,7 @@ interface A2UIChart {
 }
 
 interface A2UIWizard {
-  type: 'wizard';
+  type: "wizard";
   id: string;
   steps: { title: string; description: string; component: A2UIComponent }[];
   currentStep: number;
@@ -1340,7 +1373,7 @@ interface A2ACapability {
   description: string;
   skills: A2ASkill[];
   endpoint: string; // HTTP or SSE URL
-  protocols: ('a2a-v1' | 'mcp')[];
+  protocols: ("a2a-v1" | "mcp")[];
 }
 
 interface A2ASkill {
@@ -1358,7 +1391,7 @@ interface A2ATask {
   toAgent: string;
   skillId: string;
   input: unknown;
-  priority: 'low' | 'normal' | 'high' | 'urgent';
+  priority: "low" | "normal" | "high" | "urgent";
   deadline?: Date;
   callbackUrl?: string;
 }
@@ -1366,7 +1399,7 @@ interface A2ATask {
 // Task result
 interface A2AResult {
   taskId: string;
-  status: 'success' | 'failure' | 'partial';
+  status: "success" | "failure" | "partial";
   output: unknown;
   logs: string[];
   latencyMs: number;
@@ -1375,12 +1408,12 @@ interface A2AResult {
 
 ### 16.2 Discovery Mechanisms
 
-| Mechanism | Scope | Technology |
-|-----------|-------|------------|
-| Local network | LAN | mDNS (Bonjour/Avahi) |
-| Agent registry | Internet | Optional hosted registry (federated) |
-| Static config | Known peers | Manual endpoint configuration |
-| MCP bridge | MCP ecosystem | MCP server that exposes A2A agents as tools |
+| Mechanism      | Scope         | Technology                                  |
+| -------------- | ------------- | ------------------------------------------- |
+| Local network  | LAN           | mDNS (Bonjour/Avahi)                        |
+| Agent registry | Internet      | Optional hosted registry (federated)        |
+| Static config  | Known peers   | Manual endpoint configuration               |
+| MCP bridge     | MCP ecosystem | MCP server that exposes A2A agents as tools |
 
 ### 16.3 Cross-Framework Delegation
 
@@ -1475,19 +1508,21 @@ This allows Claude, Cursor, and other MCP clients to use AgentHub agents as firs
 
 ### 17.3 Desktop Automation via Accessibility APIs
 
-| OS | API | Capabilities |
-|----|-----|--------------|
-| **Linux** | AT-SPI2 | Enumerate windows, read UI tree, click, type, focus |
-| **macOS** | AX API | Same + VoiceOver integration |
-| **Windows** | UI Automation | Same + MSAA legacy support |
+| OS          | API           | Capabilities                                        |
+| ----------- | ------------- | --------------------------------------------------- |
+| **Linux**   | AT-SPI2       | Enumerate windows, read UI tree, click, type, focus |
+| **macOS**   | AX API        | Same + VoiceOver integration                        |
+| **Windows** | UI Automation | Same + MSAA legacy support                          |
 
 **Agent capabilities:**
+
 - "Click the Submit button in Chrome"
 - "Type 'hello' into the focused text field"
 - "Read the table from the Excel window"
 - "Screenshot the current active window"
 
 **Security:**
+
 - User must explicitly grant accessibility permissions (OS-level)
 - Agent actions are previewed before execution
 - Sensitive applications (password managers, banking) are blocklisted
@@ -1577,6 +1612,7 @@ rules:
 ### 18.4 Cloud Model Leverage
 
 For complex analysis (document understanding, entity extraction), the File Agent:
+
 1. Extracts text locally
 2. Sends to cloud model with **strict data minimization** (only necessary text)
 3. Receives structured analysis
@@ -1632,15 +1668,15 @@ interface Mode {
 
 ### 19.2 Built-in Modes
 
-| Mode | Purpose | Tools | A2UI Output |
-|------|---------|-------|-------------|
-| **General Chat** | Default conversational agent | web_search, calculator, datetime | text, code |
-| **Coder** | Software development | execute_code, read_file, write_file | code, form (PR details) |
-| **People Search** | CRM enrichment, prospecting | web_search, fetch_url, analyze_image | table (leads), form (contact) |
-| **Researcher** | Deep research with citations | web_search, fetch_url, knowledge_base | table (sources), chart (data) |
-| **Writer** | Content creation | web_search, read_file | text, form (feedback) |
-| **Data Analyst** | CSV/JSON analysis | execute_code, read_file | chart, table, form (query) |
-| **DevOps** | Infrastructure management | execute_code (Docker), mcp_servers | form (deploy config) |
+| Mode              | Purpose                      | Tools                                 | A2UI Output                   |
+| ----------------- | ---------------------------- | ------------------------------------- | ----------------------------- |
+| **General Chat**  | Default conversational agent | web_search, calculator, datetime      | text, code                    |
+| **Coder**         | Software development         | execute_code, read_file, write_file   | code, form (PR details)       |
+| **People Search** | CRM enrichment, prospecting  | web_search, fetch_url, analyze_image  | table (leads), form (contact) |
+| **Researcher**    | Deep research with citations | web_search, fetch_url, knowledge_base | table (sources), chart (data) |
+| **Writer**        | Content creation             | web_search, read_file                 | text, form (feedback)         |
+| **Data Analyst**  | CSV/JSON analysis            | execute_code, read_file               | chart, table, form (query)    |
+| **DevOps**        | Infrastructure management    | execute_code (Docker), mcp_servers    | form (deploy config)          |
 
 ### 19.3 Mode Marketplace
 
@@ -1682,7 +1718,7 @@ interface AgentGraph {
 
 interface AgentNode {
   id: string;
-  type: 'agent' | 'tool' | 'decision' | 'human' | 'checkpoint';
+  type: "agent" | "tool" | "decision" | "human" | "checkpoint";
   config: AgentConfig | ToolConfig | DecisionConfig | HumanConfig;
   retryPolicy?: RetryPolicy;
   timeout?: number;
@@ -1714,7 +1750,7 @@ interface Checkpoint {
   timestamp: Date;
   state: GraphState;
   nodeResults: Record<string, unknown>;
-  status: 'running' | 'paused' | 'completed' | 'failed' | 'waiting_human';
+  status: "running" | "paused" | "completed" | "failed" | "waiting_human";
 }
 
 class CheckpointManager {
@@ -1726,6 +1762,7 @@ class CheckpointManager {
 ```
 
 **Checkpoint table (SQLite):**
+
 ```sql
 CREATE TABLE checkpoints (
   id TEXT PRIMARY KEY,
@@ -1769,23 +1806,23 @@ Graph executing
 
 ### 20.4 Human-in-the-Loop
 
-| HITL Point | Behavior | UI |
-|------------|----------|-----|
-| **Approval Gate** | Agent proposes action; waits for user yes/no | Modal with action preview |
-| **Edit Hook** | Agent outputs draft; user can edit before continue | Inline editor |
-| **Override Point** | User can redirect graph to different node | Dropdown of available nodes |
-| **Question Node** | Graph explicitly asks user for input | Form rendered in chat |
+| HITL Point         | Behavior                                           | UI                          |
+| ------------------ | -------------------------------------------------- | --------------------------- |
+| **Approval Gate**  | Agent proposes action; waits for user yes/no       | Modal with action preview   |
+| **Edit Hook**      | Agent outputs draft; user can edit before continue | Inline editor               |
+| **Override Point** | User can redirect graph to different node          | Dropdown of available nodes |
+| **Question Node**  | Graph explicitly asks user for input               | Form rendered in chat       |
 
 ### 20.5 Production Reliability
 
-| Feature | Implementation |
-|---------|---------------|
-| **Retry logic** | Exponential backoff, max 3 retries per node |
-| **Dead letter queue** | Failed nodes moved to DLQ for manual inspection |
-| **Observability** | Every node execution logged with input, output, latency |
-| **Circuit breaker** | If node fails 5x in 1 min, circuit opens; manual reset required |
-| **Timeouts** | Per-node timeout (default 30s, configurable) |
-| **Resource limits** | Max memory per node (512MB), max total graph runtime (1 hour) |
+| Feature               | Implementation                                                  |
+| --------------------- | --------------------------------------------------------------- |
+| **Retry logic**       | Exponential backoff, max 3 retries per node                     |
+| **Dead letter queue** | Failed nodes moved to DLQ for manual inspection                 |
+| **Observability**     | Every node execution logged with input, output, latency         |
+| **Circuit breaker**   | If node fails 5x in 1 min, circuit opens; manual reset required |
+| **Timeouts**          | Per-node timeout (default 30s, configurable)                    |
+| **Resource limits**   | Max memory per node (512MB), max total graph runtime (1 hour)   |
 
 ### 20.6 Example: Research Workflow Graph
 
@@ -1815,7 +1852,7 @@ Graph executing
 
 ---
 
-*End of DESIGN.md v2.0*
+_End of DESIGN.md v2.0_
 
 ---
 
@@ -1826,6 +1863,7 @@ Graph executing
 ### 21.1 Design Philosophy
 
 AgentHub treats observability as a first-class citizen. Every interaction — from a single chat message to a complex multi-agent workflow — is traced, measured, and stored for analysis. This enables:
+
 - **Cost transparency:** Users see exactly how many tokens each session consumed
 - **Performance optimization:** Identify slow models, slow tools, bottlenecks
 - **Debugging:** Step-by-step trace of agent decisions and tool calls
@@ -1833,12 +1871,12 @@ AgentHub treats observability as a first-class citizen. Every interaction — fr
 
 ### 21.2 Telemetry Types
 
-| Type | Data Collected | Storage | Retention |
-|------|---------------|---------|-----------|
-| **Metrics** | Token counts, latency, queue depth, error rates | Time-series DB (Prometheus-compatible) | 90 days |
-| **Traces** | End-to-end request flow (chat → LLM → tools → response) | SQLite trace table | 30 days |
-| **Logs** | Structured application logs | SQLite log table + file rotation | 7 days |
-| **Events** | User actions, agent decisions, HITL approvals | SQLite event table | 90 days |
+| Type        | Data Collected                                          | Storage                                | Retention |
+| ----------- | ------------------------------------------------------- | -------------------------------------- | --------- |
+| **Metrics** | Token counts, latency, queue depth, error rates         | Time-series DB (Prometheus-compatible) | 90 days   |
+| **Traces**  | End-to-end request flow (chat → LLM → tools → response) | SQLite trace table                     | 30 days   |
+| **Logs**    | Structured application logs                             | SQLite log table + file rotation       | 7 days    |
+| **Events**  | User actions, agent decisions, HITL approvals           | SQLite event table                     | 90 days   |
 
 ### 21.3 Metric Schema
 
@@ -1906,19 +1944,19 @@ CREATE TABLE events (
 
 ### 21.4 Key Metrics
 
-| Metric | Description | Source |
-|--------|-------------|--------|
-| `llm_tokens_total` | Total tokens consumed per model/provider | LLM response metadata |
-| `llm_latency_ms` | Time from request to first token / full response | Timer around LLM call |
-| `llm_cost_usd` | Estimated cost (0 for local, calculated for cloud) | Token count × model rate |
-| `tool_execution_ms` | Time to execute each tool | Timer around tool wrapper |
-| `rag_retrieval_ms` | Time to perform vector + keyword search | Timer around search pipeline |
-| `agent_flow_duration_ms` | Total time for multi-agent workflow | Trace span duration |
-| `agent_flow_steps` | Number of agent/tool steps in workflow | Counter |
-| `active_sessions` | Current number of open chat sessions | Gauge |
-| `queue_depth` | Number of jobs waiting in BullMQ | Redis queue length |
-| `error_rate` | Percentage of requests resulting in errors | Error count / Total count |
-| `user_satisfaction` | Thumbs up/down on assistant messages | User feedback |
+| Metric                   | Description                                        | Source                       |
+| ------------------------ | -------------------------------------------------- | ---------------------------- |
+| `llm_tokens_total`       | Total tokens consumed per model/provider           | LLM response metadata        |
+| `llm_latency_ms`         | Time from request to first token / full response   | Timer around LLM call        |
+| `llm_cost_usd`           | Estimated cost (0 for local, calculated for cloud) | Token count × model rate     |
+| `tool_execution_ms`      | Time to execute each tool                          | Timer around tool wrapper    |
+| `rag_retrieval_ms`       | Time to perform vector + keyword search            | Timer around search pipeline |
+| `agent_flow_duration_ms` | Total time for multi-agent workflow                | Trace span duration          |
+| `agent_flow_steps`       | Number of agent/tool steps in workflow             | Counter                      |
+| `active_sessions`        | Current number of open chat sessions               | Gauge                        |
+| `queue_depth`            | Number of jobs waiting in BullMQ                   | Redis queue length           |
+| `error_rate`             | Percentage of requests resulting in errors         | Error count / Total count    |
+| `user_satisfaction`      | Thumbs up/down on assistant messages               | User feedback                |
 
 ### 21.5 Trace Collection
 
@@ -1944,27 +1982,32 @@ Trace: chat_message (id: trace_abc123)
 Built-in observability UI at `/admin/observability`:
 
 **Overview Panel:**
+
 - Total tokens today / this week / this month
 - Average response latency (trend line)
 - Active users / sessions
 - Error rate (with alert threshold)
 
 **Model Performance:**
+
 - Table: Model | Avg Latency | Tokens Used | Cost | Satisfaction
 - Bar chart: Token consumption by model
 - Line chart: Latency trend per model
 
 **Agent Workflows:**
+
 - Trace list: filterable by status, duration, agent group
 - Trace detail: waterfall view of spans
 - Heatmap: Step duration across workflow types
 
 **Cost Management:**
+
 - Estimated monthly spend (local = $0, cloud = calculated)
 - Cost breakdown by model, by workspace, by user
 - Budget alerts (configurable thresholds)
 
 **Real-Time:**
+
 - Live request rate (requests/sec)
 - Live token consumption rate
 - Queue depth visualization
@@ -1972,12 +2015,12 @@ Built-in observability UI at `/admin/observability`:
 
 ### 21.7 Export & Integration
 
-| Integration | Format | Use Case |
-|-------------|--------|----------|
-| **Prometheus** | `/metrics` endpoint | Scraping by external Prometheus/Grafana |
-| **OpenTelemetry** | OTLP exporter | Integration with existing observability stacks |
-| **CSV Export** | Download from dashboard | Ad-hoc analysis in Excel/Sheets |
-| **SQLite Query** | Direct SQL | Power users, custom reports |
+| Integration       | Format                  | Use Case                                       |
+| ----------------- | ----------------------- | ---------------------------------------------- |
+| **Prometheus**    | `/metrics` endpoint     | Scraping by external Prometheus/Grafana        |
+| **OpenTelemetry** | OTLP exporter           | Integration with existing observability stacks |
+| **CSV Export**    | Download from dashboard | Ad-hoc analysis in Excel/Sheets                |
+| **SQLite Query**  | Direct SQL              | Power users, custom reports                    |
 
 ### 21.8 Alerting
 
@@ -1986,21 +2029,28 @@ interface AlertRule {
   id: string;
   name: string;
   metric: string;
-  condition: 'gt' | 'lt' | 'eq';
+  condition: "gt" | "lt" | "eq";
   threshold: number;
   duration: number; // seconds the condition must hold
-  severity: 'warning' | 'critical';
-  action: 'notify' | 'throttle' | 'pause_workflow';
+  severity: "warning" | "critical";
+  action: "notify" | "throttle" | "pause_workflow";
 }
 
 // Example rules
 const defaultAlerts: AlertRule[] = [
-  { name: 'High Latency', metric: 'llm_latency_ms', condition: 'gt', threshold: 10000, duration: 300, severity: 'warning' },
-  { name: 'Error Spike', metric: 'error_rate', condition: 'gt', threshold: 0.05, duration: 60, severity: 'critical' },
-  { name: 'Queue Backlog', metric: 'queue_depth', condition: 'gt', threshold: 100, duration: 300, severity: 'warning' },
+  {
+    name: "High Latency",
+    metric: "llm_latency_ms",
+    condition: "gt",
+    threshold: 10000,
+    duration: 300,
+    severity: "warning",
+  },
+  { name: "Error Spike", metric: "error_rate", condition: "gt", threshold: 0.05, duration: 60, severity: "critical" },
+  { name: "Queue Backlog", metric: "queue_depth", condition: "gt", threshold: 100, duration: 300, severity: "warning" },
 ];
 ```
 
 ---
 
-*End of DESIGN.md v2.1 — Observability & APM added.*
+_End of DESIGN.md v2.1 — Observability & APM added._

@@ -1,7 +1,7 @@
-# Provider Authentication Design
+# Provider Authentication
 
-> **Status**: Design document — no code changes made yet  
-> **Last updated**: 2026-05-12  
+> **Status**: Implemented for GitHub Copilot device flow and optional Google Gemini GCP OAuth; API-key-only provider boundaries are documented as out of scope for OAuth.
+> **Last updated**: 2026-05-19
 > **Related**: `FEATURE_TRACKER.md §2`, `apps/web/src/components/ProviderSettings.tsx`
 
 ---
@@ -12,16 +12,16 @@ This is the most important table in this document. Claude Max, ChatGPT Plus, and
 consumer subscriptions do **not** grant programmatic API access. They are separate billing
 products. Getting this wrong will result in broken UX and user frustration.
 
-| Provider | Subscription | API Access? | Auth Method for API | Notes |
-|----------|-------------|-------------|---------------------|-------|
-| **Anthropic** | Claude Max ($20–$200/mo) | ❌ No | API key (separate billing via console.anthropic.com) | Claude Max = claude.ai UI only. API has its own usage-based pricing. |
-| **OpenAI** | ChatGPT Plus/Team ($20–$30/mo) | ❌ No | API key (separate billing via platform.openai.com) | "Codex" subscription = GitHub Copilot, not OpenAI API directly. |
-| **GitHub Copilot** | Individual/Business ($10–$19/mo) | ✅ Yes | OAuth device flow (real token) | Exposes an OpenAI-compatible endpoint. Device flow is the correct implementation. |
-| **Google Gemini** | Gemini Advanced ($20/mo) | ❌ No | API key via AI Studio OR OAuth 2.0 via GCP project | Gemini Advanced = Gemini app only. API access requires GCP project + billing enabled. AI Studio gives free API keys for testing. |
-| **Ollama** | Free / self-hosted | ✅ Yes | No auth (local URL) | Full control; no subscription required. |
-| **LM Studio** | Free / self-hosted | ✅ Yes | No auth (local URL) | OpenAI-compatible local server. |
-| **vLLM** | Self-hosted | ✅ Yes | Optional Bearer token | Typically run internally; configure base URL. |
-| **Moonshot** | API pricing | ✅ Yes | API key | Standard key-based auth. |
+| Provider           | Subscription                     | API Access? | Auth Method for API                                  | Notes                                                                                                                            |
+| ------------------ | -------------------------------- | ----------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Anthropic**      | Claude Max ($20–$200/mo)         | ❌ No       | API key (separate billing via console.anthropic.com) | Claude Max = claude.ai UI only. API has its own usage-based pricing.                                                             |
+| **OpenAI**         | ChatGPT Plus/Team ($20–$30/mo)   | ❌ No       | API key (separate billing via platform.openai.com)   | "Codex" subscription = GitHub Copilot, not OpenAI API directly.                                                                  |
+| **GitHub Copilot** | Individual/Business ($10–$19/mo) | ✅ Yes      | OAuth device flow (real token)                       | Exposes an OpenAI-compatible endpoint. Device flow is the correct implementation.                                                |
+| **Google Gemini**  | Gemini Advanced ($20/mo)         | ❌ No       | API key via AI Studio OR OAuth 2.0 via GCP project   | Gemini Advanced = Gemini app only. API access requires GCP project + billing enabled. AI Studio gives free API keys for testing. |
+| **Ollama**         | Free / self-hosted               | ✅ Yes      | No auth (local URL)                                  | Full control; no subscription required.                                                                                          |
+| **LM Studio**      | Free / self-hosted               | ✅ Yes      | No auth (local URL)                                  | OpenAI-compatible local server.                                                                                                  |
+| **vLLM**           | Self-hosted                      | ✅ Yes      | Optional Bearer token                                | Typically run internally; configure base URL.                                                                                    |
+| **Moonshot**       | API pricing                      | ✅ Yes      | API key                                              | Standard key-based auth.                                                                                                         |
 
 ### User-facing messaging guidelines
 
@@ -41,30 +41,30 @@ The `providerCredentials` DB table already supports OAuth. No migration required
 ```typescript
 // apps/web/src/server/db/schema.ts (existing columns)
 export const providerCredentials = pgTable("provider_credentials", {
-  authType:     text("auth_type").notNull().default("api_key"), // "api_key" | "oauth"
-  apiKey:       text("api_key"),
-  baseUrl:      text("base_url"),
-  accessToken:  text("access_token"),    // OAuth access token
-  refreshToken: text("refresh_token"),   // OAuth refresh token
-  expiresAt:    timestamp("expires_at"), // Token expiry
-  scope:        text("scope"),           // OAuth scopes granted
+  authType: text("auth_type").notNull().default("api_key"), // "api_key" | "oauth"
+  apiKey: text("api_key"),
+  baseUrl: text("base_url"),
+  accessToken: text("access_token"), // OAuth access token
+  refreshToken: text("refresh_token"), // OAuth refresh token
+  expiresAt: timestamp("expires_at"), // Token expiry
+  scope: text("scope"), // OAuth scopes granted
 });
 ```
 
-**What is missing:**
-- No OAuth flow routes (`/api/auth/oauth/[provider]/...`)
-- No token refresh logic
-- No device flow implementation
-- `ProviderSettings.tsx` shows only 4 hardcoded providers, all API-key only
-- No UI guidance about subscription vs API key distinction
-- Models are hardcoded — no dynamic fetch from provider's `/v1/models`
+**Implemented runtime state:**
+
+- GitHub Copilot device flow routes exist at `/api/oauth/github-copilot/device` and `/api/oauth/github-copilot/poll`.
+- Google Gemini GCP OAuth routes exist at `/api/oauth/google/initiate` and `/api/oauth/google/callback`.
+- OAuth credentials are stored as `authType="oauth"` provider credential records with encrypted access/refresh token fields.
+- Provider Settings renders GitHub Copilot and Google Gemini OAuth cards behind the paid-plan gate.
+- OpenAI, Anthropic, Moonshot, OpenRouter, Together, Groq, Fireworks, DeepSeek, Qwen, Zhipu, Hugging Face, xAI, Perplexity, Vercel AI Gateway, NewAPI, and AiHubMix remain API-key or OpenAI-compatible credential flows. Do not add consumer-subscription OAuth for these providers unless the provider publishes a real subscription-backed API OAuth path.
+- Local providers remain no-auth or local-URL configured.
 
 ---
 
-## 3. Recommended Implementation: GitHub Copilot (Device Flow)
+## 3. GitHub Copilot Device Flow
 
-GitHub Copilot is the only major subscription that exposes a real, documented API via
-OAuth device flow. This is the highest-value OAuth integration to implement first.
+GitHub Copilot is the only major subscription path currently treated as a real subscription-to-API bridge in AgentHub. The implemented routes use GitHub's device flow endpoints and persist the returned access token as an OAuth provider credential.
 
 ### 3.1 Device Flow Overview
 
@@ -85,32 +85,23 @@ OAuth device flow. This is the highest-value OAuth integration to implement firs
    Editor-Version: AgentHub/1.0
 ```
 
-### 3.2 Files to Create/Modify
+### 3.2 Implemented Files
 
-**New files:**
 ```
 apps/web/src/app/api/oauth/github-copilot/device/route.ts
-  → POST: initiate device flow (calls GitHub, returns device_code + user_code)
+  → POST: initiate device flow after auth and paid-plan checks
 
 apps/web/src/app/api/oauth/github-copilot/poll/route.ts
   → POST: poll for token completion; on success, upsert providerCredentials
 
 packages/ai-providers/src/providers/github-copilot.ts
-  → OAI-compatible provider using githubcopilot base URL + token auth
-```
-
-**Modified files:**
-```
-apps/web/src/server/routers/_app.ts (or future providers.ts sub-router)
-  → Add providerCredentials.refreshToken procedure
+  → OpenAI-compatible provider using the GitHub Copilot base URL and token auth
 
 apps/web/src/components/ProviderSettings.tsx
-  → Add "Sign in with GitHub" button for Copilot
-  → Show device flow modal (user_code + verification_uri + countdown)
-  → Poll /api/oauth/github-copilot/poll until complete
+  → Shows the device-flow modal, user code, verification URI, and polling state
 
 packages/ai-providers/src/registry.ts
-  → Register github-copilot provider when authType="oauth" token exists
+  → Registers github-copilot when an unexpired OAuth credential exists
 ```
 
 ### 3.3 GitHub Copilot Provider Implementation Sketch
@@ -127,10 +118,10 @@ export class GitHubCopilotProvider implements AIProvider {
     return openAICompatibleStream(messages, options, {
       baseUrl: this.baseUrl,
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         "Editor-Version": "AgentHub/1.0",
         "Copilot-Integration-Id": "vscode-chat",
-      }
+      },
     });
   }
 
@@ -149,10 +140,13 @@ GitHub Copilot tokens expire. Add token refresh before each request:
 // Pseudo-code in registry.ts loadUserCredentials()
 if (cred.authType === "oauth" && cred.expiresAt && cred.expiresAt < new Date()) {
   const refreshed = await refreshOAuthToken(cred.providerId, cred.refreshToken);
-  await db.update(providerCredentials).set({
-    accessToken: refreshed.access_token,
-    expiresAt: new Date(Date.now() + refreshed.expires_in * 1000),
-  }).where(eq(providerCredentials.id, cred.id));
+  await db
+    .update(providerCredentials)
+    .set({
+      accessToken: refreshed.access_token,
+      expiresAt: new Date(Date.now() + refreshed.expires_in * 1000),
+    })
+    .where(eq(providerCredentials.id, cred.id));
 }
 ```
 
@@ -166,6 +160,7 @@ authenticate via OAuth 2.0 to access the Gemini API with their GCP billing accou
 ### When to offer this
 
 Only offer GCP OAuth when a user:
+
 1. Already has a GCP project with Gemini API enabled
 2. Wants to use GCP billing instead of AI Studio keys
 
@@ -193,16 +188,18 @@ For most users, a free AI Studio API key (`aistudio.google.com/apikey`) is simpl
 ```
 
 **Files to create:**
+
 ```
-apps/web/src/app/api/oauth/google/route.ts     → initiate flow
-apps/web/src/app/api/oauth/google/callback/route.ts  → exchange code for token
-packages/ai-providers/src/providers/gemini.ts  → extend existing provider to support Bearer token auth
+apps/web/src/app/api/oauth/google/initiate/route.ts   → initiate authorization-code + PKCE flow
+apps/web/src/app/api/oauth/google/callback/route.ts   → validate state, exchange code, store encrypted token credential
+packages/ai-providers/src/providers/gemini.ts         → accepts OAuth Bearer token credentials as well as API keys
 ```
 
 **Environment variables needed:**
+
 ```bash
-GOOGLE_OAUTH_CLIENT_ID=
-GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
 ```
 
 ---
@@ -224,6 +221,7 @@ These providers have no OAuth flow. The current API key form is correct.
 No auth tokens needed. Current implementation is correct.
 
 **Recommended improvements:**
+
 - Add UI to configure Ollama/LMStudio base URL (currently hardcoded in provider files)
 - Fetch model list dynamically from `GET {baseUrl}/api/tags` (Ollama) or `GET {baseUrl}/v1/models` (LMStudio/vLLM)
 - Show connection status with a live ping indicator
@@ -232,13 +230,13 @@ No auth tokens needed. Current implementation is correct.
 
 ## 7. Implementation Order
 
-| Priority | Provider | Effort | Value |
-|----------|----------|--------|-------|
-| 1 | GitHub Copilot (device flow) | 2–3 days | High — real subscription-to-API bridge |
-| 2 | UI copy improvements (Anthropic, OpenAI warnings) | 2 hr | High — prevents user confusion |
-| 3 | Dynamic model list (all providers) | 1 day | High — removes hardcoded model lists |
-| 4 | Local provider URL configuration UI | 4 hr | Medium — makes local providers configurable |
-| 5 | Google Gemini OAuth (GCP) | 2–3 days | Medium — only useful for GCP users |
+| Priority | Provider                                          | Effort   | Value                                       |
+| -------- | ------------------------------------------------- | -------- | ------------------------------------------- |
+| 1        | GitHub Copilot (device flow)                      | 2–3 days | High — real subscription-to-API bridge      |
+| 2        | UI copy improvements (Anthropic, OpenAI warnings) | 2 hr     | High — prevents user confusion              |
+| 3        | Dynamic model list (all providers)                | 1 day    | High — removes hardcoded model lists        |
+| 4        | Local provider URL configuration UI               | 4 hr     | Medium — makes local providers configurable |
+| 5        | Google Gemini OAuth (GCP)                         | 2–3 days | Medium — only useful for GCP users          |
 
 ---
 
@@ -260,9 +258,10 @@ No auth tokens needed. Current implementation is correct.
 GITHUB_COPILOT_CLIENT_ID=Iv1.b507a08c87ecfe98
 
 # Google OAuth (required only for GCP-based Gemini access)
-GOOGLE_OAUTH_CLIENT_ID=
-GOOGLE_OAUTH_CLIENT_SECRET=
-# Redirect URI must match Google Console: ${NEXTAUTH_URL}/api/oauth/google/callback
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+# Redirect URI must match Google Console:
+# ${NEXT_PUBLIC_APP_URL:-http://localhost:$PORT}/api/oauth/google/callback
 ```
 
 > Note: GitHub device flow does not require a client secret (it is a public client flow).

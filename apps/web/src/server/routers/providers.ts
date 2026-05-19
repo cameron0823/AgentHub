@@ -5,6 +5,13 @@ import { router, authedProcedure } from "../trpc";
 import { db } from "../db";
 import { providerCredentials } from "../db/schema";
 import {
+  decryptProviderCredential,
+  decryptProviderCredentials,
+  encryptProviderCredentialValues,
+  redactProviderCredential,
+} from "../provider-credentials";
+import {
+  checkProviderPlanAccess,
   createCloudProvider,
   getProviderCatalogEntry,
   providerCatalog,
@@ -12,24 +19,44 @@ import {
   type ProviderRegistry,
 } from "@agenthub/ai-providers";
 import { validateProviderBaseUrl } from "../security/outbound";
+import { ensureUserQuota } from "../quotas";
 
 type ProviderCred = typeof providerCredentials.$inferSelect;
 
-function registryForUser(creds: ProviderCred[]): ProviderRegistry {
-  if (creds.length === 0) return providerRegistry;
-  return providerRegistry.forUser(creds.map((c) => ({
-    providerId: c.providerId,
-    authType: c.authType as "api_key" | "oauth",
-    apiKey: c.apiKey || undefined,
-    baseUrl: c.baseUrl ? validateProviderBaseUrl(c.baseUrl, c.baseUrl) : undefined,
-    accessToken: c.accessToken || undefined,
-    expiresAt: c.expiresAt,
-  })));
+function credentialsAllowedForPlan(creds: ProviderCred[], plan: string) {
+  return creds.filter((cred) => checkProviderPlanAccess(cred.providerId, plan).allowed);
+}
+
+function assertProviderPlanAccess(providerId: string, plan: string) {
+  const gate = checkProviderPlanAccess(providerId, plan);
+  if (gate.allowed) return;
+  throw new TRPCError({
+    code: "FORBIDDEN",
+    message: `Provider requires ${gate.requiredPlan} plan or higher.`,
+  });
+}
+
+function registryForUser(creds: ProviderCred[], plan: string): ProviderRegistry {
+  const allowedCreds = credentialsAllowedForPlan(creds, plan);
+  if (allowedCreds.length === 0) return providerRegistry;
+  return providerRegistry.forUser(
+    allowedCreds.map((c) => ({
+      providerId: c.providerId,
+      authType: c.authType as "api_key" | "oauth",
+      apiKey: c.apiKey || undefined,
+      baseUrl: c.baseUrl ? validateProviderBaseUrl(c.baseUrl, c.baseUrl) : undefined,
+      accessToken: c.accessToken || undefined,
+      expiresAt: c.expiresAt,
+    })),
+  );
 }
 
 async function getUserCreds(userId: string) {
-  return db.select().from(providerCredentials)
+  const creds = await db
+    .select()
+    .from(providerCredentials)
     .where(and(eq(providerCredentials.userId, userId), eq(providerCredentials.isEnabled, true)));
+  return decryptProviderCredentials(creds);
 }
 
 async function fetchModelsForCredential(cred: ProviderCred): Promise<string[]> {
@@ -58,8 +85,10 @@ async function fetchModelsForCredential(cred: ProviderCred): Promise<string[]> {
         headers: { Authorization: `Bearer ${cred.apiKey}` },
       });
       if (!res.ok) return [];
-      const data = await res.json() as { data: { id: string }[] };
-      return data.data.map((m) => m.id).filter((id) => id.startsWith("gpt-") || id.startsWith("o1") || id.startsWith("o3"));
+      const data = (await res.json()) as { data: { id: string }[] };
+      return data.data
+        .map((m) => m.id)
+        .filter((id) => id.startsWith("gpt-") || id.startsWith("o1") || id.startsWith("o3"));
     }
 
     if (pid === "anthropic") {
@@ -67,14 +96,14 @@ async function fetchModelsForCredential(cred: ProviderCred): Promise<string[]> {
         headers: { "x-api-key": cred.apiKey ?? "", "anthropic-version": "2023-06-01" },
       });
       if (!res.ok) return [];
-      const data = await res.json() as { data: { id: string }[] };
+      const data = (await res.json()) as { data: { id: string }[] };
       return data.data.map((m) => m.id);
     }
 
     if (pid === "gemini") {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cred.apiKey}`);
       if (!res.ok) return [];
-      const data = await res.json() as { models: { name: string }[] };
+      const data = (await res.json()) as { models: { name: string }[] };
       return data.models.map((m) => m.name.replace("models/", "")).filter((id) => id.startsWith("gemini"));
     }
 
@@ -82,7 +111,7 @@ async function fetchModelsForCredential(cred: ProviderCred): Promise<string[]> {
       const base = validateProviderBaseUrl(cred.baseUrl, "http://localhost:11434");
       const res = await fetch(`${base}/api/tags`);
       if (!res.ok) return [];
-      const data = await res.json() as { models: { name: string }[] };
+      const data = (await res.json()) as { models: { name: string }[] };
       return data.models.map((m) => m.name);
     }
 
@@ -90,7 +119,7 @@ async function fetchModelsForCredential(cred: ProviderCred): Promise<string[]> {
       const base = validateProviderBaseUrl(cred.baseUrl, "http://localhost:1234");
       const res = await fetch(`${base}/v1/models`);
       if (!res.ok) return [];
-      const data = await res.json() as { data: { id: string }[] };
+      const data = (await res.json()) as { data: { id: string }[] };
       return data.data.map((m) => m.id);
     }
   } catch {
@@ -102,25 +131,29 @@ async function fetchModelsForCredential(cred: ProviderCred): Promise<string[]> {
 
 export const providersRouter = router({
   list: authedProcedure.query(async ({ ctx }) => {
-    const creds = await getUserCreds(ctx.user.id);
-    return registryForUser(creds).healthCheckAll();
+    const [creds, quota] = await Promise.all([getUserCreds(ctx.user.id), ensureUserQuota(ctx.user.id)]);
+    return registryForUser(creds, quota.plan).healthCheckAll();
   }),
 
   models: authedProcedure.query(async ({ ctx }) => {
-    const creds = await getUserCreds(ctx.user.id);
-    return registryForUser(creds).listAllModels();
+    const [creds, quota] = await Promise.all([getUserCreds(ctx.user.id), ensureUserQuota(ctx.user.id)]);
+    return registryForUser(creds, quota.plan).listAllModels();
   }),
 
   catalog: authedProcedure.query(async ({ ctx }) => {
-    const creds = await getUserCreds(ctx.user.id);
-    const registry = registryForUser(creds);
-    const [providerHealth, providerModels] = await Promise.all([
-      registry.healthCheckAll(),
-      registry.listAllModels(),
-    ]);
+    const [creds, quota] = await Promise.all([getUserCreds(ctx.user.id), ensureUserQuota(ctx.user.id)]);
+    const registry = registryForUser(creds, quota.plan);
+    const [providerHealth, providerModels] = await Promise.all([registry.healthCheckAll(), registry.listAllModels()]);
     const healthByProvider = new Map(providerHealth.map((p) => [p.id, p]));
     return {
-      catalog: providerCatalog,
+      catalog: providerCatalog.map((entry) => {
+        const gate = checkProviderPlanAccess(entry.id, quota.plan);
+        return {
+          ...entry,
+          ...gate,
+          planAccessible: gate.allowed,
+        };
+      }),
       providers: providerHealth.map((p) => ({
         ...p,
         metadata: getProviderCatalogEntry(p.id),
@@ -141,79 +174,105 @@ export const providersRouter = router({
 
 export const providerCredentialsRouter = router({
   list: authedProcedure.query(async ({ ctx }) => {
-    return db.select().from(providerCredentials)
+    const creds = await db
+      .select()
+      .from(providerCredentials)
       .where(eq(providerCredentials.userId, ctx.user.id))
       .orderBy(desc(providerCredentials.updatedAt));
+    return creds.map(redactProviderCredential);
   }),
 
   create: authedProcedure
-    .input(z.object({
-      providerId: z.string().min(1),
-      providerName: z.string().min(1),
-      authType: z.enum(["api_key", "oauth"]).default("api_key"),
-      apiKey: z.string().optional(),
-      baseUrl: z.string().optional(),
-      accessToken: z.string().optional(),
-      refreshToken: z.string().optional(),
-      scope: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        providerId: z.string().min(1),
+        providerName: z.string().min(1),
+        authType: z.enum(["api_key", "oauth"]).default("api_key"),
+        apiKey: z.string().optional(),
+        baseUrl: z.string().optional(),
+        accessToken: z.string().optional(),
+        refreshToken: z.string().optional(),
+        scope: z.string().optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
-      const [cred] = await db.insert(providerCredentials).values({ userId: ctx.user.id, ...input }).returning();
-      return cred;
+      const quota = await ensureUserQuota(ctx.user.id);
+      assertProviderPlanAccess(input.providerId, quota.plan);
+      const [cred] = await db
+        .insert(providerCredentials)
+        .values({ userId: ctx.user.id, ...encryptProviderCredentialValues(input) })
+        .returning();
+      return redactProviderCredential(cred);
     }),
 
   update: authedProcedure
-    .input(z.object({
-      id: z.string().uuid(),
-      apiKey: z.string().optional(),
-      baseUrl: z.string().optional(),
-      accessToken: z.string().optional(),
-      refreshToken: z.string().optional(),
-      scope: z.string().optional(),
-      isEnabled: z.boolean().optional(),
-    }))
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        apiKey: z.string().optional(),
+        baseUrl: z.string().optional(),
+        accessToken: z.string().optional(),
+        refreshToken: z.string().optional(),
+        scope: z.string().optional(),
+        isEnabled: z.boolean().optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       const { id, ...updates } = input;
-      await db.update(providerCredentials)
-        .set({ ...updates, updatedAt: new Date() })
+      const [cred] = await db
+        .select()
+        .from(providerCredentials)
+        .where(and(eq(providerCredentials.id, id), eq(providerCredentials.userId, ctx.user.id)))
+        .limit(1);
+      if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Credential not found" });
+      const quota = await ensureUserQuota(ctx.user.id);
+      assertProviderPlanAccess(cred.providerId, quota.plan);
+      await db
+        .update(providerCredentials)
+        .set({ ...encryptProviderCredentialValues(updates), updatedAt: new Date() })
         .where(and(eq(providerCredentials.id, id), eq(providerCredentials.userId, ctx.user.id)));
       return { success: true };
     }),
 
-  delete: authedProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      await db.delete(providerCredentials)
-        .where(and(eq(providerCredentials.id, input.id), eq(providerCredentials.userId, ctx.user.id)));
-      return { success: true };
-    }),
+  delete: authedProcedure.input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+    await db
+      .delete(providerCredentials)
+      .where(and(eq(providerCredentials.id, input.id), eq(providerCredentials.userId, ctx.user.id)));
+    return { success: true };
+  }),
 
-  test: authedProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      const [cred] = await db.select().from(providerCredentials)
-        .where(and(eq(providerCredentials.id, input.id), eq(providerCredentials.userId, ctx.user.id)))
-        .limit(1);
-      if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Credential not found" });
-      const { createCloudProvider } = await import("@agenthub/ai-providers");
-      const provider = createCloudProvider({
-        providerId: cred.providerId,
-        authType: cred.authType as "api_key" | "oauth",
-        apiKey: cred.apiKey || undefined,
-        baseUrl: cred.baseUrl || undefined,
-        accessToken: cred.accessToken || undefined,
-      });
-      if (!provider) throw new TRPCError({ code: "BAD_REQUEST", message: "Provider not supported" });
-      return provider.healthCheck();
-    }),
+  test: authedProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ ctx, input }) => {
+    const [cred] = await db
+      .select()
+      .from(providerCredentials)
+      .where(and(eq(providerCredentials.id, input.id), eq(providerCredentials.userId, ctx.user.id)))
+      .limit(1);
+    if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Credential not found" });
+    const decryptedCred = decryptProviderCredential(cred);
+    const quota = await ensureUserQuota(ctx.user.id);
+    assertProviderPlanAccess(decryptedCred.providerId, quota.plan);
+    const { createCloudProvider } = await import("@agenthub/ai-providers");
+    const provider = createCloudProvider({
+      providerId: decryptedCred.providerId,
+      authType: decryptedCred.authType as "api_key" | "oauth",
+      apiKey: decryptedCred.apiKey || undefined,
+      baseUrl: decryptedCred.baseUrl || undefined,
+      accessToken: decryptedCred.accessToken || undefined,
+    });
+    if (!provider) throw new TRPCError({ code: "BAD_REQUEST", message: "Provider not supported" });
+    return provider.healthCheck();
+  }),
 
-  fetchModels: authedProcedure
-    .input(z.object({ credentialId: z.string().uuid() }))
-    .query(async ({ ctx, input }) => {
-      const [cred] = await db.select().from(providerCredentials)
-        .where(and(eq(providerCredentials.id, input.credentialId), eq(providerCredentials.userId, ctx.user.id)))
-        .limit(1);
-      if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Credential not found" });
-      return fetchModelsForCredential(cred);
-    }),
+  fetchModels: authedProcedure.input(z.object({ credentialId: z.string().uuid() })).query(async ({ ctx, input }) => {
+    const [cred] = await db
+      .select()
+      .from(providerCredentials)
+      .where(and(eq(providerCredentials.id, input.credentialId), eq(providerCredentials.userId, ctx.user.id)))
+      .limit(1);
+    if (!cred) throw new TRPCError({ code: "NOT_FOUND", message: "Credential not found" });
+    const decryptedCred = decryptProviderCredential(cred);
+    const quota = await ensureUserQuota(ctx.user.id);
+    assertProviderPlanAccess(decryptedCred.providerId, quota.plan);
+    return fetchModelsForCredential(decryptedCred);
+  }),
 });

@@ -1,17 +1,19 @@
 import { test as setup } from "@playwright/test";
-import { resetE2EData } from "./fixtures";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+import { assertE2EDatabaseReady, closeE2EDatabase, resetE2EData, signInWithDevCredentials } from "./fixtures";
 
-const authFile = "playwright/.auth/user.json";
+const authFile = "../../test-results/playwright-auth/user.json";
 
 setup("authenticate with dev credentials", async ({ page }) => {
+  await assertE2EDatabaseReady();
   await resetE2EData();
 
-  await page.goto("/api/auth/signin?callbackUrl=/");
-
-  await page.fill('input[name="email"]', "admin@localhost");
-  await page.fill('input[name="password"]', "admin12345");
-  await page.getByRole("button", { name: /sign in with dev login/i }).click();
-
-  await page.waitForURL("/");
-  await page.context().storageState({ path: authFile });
+  try {
+    await signInWithDevCredentials(page);
+    await mkdir(path.dirname(path.resolve(process.cwd(), authFile)), { recursive: true });
+    await page.context().storageState({ path: authFile });
+  } finally {
+    await closeE2EDatabase();
+  }
 });

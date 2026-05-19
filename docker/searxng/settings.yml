@@ -1,0 +1,16 @@
+use_default_settings:
+  engines:
+    keep_only:
+      - duckduckgo
+      - wikipedia
+
+search:
+  formats:
+    - html
+    - json
+
+server:
+  method: "GET"
+  limiter: false
+  public_instance: false
+  secret_key: "agenthub-local-desktop-searxng-secret"

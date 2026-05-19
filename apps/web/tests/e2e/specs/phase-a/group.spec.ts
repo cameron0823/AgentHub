@@ -4,8 +4,10 @@ async function createAgent(page: Page, agentName: string) {
   await page.getByRole("button", { name: /new agent/i }).click();
   await page.fill("[name='name']", agentName);
   await page.fill("[name='systemPrompt']", "You are an e2e group fixture agent.");
-  await page.getByRole("button", { name: /save agent/i }).click();
-  await expect(page.getByTestId("agent-list")).toContainText(agentName);
+  const saveAgent = page.getByRole("button", { name: /save agent/i });
+  await expect(saveAgent).toBeEnabled({ timeout: 15_000 });
+  await saveAgent.click();
+  await expect(page.getByTestId("agent-list")).toContainText(agentName, { timeout: 15_000 });
 }
 
 async function createGroup(page: Page, groupName: string, agentName: string) {
@@ -14,14 +16,10 @@ async function createGroup(page: Page, groupName: string, agentName: string) {
 
   await page.fill("[name='name']", groupName);
   await page.selectOption("[name='pattern']", "sequential");
-  await page
-    .locator("label")
-    .filter({ hasText: agentName })
-    .locator("[data-testid='agent-checkbox']")
-    .check();
+  await page.locator("label").filter({ hasText: agentName }).locator("[data-testid='agent-checkbox']").check();
 
   await page.getByRole("button", { name: /save group/i }).click();
-  await expect(page.getByTestId("group-list")).toContainText(groupName);
+  await expect(page.getByTestId("group-list")).toContainText(groupName, { timeout: 15_000 });
 }
 
 test.describe("Agent Group Orchestration @ollama", () => {

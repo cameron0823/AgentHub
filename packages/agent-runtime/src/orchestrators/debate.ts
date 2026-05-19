@@ -19,9 +19,13 @@ export class DebateOrchestrator extends BaseOrchestrator {
       for (const agent of agents) {
         yield { type: "agent_start", groupId, agentId: agent.id, agentName: agent.name, role: agent.role };
 
-        const debateContext = round > 1
-          ? `Previous round arguments:\n${allOutputs.filter((o) => o.agentId !== agent.id).map((o) => `- ${o.agentName}: ${o.output.slice(0, 500)}`).join("\n")}\n\n`
-          : "";
+        const debateContext =
+          round > 1
+            ? `Previous round arguments:\n${allOutputs
+                .filter((o) => o.agentId !== agent.id)
+                .map((o) => `- ${o.agentName}: ${o.output.slice(0, 500)}`)
+                .join("\n")}\n\n`
+            : "";
 
         const prompt = `${debateContext}You are participating in a structured debate on the following topic. Present your argument clearly and address opposing viewpoints if any exist.
 
@@ -29,11 +33,7 @@ Topic: ${options.task}
 
 Your perspective: ${agent.role || "debater"}`;
 
-        const result = await this.collectAgentRun(
-          { ...options, task: prompt },
-          agent,
-          roundOutputs
-        );
+        const result = await this.collectAgentRun({ ...options, task: prompt }, agent, roundOutputs);
 
         roundOutputs.push(result);
         allOutputs.push(result);

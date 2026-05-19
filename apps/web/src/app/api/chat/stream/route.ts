@@ -1,11 +1,57 @@
 import { NextRequest } from "next/server";
-import { AgentRuntime, MCPClient, SequentialOrchestrator, ParallelOrchestrator, SupervisorOrchestrator, IterativeOrchestrator, DebateOrchestrator, GroupChatOrchestrator, globalToolRegistry, visualUnderstandingTool, imageGenerationTool, type ApprovalRequest, type GeneratedImageToolResource, type GeneratedImageToolResult } from "@agenthub/agent-runtime";
+import {
+  AgentRuntime,
+  MCPClient,
+  SequentialOrchestrator,
+  ParallelOrchestrator,
+  SupervisorOrchestrator,
+  IterativeOrchestrator,
+  DebateOrchestrator,
+  GroupChatOrchestrator,
+  globalToolRegistry,
+  visualUnderstandingTool,
+  imageGenerationTool,
+  type ApprovalRequest,
+  type GeneratedImageToolResource,
+  type GeneratedImageToolResult,
+} from "@agenthub/agent-runtime";
 import { db } from "@/server/db";
-import { agents, messages as messagesTable, chatSessions, providerCredentials, mcpServers, agentGroups, groupMembers, resources, installedSkills, skillResources, files as filesTable, projectChats, projectNotebookDocuments } from "@/server/db/schema";
+import {
+  agents,
+  messages as messagesTable,
+  chatSessions,
+  providerCredentials,
+  mcpServers,
+  agentGroups,
+  groupMembers,
+  resources,
+  installedSkills,
+  skillResources,
+  files as filesTable,
+  projectChats,
+  projectNotebookDocuments,
+} from "@/server/db/schema";
 import { eq, and, inArray, ilike, desc } from "drizzle-orm";
 import { auth } from "@/server/auth";
-import { modelSupportsCapability, providerRegistry, resolveRoute, type Message, type ProviderHealth, type ProviderRegistry, type ReasoningTimelineEvent, type RouteDecision, type RouteStrategy } from "@agenthub/ai-providers";
-import { fetchAcceptedMemoriesForAgent, formatMemoryBlock, appendMemoryBlockToSystemPrompt, extractMemories, storePendingMemories } from "@/server/memory";
+import {
+  modelSupportsCapability,
+  providerRegistry,
+  checkProviderPlanAccess,
+  resolveRoute,
+  type Message,
+  type ProviderHealth,
+  type ProviderRegistry,
+  type ReasoningTimelineEvent,
+  type RouteDecision,
+  type RouteStrategy,
+} from "@agenthub/ai-providers";
+import {
+  fetchAcceptedMemoriesForAgent,
+  formatMemoryBlock,
+  appendMemoryBlockToSystemPrompt,
+  extractMemories,
+  storePendingMemories,
+} from "@/server/memory";
 import { substituteVariables } from "@/server/prompt-variables";
 import { knowledgeBases, documents, documentChunks } from "@/server/db/schema";
 import { hybridKbSearch } from "@/server/kb-search";
@@ -13,16 +59,30 @@ import { truncateToContextWindow } from "@/server/context-window";
 import { registerActionApproval, registerCheckpoint } from "@/server/checkpoint-registry";
 import { validateMessageMedia } from "@/server/media-safety";
 import { buildMcpClientConfig } from "@/server/mcp-config";
+import { createInstalledOpenApiPlugin, createOpenApiRuntimeTools } from "@/server/marketplace/openapi";
 import { createSkillRuntimeRecords, createSkillRuntimeTools } from "@/server/skills/runtime";
 import { recordApprovalAuditEvent, recordToolProfileAuditEvent } from "@/server/routers/trust";
 import { resolveCredential } from "@/server/trust-engine";
-import { createSandboxSessionFromToolResult, persistSandboxOutputs, sandboxResourcesFromSession, type SandboxSession } from "@/server/sandbox";
+import {
+  createSandboxSessionFromToolResult,
+  persistSandboxOutputs,
+  sandboxResourcesFromSession,
+  type SandboxSession,
+} from "@/server/sandbox";
 import { enforceMcpGovernance } from "@/server/mcp-governance";
 import { compileToolProfile, isToolAllowedByProfile } from "@/server/tool-profiles";
 import { validateProviderBaseUrl } from "@/server/security/outbound";
+import { decryptProviderCredentials } from "@/server/provider-credentials";
 import { extractArtifactsFromContent } from "@/server/artifacts";
+import { checkQuota, ensureUserQuota, incrementQuota } from "@/server/quotas";
 import { buildMentionedAgentSystemBlock, extractAgentMentions, type MentionableAgent } from "@/lib/agent-mentions";
-import { buildFileSnapshotSystemBlock, getUploadedFileSnapshotIds, mergeFileSnapshots, normalizeFileSnapshots, type FileSnapshot } from "@/lib/file-snapshots";
+import {
+  buildFileSnapshotSystemBlock,
+  getUploadedFileSnapshotIds,
+  mergeFileSnapshots,
+  normalizeFileSnapshots,
+  type FileSnapshot,
+} from "@/lib/file-snapshots";
 
 export const runtime = "nodejs";
 
@@ -45,17 +105,26 @@ function parseStringArrayValue(value: unknown): string[] {
   if (typeof value !== "string" || !value.trim()) return [];
   try {
     const parsed = JSON.parse(value) as unknown;
-    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
   } catch {
-    return value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
+    return value
+      .split(/[\n,]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
   }
 }
 
 function parseEnabledSkillSlugs(enabledTools: string[]) {
-  return [...new Set(enabledTools
-    .filter((tool) => tool.startsWith("skill:"))
-    .map((tool) => tool.slice("skill:".length).trim())
-    .filter(Boolean))];
+  return [
+    ...new Set(
+      enabledTools
+        .filter((tool) => tool.startsWith("skill:"))
+        .map((tool) => tool.slice("skill:".length).trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 function parseFallbackModelIds(value: unknown): string[] {
@@ -110,7 +179,7 @@ type RagStreamSource = {
 function buildMessageMetadata(
   routeDecision: RouteDecision,
   ragSources: RagStreamSource[],
-  mentionedAgents: MentionableAgent[] = []
+  mentionedAgents: MentionableAgent[] = [],
 ) {
   const metadata: Record<string, unknown> = { routeDecision };
   if (ragSources.length > 0) metadata.ragSources = ragSources;
@@ -137,18 +206,26 @@ async function fetchProjectNotebookContext(userId: string, sessionId: string, qu
   const trimmedQuery = query.trim();
   const docs = trimmedQuery
     ? await db
-      .select()
-      .from(projectNotebookDocuments)
-      .where(and(eq(projectNotebookDocuments.projectId, projectLink.projectId), ilike(projectNotebookDocuments.content, `%${trimmedQuery}%`)))
-      .orderBy(desc(projectNotebookDocuments.updatedAt))
-      .limit(4)
+        .select()
+        .from(projectNotebookDocuments)
+        .where(
+          and(
+            eq(projectNotebookDocuments.projectId, projectLink.projectId),
+            ilike(projectNotebookDocuments.content, `%${trimmedQuery}%`),
+          ),
+        )
+        .orderBy(desc(projectNotebookDocuments.updatedAt))
+        .limit(4)
     : [];
-  const fallbackDocs = docs.length > 0 ? docs : await db
-    .select()
-    .from(projectNotebookDocuments)
-    .where(eq(projectNotebookDocuments.projectId, projectLink.projectId))
-    .orderBy(desc(projectNotebookDocuments.updatedAt))
-    .limit(4);
+  const fallbackDocs =
+    docs.length > 0
+      ? docs
+      : await db
+          .select()
+          .from(projectNotebookDocuments)
+          .where(eq(projectNotebookDocuments.projectId, projectLink.projectId))
+          .orderBy(desc(projectNotebookDocuments.updatedAt))
+          .limit(4);
   if (fallbackDocs.length === 0) return "";
 
   return [
@@ -163,11 +240,12 @@ function getTextContent(content: unknown): string {
   if (!Array.isArray(content)) return "";
 
   return content
-    .filter((part): part is { type: "text"; text: string } =>
-      Boolean(part) &&
-      typeof part === "object" &&
-      (part as { type?: unknown }).type === "text" &&
-      typeof (part as { text?: unknown }).text === "string"
+    .filter(
+      (part): part is { type: "text"; text: string } =>
+        Boolean(part) &&
+        typeof part === "object" &&
+        (part as { type?: unknown }).type === "text" &&
+        typeof (part as { text?: unknown }).text === "string",
     )
     .map((part) => part.text)
     .join("\n")
@@ -189,21 +267,37 @@ function collectMentionedAgentIds(messages: Message[], requestedIds: unknown) {
   return [...ids];
 }
 
-async function resolveFileSnapshotsForUser(rawSnapshots: unknown, userId: string): Promise<
-  | { ok: true; snapshots: FileSnapshot[] }
-  | { ok: false; response: Response }
-> {
+async function resolveFileSnapshotsForUser(
+  rawSnapshots: unknown,
+  userId: string,
+): Promise<{ ok: true; snapshots: FileSnapshot[] } | { ok: false; response: Response }> {
   const snapshots = mergeFileSnapshots(normalizeFileSnapshots(rawSnapshots));
   const uploadedIds = getUploadedFileSnapshotIds(snapshots);
   if (uploadedIds.length === 0) return { ok: true, snapshots };
 
-  const fileRows = await db.select().from(filesTable)
+  const fileRows = await db
+    .select()
+    .from(filesTable)
     .where(and(inArray(filesTable.id, uploadedIds), eq(filesTable.userId, userId)));
   if (fileRows.length !== uploadedIds.length) {
     return {
       ok: false,
       response: new Response(JSON.stringify({ error: "File snapshot not found" }), {
         status: 404,
+        headers: { "Content-Type": "application/json" },
+      }),
+    };
+  }
+  const unvalidated = fileRows.find((file) => {
+    const metadata = file.metadata;
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
+    return (metadata as { uploadStatus?: unknown }).uploadStatus !== "validated";
+  });
+  if (unvalidated) {
+    return {
+      ok: false,
+      response: new Response(JSON.stringify({ error: "File upload has not passed validation" }), {
+        status: 400,
         headers: { "Content-Type": "application/json" },
       }),
     };
@@ -229,9 +323,8 @@ async function resolveFileSnapshotsForUser(rawSnapshots: unknown, userId: string
 }
 
 function hasImageContent(messages: Message[]): boolean {
-  return messages.some((message) =>
-    Array.isArray(message.content) &&
-    message.content.some((part) => part.type === "image_url")
+  return messages.some(
+    (message) => Array.isArray(message.content) && message.content.some((part) => part.type === "image_url"),
   );
 }
 
@@ -251,7 +344,9 @@ function prepareVisionFallbackMessages(messages: Message[]): Message[] {
       "The selected model cannot inspect image_url content directly. Use the visual_understanding tool before answering any visual question.",
       "Image URLs:",
       imageList,
-    ].filter(Boolean).join("\n\n");
+    ]
+      .filter(Boolean)
+      .join("\n\n");
 
     return {
       ...message,
@@ -266,8 +361,12 @@ function isImageGenerationRequest(messages: Message[]): boolean {
   if (!text) return false;
 
   return (
-    /\b(generate|create|draw|make|render|design)\b[\s\S]{0,80}\b(image|picture|illustration|poster|wallpaper|logo|icon|artwork)\b/.test(text) ||
-    /\b(image|picture|illustration|poster|wallpaper|logo|icon|artwork)\b[\s\S]{0,80}\b(generate|create|draw|make|render|design)\b/.test(text) ||
+    /\b(generate|create|draw|make|render|design)\b[\s\S]{0,80}\b(image|picture|illustration|poster|wallpaper|logo|icon|artwork)\b/.test(
+      text,
+    ) ||
+    /\b(image|picture|illustration|poster|wallpaper|logo|icon|artwork)\b[\s\S]{0,80}\b(generate|create|draw|make|render|design)\b/.test(
+      text,
+    ) ||
     /\btext[- ]to[- ]image\b/.test(text)
   );
 }
@@ -291,7 +390,7 @@ function isGeneratedImageToolResult(result: unknown): result is GeneratedImageTo
 
 function generatedResourcesFromToolResult(
   result: unknown,
-  toolCallId?: string
+  toolCallId?: string,
 ): Array<GeneratedImageToolResource & { toolCallId?: string }> {
   if (!isGeneratedImageToolResult(result)) return [];
   return result.images
@@ -306,6 +405,32 @@ function toolProfileDenialDetail(result: unknown): string | null {
   return /blocked by tool profile deny list|not exposed by the active tool profile/.test(error) ? error : null;
 }
 
+function quotaExceededResponse(quota: {
+  reason: string;
+  action: string;
+  current: number;
+  limit: number;
+  requested: number;
+  resetAt: Date;
+}) {
+  return new Response(
+    JSON.stringify({
+      error: quota.reason,
+      quota: {
+        action: quota.action,
+        current: quota.current,
+        limit: quota.limit,
+        requested: quota.requested,
+        resetAt: quota.resetAt.toISOString(),
+      },
+    }),
+    {
+      status: 429,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+}
+
 export async function POST(req: NextRequest) {
   const session = await auth(req.headers);
   if (!session?.user) {
@@ -315,24 +440,53 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const userCreds = await db.select().from(providerCredentials)
+  const quota = await ensureUserQuota(session.user.id);
+  const encryptedUserCreds = await db
+    .select()
+    .from(providerCredentials)
     .where(and(eq(providerCredentials.userId, session.user.id), eq(providerCredentials.isEnabled, true)));
-  const userRegistry: ProviderRegistry = userCreds.length > 0
-    ? providerRegistry.forUser(userCreds.map((c) => ({
-        providerId: c.providerId,
-        authType: c.authType as "api_key" | "oauth",
-        apiKey: c.apiKey || undefined,
-        baseUrl: c.baseUrl ? validateProviderBaseUrl(c.baseUrl, c.baseUrl) : undefined,
-        accessToken: c.accessToken || undefined,
-        expiresAt: c.expiresAt,
-      })))
-    : providerRegistry;
+  const userCreds = decryptProviderCredentials(encryptedUserCreds).filter(
+    (credential) => checkProviderPlanAccess(credential.providerId, quota.plan).allowed,
+  );
+  const userRegistry: ProviderRegistry =
+    userCreds.length > 0
+      ? providerRegistry.forUser(
+          userCreds.map((c) => ({
+            providerId: c.providerId,
+            authType: c.authType as "api_key" | "oauth",
+            apiKey: c.apiKey || undefined,
+            baseUrl: c.baseUrl ? validateProviderBaseUrl(c.baseUrl, c.baseUrl) : undefined,
+            accessToken: c.accessToken || undefined,
+            expiresAt: c.expiresAt,
+          })),
+        )
+      : providerRegistry;
 
   const body = await req.json();
-  const { sessionId, model, messages: rawChatMessages, temperature, maxTokens, tools, mentionedAgentIds: requestedMentionedAgentIds, fileSnapshots: requestedFileSnapshots } = body;
+  const {
+    sessionId,
+    model,
+    messages: rawChatMessages,
+    temperature,
+    maxTokens,
+    tools,
+    mentionedAgentIds: requestedMentionedAgentIds,
+    fileSnapshots: requestedFileSnapshots,
+  } = body;
+  const messageQuota = await checkQuota(session.user.id, "message");
+  if (!messageQuota.allowed) return quotaExceededResponse(messageQuota);
+  const apiQuota = await checkQuota(session.user.id, "api");
+  if (!apiQuota.allowed) return quotaExceededResponse(apiQuota);
+
   const chatMessages = validateMessageMedia(Array.isArray(rawChatMessages) ? rawChatMessages : []);
 
-  const [chatSession] = await db.select({ id: chatSessions.id, agentId: chatSessions.agentId, groupId: chatSessions.groupId, model: chatSessions.model })
+  const [chatSession] = await db
+    .select({
+      id: chatSessions.id,
+      agentId: chatSessions.agentId,
+      groupId: chatSessions.groupId,
+      model: chatSessions.model,
+    })
     .from(chatSessions)
     .where(and(eq(chatSessions.id, sessionId), eq(chatSessions.userId, session.user.id)))
     .limit(1);
@@ -353,9 +507,13 @@ export async function POST(req: NextRequest) {
     : [];
 
   const mentionedAgentIds = collectMentionedAgentIds(chatMessages, requestedMentionedAgentIds);
-  const mentionedAgentRows = mentionedAgentIds.length > 0
-    ? await db.select().from(agents).where(and(inArray(agents.id, mentionedAgentIds), eq(agents.userId, session.user.id)))
-    : [];
+  const mentionedAgentRows =
+    mentionedAgentIds.length > 0
+      ? await db
+          .select()
+          .from(agents)
+          .where(and(inArray(agents.id, mentionedAgentIds), eq(agents.userId, session.user.id)))
+      : [];
   if (mentionedAgentRows.length !== mentionedAgentIds.length) {
     return new Response(JSON.stringify({ error: "Mentioned agent not found" }), {
       status: 404,
@@ -363,11 +521,13 @@ export async function POST(req: NextRequest) {
     });
   }
   const mentionedAgentById = new Map(mentionedAgentRows.map((agent) => [agent.id, agent]));
-  const mentionedAgents = mentionedAgentIds.map((id) => mentionedAgentById.get(id)).filter(Boolean) as typeof mentionedAgentRows;
+  const mentionedAgents = mentionedAgentIds
+    .map((id) => mentionedAgentById.get(id))
+    .filter(Boolean) as typeof mentionedAgentRows;
   const runtimeAgent = chatSession.groupId ? sessionAgent : (mentionedAgents[0] ?? sessionAgent);
 
   const effectiveModel = runtimeAgent?.model || model || chatSession.model || DEFAULT_MODEL_ID;
-  const effectiveTools = runtimeAgent ? parseAgentTools(runtimeAgent.tools) : (tools || ["calculator", "datetime"]);
+  const effectiveTools = runtimeAgent ? parseAgentTools(runtimeAgent.tools) : tools || ["calculator", "datetime"];
   const compiledToolAccess = compileToolProfile({
     selectedTools: effectiveTools,
     profile: runtimeAgent?.toolProfile,
@@ -380,11 +540,13 @@ export async function POST(req: NextRequest) {
   const providerHealth = routeStrategy === "fixed" ? [] : await collectProviderHealth(userRegistry);
   const routeDecision = resolveRoute({
     requestedModel: effectiveModel,
-    agent: runtimeAgent ? {
-      model: runtimeAgent.model,
-      routeStrategy,
-      fallbackModelIds,
-    } : null,
+    agent: runtimeAgent
+      ? {
+          model: runtimeAgent.model,
+          routeStrategy,
+          fallbackModelIds,
+        }
+      : null,
     providerHealth,
     policy: {
       strategy: routeStrategy,
@@ -400,14 +562,12 @@ export async function POST(req: NextRequest) {
   const shouldInjectImageTool =
     shouldInjectImageGenerationTool(chatMessages, routedModel, runtimeTools) &&
     isToolAllowedByProfile(imageGenerationTool.name, compiledToolAccess);
-  const runtimeMessages = shouldInjectVisionFallback
-    ? prepareVisionFallbackMessages(chatMessages)
-    : chatMessages;
+  const runtimeMessages = shouldInjectVisionFallback ? prepareVisionFallbackMessages(chatMessages) : chatMessages;
 
   // White-box memory injection
   let memoryBlock = "";
   if (runtimeAgent?.memoryEnabled && runtimeAgent?.id) {
-    const memories = await fetchAcceptedMemoriesForAgent(runtimeAgent.id);
+    const memories = await fetchAcceptedMemoriesForAgent(runtimeAgent.id, session.user.id);
     memoryBlock = formatMemoryBlock(memories);
   }
   const systemPrompt = appendMemoryBlockToSystemPrompt(runtimeAgent?.systemPrompt, memoryBlock);
@@ -428,7 +588,9 @@ export async function POST(req: NextRequest) {
   if (fileSnapshotSystemBlock) {
     resolvedPrompt = [resolvedPrompt, fileSnapshotSystemBlock].filter(Boolean).join("\n\n");
   }
-  const lastUserMessageForContext = [...chatMessages].reverse().find((m: { role: string; content?: unknown }) => m.role === "user");
+  const lastUserMessageForContext = [...chatMessages]
+    .reverse()
+    .find((m: { role: string; content?: unknown }) => m.role === "user");
   const lastUserTextForContext = getTextContent(lastUserMessageForContext?.content);
   const projectNotebookContext = await fetchProjectNotebookContext(session.user.id, sessionId, lastUserTextForContext);
   if (projectNotebookContext) {
@@ -436,7 +598,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (runtimeAgent?.knowledgeBaseId) {
-    const kb = await db.select().from(knowledgeBases)
+    const kb = await db
+      .select()
+      .from(knowledgeBases)
       .where(and(eq(knowledgeBases.id, runtimeAgent.knowledgeBaseId), eq(knowledgeBases.userId, session.user.id)))
       .limit(1);
 
@@ -480,50 +644,106 @@ export async function POST(req: NextRequest) {
 
   // Load and connect enabled MCP servers for this user across stdio, http, streamable-http, and sse transports.
   // buildMcpClientConfig also preserves remote headers for cloud MCP servers.
-  const userMcpServers = await db.select().from(mcpServers)
+  const userMcpServers = await db
+    .select()
+    .from(mcpServers)
     .where(and(eq(mcpServers.userId, session.user.id), eq(mcpServers.enabled, true)));
 
   const mcpClients: MCPClient[] = [];
-  const extraTools: Array<{ name: string; description: string; parameters: Record<string, unknown>; execute: (args: Record<string, unknown>) => Promise<unknown> }> = [];
+  const extraTools: Array<{
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+    execute: (args: Record<string, unknown>) => Promise<unknown>;
+  }> = [];
 
   if (enabledSkillSlugs.length > 0) {
-    const installedSkillRows = await db.select().from(installedSkills)
+    const installedSkillRows = await db
+      .select()
+      .from(installedSkills)
       .where(and(eq(installedSkills.userId, session.user.id), inArray(installedSkills.slug, enabledSkillSlugs)));
-    const installedSkillResourceRows = installedSkillRows.length > 0
-      ? await db.select().from(skillResources).where(inArray(skillResources.skillId, installedSkillRows.map((skill) => skill.id)))
-      : [];
+    const installedSkillResourceRows =
+      installedSkillRows.length > 0
+        ? await db
+            .select()
+            .from(skillResources)
+            .where(
+              inArray(
+                skillResources.skillId,
+                installedSkillRows.map((skill) => skill.id),
+              ),
+            )
+        : [];
     const installedSkillRecords = createSkillRuntimeRecords(installedSkillRows, installedSkillResourceRows);
     if (installedSkillRecords.length > 0) {
-      extraTools.push(...createSkillRuntimeTools(installedSkillRecords).filter((tool) => isToolAllowedByProfile(tool.name, compiledToolAccess)));
+      extraTools.push(
+        ...createSkillRuntimeTools(installedSkillRecords).filter((tool) =>
+          isToolAllowedByProfile(tool.name, compiledToolAccess),
+        ),
+      );
     }
   }
 
-  await Promise.allSettled(userMcpServers.map(async (srv) => {
-    const config = buildMcpClientConfig(srv);
-    const client = new MCPClient(config);
-    try {
-      await client.connect();
-      mcpClients.push(client);
-      for (const tool of client.getTools()) {
-        if (!isToolAllowedByProfile(tool.name, compiledToolAccess) || !isToolAllowedByProfile(`mcp:${tool.name}`, compiledToolAccess)) continue;
-        extraTools.push({
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.inputSchema as Record<string, unknown>,
-          execute: (args) => enforceMcpGovernance({
-            userId: session.user.id,
-            agentId: runtimeAgent?.id ?? null,
-            server: srv,
-            toolName: tool.name,
-            args,
-            callTool: () => client.callTool(tool.name, args) as Promise<unknown>,
-          }),
-        });
+  const openApiPluginRows = await db
+    .select()
+    .from(installedSkills)
+    .where(and(eq(installedSkills.userId, session.user.id), eq(installedSkills.source, "openapi")));
+  if (openApiPluginRows.length > 0) {
+    const openApiResourceRows = await db
+      .select()
+      .from(skillResources)
+      .where(
+        inArray(
+          skillResources.skillId,
+          openApiPluginRows.map((plugin) => plugin.id),
+        ),
+      );
+    const openApiPlugins = openApiPluginRows.map((plugin) =>
+      createInstalledOpenApiPlugin(
+        plugin,
+        openApiResourceRows.filter((resource) => resource.skillId === plugin.id),
+      ),
+    );
+    extraTools.push(
+      ...createOpenApiRuntimeTools(openApiPlugins, runtimeTools).filter((tool) =>
+        isToolAllowedByProfile(tool.name, compiledToolAccess),
+      ),
+    );
+  }
+
+  await Promise.allSettled(
+    userMcpServers.map(async (srv) => {
+      const config = buildMcpClientConfig(srv);
+      const client = new MCPClient(config);
+      try {
+        await client.connect();
+        mcpClients.push(client);
+        for (const tool of client.getTools()) {
+          if (
+            !isToolAllowedByProfile(tool.name, compiledToolAccess) ||
+            !isToolAllowedByProfile(`mcp:${tool.name}`, compiledToolAccess)
+          )
+            continue;
+          extraTools.push({
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.inputSchema as Record<string, unknown>,
+            execute: (args) =>
+              enforceMcpGovernance({
+                userId: session.user.id,
+                agentId: runtimeAgent?.id ?? null,
+                server: srv,
+                toolName: tool.name,
+                args,
+                callTool: () => client.callTool(tool.name, args) as Promise<unknown>,
+              }),
+          });
+        }
+      } catch {
+        // Skip unavailable MCP servers silently
       }
-    } catch {
-      // Skip unavailable MCP servers silently
-    }
-  }));
+    }),
+  );
 
   if (shouldInjectVisionFallback) {
     extraTools.push({
@@ -554,7 +774,10 @@ export async function POST(req: NextRequest) {
       parameters: {
         type: "object" as const,
         properties: {
-          path: { type: "string", description: `Path within the KB, e.g. "${prefix}intro.pdf" or "docs/${kbSlug}" to list.` },
+          path: {
+            type: "string",
+            description: `Path within the KB, e.g. "${prefix}intro.pdf" or "docs/${kbSlug}" to list.`,
+          },
         },
         required: ["path"],
       },
@@ -582,13 +805,23 @@ export async function POST(req: NextRequest) {
           .from(documentChunks)
           .where(eq(documentChunks.documentId, doc.id))
           .orderBy(documentChunks.createdAt);
-        return { path: reqPath, document: doc.name, content: chunks.map((c) => c.content).join("\n"), chunks: chunks.length };
+        return {
+          path: reqPath,
+          document: doc.name,
+          content: chunks.map((c) => c.content).join("\n"),
+          chunks: chunks.length,
+        };
       },
     });
   }
 
   // Fetch group config if session has a groupId
-  let groupConfig: { id: string; name: string; pattern: string; members: { agentId: string; role: string | null; sortOrder: number | null }[] } | null = null;
+  let groupConfig: {
+    id: string;
+    name: string;
+    pattern: string;
+    members: { agentId: string; role: string | null; sortOrder: number | null }[];
+  } | null = null;
   if (chatSession.groupId) {
     const [grp] = await db.select().from(agentGroups).where(eq(agentGroups.id, chatSession.groupId)).limit(1);
     if (grp) {
@@ -612,48 +845,50 @@ export async function POST(req: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       let fullContent = "";
-        let fullReasoning = "";
-        let toolCalls: any[] = [];
-        const reasoningTimeline: ReasoningTimelineEvent[] = [];
-        const generatedResources: Array<GeneratedImageToolResource & { toolCallId?: string }> = [];
-        const sandboxSessions: SandboxSession[] = [];
-        const messageMetadata = buildMessageMetadata(routeDecision, ragSourcesForStream, mentionedAgents);
+      let fullReasoning = "";
+      let toolCalls: any[] = [];
+      const reasoningTimeline: ReasoningTimelineEvent[] = [];
+      const generatedResources: Array<GeneratedImageToolResource & { toolCallId?: string }> = [];
+      const sandboxSessions: SandboxSession[] = [];
+      const messageMetadata = buildMessageMetadata(routeDecision, ragSourcesForStream, mentionedAgents);
 
       try {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "route_decision", routeDecision })}\n\n`));
 
         if (ragSourcesForStream.length > 0) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "rag_sources", sources: ragSourcesForStream })}\n\n`));
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: "rag_sources", sources: ragSourcesForStream })}\n\n`),
+          );
         }
 
         // Group orchestration path
         if (groupConfig) {
           const groupAgents = await Promise.all(
             groupConfig.members.map(async (m) => {
-                      const [a] = await db.select().from(agents).where(eq(agents.id, m.agentId)).limit(1);
-                      if (!a) return null;
-                      const memberToolAccess = compileToolProfile({
-                        selectedTools: parseAgentTools(a.tools),
-                        profile: a.toolProfile,
-                        deniedTools: parseStringArrayValue(a.deniedTools),
-                      });
-                      return {
-                        id: a.id,
-                        name: a.name,
-                        role: m.role,
-                        sortOrder: m.sortOrder,
-                        tools: memberToolAccess.allowedTools,
-                        deniedTools: memberToolAccess.deniedTools,
-                        runtimeOptions: {
+              const [a] = await db.select().from(agents).where(eq(agents.id, m.agentId)).limit(1);
+              if (!a) return null;
+              const memberToolAccess = compileToolProfile({
+                selectedTools: parseAgentTools(a.tools),
+                profile: a.toolProfile,
+                deniedTools: parseStringArrayValue(a.deniedTools),
+              });
+              return {
+                id: a.id,
+                name: a.name,
+                role: m.role,
+                sortOrder: m.sortOrder,
+                tools: memberToolAccess.allowedTools,
+                deniedTools: memberToolAccess.deniedTools,
+                runtimeOptions: {
                   model: a.model ?? routedModel,
                   systemPrompt: a.systemPrompt,
                   temperature: a.temperature ?? 0.7,
                   maxTokens: a.maxTokens ?? 4096,
                 },
               };
-            })
+            }),
           );
-          const validAgents = groupAgents.filter(Boolean) as NonNullable<typeof groupAgents[number]>[];
+          const validAgents = groupAgents.filter(Boolean) as NonNullable<(typeof groupAgents)[number]>[];
           const lastUserMsg = [...runtimeMessages].reverse().find((m: Message) => m.role === "user");
           const task = getTextContent(lastUserMsg?.content);
 
@@ -675,7 +910,9 @@ export async function POST(req: NextRequest) {
             messages: runtimeMessages,
             signal: req.signal,
             checkpoint: async (checkpointId: string, title: string, plan: string) => {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "hitl_checkpoint", checkpointId, title, plan })}\n\n`));
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ type: "hitl_checkpoint", checkpointId, title, plan })}\n\n`),
+              );
               return registerCheckpoint(checkpointId);
             },
           });
@@ -713,7 +950,10 @@ export async function POST(req: NextRequest) {
               await storePendingMemories(runtimeAgent.id, session.user.id, extracted);
             }
           }
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done", tokensUsed: approxTokens, latencyMs })}\n\n`));
+          await incrementQuota(session.user.id, { messagesSent: 1, tokensUsed: approxTokens, apiCalls: 1 });
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: "done", tokensUsed: approxTokens, latencyMs })}\n\n`),
+          );
           controller.close();
           return;
         }
@@ -723,19 +963,20 @@ export async function POST(req: NextRequest) {
           maxTokens: runtimeAgent?.maxTokens ?? undefined,
         })) as import("@agenthub/ai-providers").Message[];
 
-          const agentStream = agent.run({
-            sessionId,
-            messages: truncatedMessages,
-            tools: runtimeTools,
-            extraTools,
-            deniedTools: compiledToolAccess.deniedTools,
-            toolContext: {
+        const agentStream = agent.run({
+          sessionId,
+          messages: truncatedMessages,
+          tools: runtimeTools,
+          extraTools,
+          deniedTools: compiledToolAccess.deniedTools,
+          toolContext: {
             desktopRuntime: process.env.AGENTHUB_DESKTOP_RUNTIME === "true",
-            getCredential: (toolName: string) => resolveCredential({
-              userId: session.user.id,
-              agentId: runtimeAgent?.id ?? null,
-              tool: toolName,
-            }),
+            getCredential: (toolName: string) =>
+              resolveCredential({
+                userId: session.user.id,
+                agentId: runtimeAgent?.id ?? null,
+                tool: toolName,
+              }),
           },
           approvalPolicy: {
             sensitiveTools: ["execute_code", "exec_skill_script", "export_skill_file", "local_system"],
@@ -801,7 +1042,9 @@ export async function POST(req: NextRequest) {
         if (!fullContent && !fullReasoning && toolCalls.length === 0) {
           // nothing to persist
         } else {
-          const sandboxResources = sandboxSessions.flatMap((sandboxSession) => sandboxResourcesFromSession(sandboxSession));
+          const sandboxResources = sandboxSessions.flatMap((sandboxSession) =>
+            sandboxResourcesFromSession(sandboxSession),
+          );
           const contentArtifacts = extractArtifactsFromContent(fullContent);
           const savedMetadata = {
             ...messageMetadata,
@@ -811,50 +1054,57 @@ export async function POST(req: NextRequest) {
             ...(sandboxResources.length > 0 ? { sandboxResources } : {}),
           };
           const artifacts = [...contentArtifacts, ...generatedResources, ...sandboxResources];
-          const [savedMsg] = await db.insert(messagesTable).values({
-            sessionId,
-            role: "assistant",
-            content: fullContent,
-            reasoning: fullReasoning || null,
-            model: routedModel,
-            toolCalls: toolCalls.length > 0 ? JSON.stringify(toolCalls) : null,
-            artifacts: artifacts.length > 0 ? artifacts : null,
-            metadata: savedMetadata,
-            tokensUsed: approxTokens,
-            latencyMs,
-          }).returning();
+          const [savedMsg] = await db
+            .insert(messagesTable)
+            .values({
+              sessionId,
+              role: "assistant",
+              content: fullContent,
+              reasoning: fullReasoning || null,
+              model: routedModel,
+              toolCalls: toolCalls.length > 0 ? JSON.stringify(toolCalls) : null,
+              artifacts: artifacts.length > 0 ? artifacts : null,
+              metadata: savedMetadata,
+              tokensUsed: approxTokens,
+              latencyMs,
+            })
+            .returning();
 
           if (savedMsg && generatedResources.length > 0) {
-            await db.insert(resources).values(generatedResources.map((resource) => ({
-              id: resource.id,
-              userId: session.user.id,
-              sessionId,
-              sourceMessageId: savedMsg.id,
-              type: "image" as const,
-              source: resource.source,
-              uri: resource.url,
-              mimeType: resource.mimeType,
-              prompt: resource.prompt,
-              revisedPrompt: resource.revisedPrompt ?? null,
-              providerId: resource.providerId,
-              model: resource.model,
-              metadata: {
-                toolCallId: resource.toolCallId,
-                providerImageId: resource.providerImageId,
-                size: resource.size,
-              },
-            })));
+            await db.insert(resources).values(
+              generatedResources.map((resource) => ({
+                id: resource.id,
+                userId: session.user.id,
+                sessionId,
+                sourceMessageId: savedMsg.id,
+                type: "image" as const,
+                source: resource.source,
+                uri: resource.url,
+                mimeType: resource.mimeType,
+                prompt: resource.prompt,
+                revisedPrompt: resource.revisedPrompt ?? null,
+                providerId: resource.providerId,
+                model: resource.model,
+                metadata: {
+                  toolCallId: resource.toolCallId,
+                  providerImageId: resource.providerImageId,
+                  size: resource.size,
+                },
+              })),
+            );
           }
 
           if (savedMsg && sandboxSessions.length > 0) {
             const persistedSandboxResources = [];
             for (const sandboxSession of sandboxSessions) {
-              persistedSandboxResources.push(...await persistSandboxOutputs({
-                userId: session.user.id,
-                sessionId,
-                sourceMessageId: savedMsg.id,
-                sandboxSession,
-              }));
+              persistedSandboxResources.push(
+                ...(await persistSandboxOutputs({
+                  userId: session.user.id,
+                  sessionId,
+                  sourceMessageId: savedMsg.id,
+                  sandboxSession,
+                })),
+              );
             }
 
             if (persistedSandboxResources.length > 0) {
@@ -862,7 +1112,8 @@ export async function POST(req: NextRequest) {
                 ...savedMetadata,
                 sandboxResources: persistedSandboxResources,
               };
-              await db.update(messagesTable)
+              await db
+                .update(messagesTable)
                 .set({
                   metadata: persistedMetadata,
                   artifacts: [...contentArtifacts, ...generatedResources, ...persistedSandboxResources],
@@ -871,13 +1122,13 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          await db.update(chatSessions)
-            .set({ updatedAt: new Date() })
-            .where(eq(chatSessions.id, sessionId));
+          await db.update(chatSessions).set({ updatedAt: new Date() }).where(eq(chatSessions.id, sessionId));
 
           // Fire-and-forget memory extraction — doesn't block the stream close
           if (runtimeAgent?.memoryEnabled && runtimeAgent?.id && fullContent) {
-            const lastUser = [...chatMessages].reverse().find((m: { role: string; content?: unknown }) => m.role === "user");
+            const lastUser = [...chatMessages]
+              .reverse()
+              .find((m: { role: string; content?: unknown }) => m.role === "user");
             const lastUserText = getTextContent(lastUser?.content);
             if (lastUserText) {
               const agentIdSnapshot = runtimeAgent.id;
@@ -897,7 +1148,10 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done", tokensUsed: approxTokens, latencyMs })}\n\n`));
+        await incrementQuota(session.user.id, { messagesSent: 1, tokensUsed: approxTokens, apiCalls: 1 });
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ type: "done", tokensUsed: approxTokens, latencyMs })}\n\n`),
+        );
       } catch (err) {
         const rawMsg = (err as Error).message;
         // Extract the human-readable part from JSON error blobs like "Ollama error: {...}"
@@ -909,19 +1163,32 @@ export async function POST(req: NextRequest) {
             if (typeof parsed.error === "string") {
               errorMsg = parsed.error.split("\n")[0].trim();
             }
-          } catch { /* keep rawMsg */ }
+          } catch {
+            /* keep rawMsg */
+          }
         }
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", error: errorMsg })}\n\n`));
         // Persist the error as an assistant message so conversation history and share pages show it
-        await db.insert(messagesTable).values({
-          sessionId,
-          role: "assistant",
-          content: `⚠️ ${errorMsg}`,
-          model: routedModel,
-          metadata: messageMetadata,
-        }).catch(() => { /* non-fatal — don't mask the original error */ });
+        await db
+          .insert(messagesTable)
+          .values({
+            sessionId,
+            role: "assistant",
+            content: `⚠️ ${errorMsg}`,
+            model: routedModel,
+            metadata: messageMetadata,
+          })
+          .catch(() => {
+            /* non-fatal — don't mask the original error */
+          });
       } finally {
-        mcpClients.forEach(c => { try { c.disconnect(); } catch { /* ignore */ } });
+        mcpClients.forEach((c) => {
+          try {
+            c.disconnect();
+          } catch {
+            /* ignore */
+          }
+        });
         controller.close();
       }
     },

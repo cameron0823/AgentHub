@@ -2,12 +2,37 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { DEFAULT_MODEL_ID, useChatStore, type Agent, type AgentGroup, type ChatSession } from "@/stores/chatStore";
+import {
+  DEFAULT_MODEL_ID,
+  useChatStore,
+  type Agent,
+  type AgentGroup,
+  type ChatSession,
+  type RouteStrategy,
+  type ToolProfile,
+} from "@/stores/chatStore";
 import { trpc } from "@/lib/trpc";
 import {
-  Plus, MessageSquare, Trash2, Bot, Users, Database, Store, FileText,
-  Search, Pin, Settings, BarChart2, X, GitBranch, Zap, ListTodo,
-  ShieldCheck, ChevronLeft, ChevronRight,
+  Plus,
+  MessageSquare,
+  Trash2,
+  Bot,
+  Users,
+  Database,
+  Store,
+  Code2,
+  FileText,
+  Search,
+  Pin,
+  Settings,
+  BarChart2,
+  X,
+  GitBranch,
+  Zap,
+  ListTodo,
+  ShieldCheck,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { AgentList } from "./AgentList";
@@ -21,6 +46,7 @@ function toChatSession(session: {
   agentId: string | null;
   groupId?: string | null;
   parentMessageId?: string | null;
+  metadata?: unknown;
   isPinned?: boolean | null;
   createdAt: Date | null;
   updatedAt: Date | null;
@@ -32,6 +58,8 @@ function toChatSession(session: {
     parentMessageId: session.parentMessageId || null,
     title: session.title || "New Chat",
     model: session.model || DEFAULT_MODEL_ID,
+    metadata:
+      session.metadata && typeof session.metadata === "object" ? (session.metadata as Record<string, unknown>) : null,
     messages: [],
     isPinned: session.isPinned ?? false,
     createdAt: session.createdAt || new Date(),
@@ -43,7 +71,7 @@ function toAgentGroup(group: {
   id: string;
   name: string;
   description: string | null;
-  pattern: "sequential" | "parallel" | "supervisor" | "debate" | "groupchat";
+  pattern: "sequential" | "parallel" | "supervisor" | "iterative" | "debate" | "groupchat";
   members: Array<{ groupId?: string; agentId: string; role: string | null; sortOrder: number }>;
   createdAt: Date | null;
   updatedAt: Date | null;
@@ -74,6 +102,15 @@ function parseAgentTools(value: string | null) {
   }
 }
 
+function parseStringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function normalizeVoiceProvider(value: unknown): Agent["voiceProvider"] {
+  if (value === "openai" || value === "edge" || value === "piper" || value === "faster-whisper") return value;
+  return "browser";
+}
+
 function toAgent(agent: {
   id: string;
   name: string;
@@ -81,10 +118,20 @@ function toAgent(agent: {
   avatar: string | null;
   systemPrompt: string;
   model: string | null;
+  routeStrategy?: RouteStrategy | null;
+  fallbackModelIds?: unknown;
+  voiceProvider?: string | null;
+  voiceId?: string | null;
+  voiceSpeed?: number | null;
+  sttProvider?: string | null;
+  handsFreeVoice?: boolean | null;
   temperature: number | null;
   maxTokens: number | null;
   tools: string | null;
+  toolProfile?: ToolProfile | null;
+  deniedTools?: unknown;
   memoryEnabled: boolean | null;
+  knowledgeBaseId?: string | null;
   createdAt: Date | null;
   updatedAt: Date | null;
 }): Agent {
@@ -95,10 +142,20 @@ function toAgent(agent: {
     avatar: agent.avatar,
     systemPrompt: agent.systemPrompt,
     model: agent.model || DEFAULT_MODEL_ID,
+    routeStrategy: agent.routeStrategy || "fixed",
+    fallbackModelIds: parseStringArray(agent.fallbackModelIds),
+    voiceProvider: normalizeVoiceProvider(agent.voiceProvider),
+    voiceId: agent.voiceId || "alloy",
+    voiceSpeed: agent.voiceSpeed ?? 1,
+    sttProvider: normalizeVoiceProvider(agent.sttProvider),
+    handsFreeVoice: agent.handsFreeVoice ?? false,
     temperature: agent.temperature ?? 0.7,
     maxTokens: agent.maxTokens ?? 4096,
     tools: parseAgentTools(agent.tools),
+    toolProfile: agent.toolProfile || "full",
+    deniedTools: parseStringArray(agent.deniedTools),
     memoryEnabled: agent.memoryEnabled ?? true,
+    knowledgeBaseId: agent.knowledgeBaseId || null,
     createdAt: agent.createdAt,
     updatedAt: agent.updatedAt,
   };
@@ -119,10 +176,8 @@ function NavItem({
   active?: boolean;
   collapsed: boolean;
 }) {
-  const cls = `w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors ${
-    active
-      ? "bg-primary/15 text-primary"
-      : "hover:bg-accent text-muted-foreground hover:text-accent-foreground"
+  const cls = `w-full flex items-center gap-3 px-3 py-2 text-sm rounded-xl transition-colors ${
+    active ? "bg-white/16 text-white shadow-inner shadow-white/5" : "text-slate-300 hover:bg-white/10 hover:text-white"
   } ${collapsed ? "justify-center px-0" : ""}`;
 
   const inner = (
@@ -188,14 +243,23 @@ export function Sidebar() {
   } = useChatStore();
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
+  const [sessionCreateError, setSessionCreateError] = useState<string | null>(null);
   const utils = trpc.useUtils();
   const sessionList = trpc.sessions.list.useQuery();
   const agentList = trpc.agents.list.useQuery();
   const groupList = trpc.agentGroups.list.useQuery();
   const createSession = trpc.sessions.create.useMutation({
+    onMutate: () => {
+      setSessionCreateError(null);
+      setActiveSession(null);
+    },
     onSuccess: (session) => {
       addSession(toChatSession(session));
+      setSidebarOpen(false);
       utils.sessions.list.invalidate();
+    },
+    onError: (error) => {
+      setSessionCreateError(error.message || "Could not create a new chat.");
     },
   });
   const deleteServerSession = trpc.sessions.delete.useMutation({
@@ -243,66 +307,115 @@ export function Sidebar() {
     updateServerSession.mutate({ id: session.id, title });
   };
 
-  const handleNewAgent = () => { setActiveAgent(null); setMainView("agent-builder"); };
-  const handleNewGroup = () => { setActiveGroup(null); setMainView("group-builder"); };
-  const handleEditAgent = (agentId: string) => { setActiveAgent(agentId); setMainView("agent-builder"); };
-  const handleStartAgentChat = (agentId: string) => { createSession.mutate({ agentId }); };
-  const handleEditGroup = (groupId: string) => { setActiveGroup(groupId); setMainView("group-builder"); };
-  const handleStartGroupChat = (groupId: string) => { createSession.mutate({ groupId }); };
+  const handleNewAgent = () => {
+    setActiveAgent(null);
+    setMainView("agent-builder");
+    setSidebarOpen(false);
+  };
+  const handleNewGroup = () => {
+    setActiveGroup(null);
+    setMainView("group-builder");
+    setSidebarOpen(false);
+  };
+  const handleEditAgent = (agentId: string) => {
+    setActiveAgent(agentId);
+    setMainView("agent-builder");
+    setSidebarOpen(false);
+  };
+  const handleStartAgentChat = (agentId: string) => {
+    createSession.mutate({ agentId });
+    setSidebarOpen(false);
+  };
+  const handleEditGroup = (groupId: string) => {
+    setActiveGroup(groupId);
+    setMainView("group-builder");
+    setSidebarOpen(false);
+  };
+  const handleStartGroupChat = (groupId: string) => {
+    createSession.mutate({ groupId });
+    setSidebarOpen(false);
+  };
+  const handleSelectSession = (sessionId: string) => {
+    setMainView("chat");
+    setActiveSession(sessionId);
+    setSidebarOpen(false);
+  };
 
-  const w = collapsed ? "w-14" : "w-60";
+  const desktopWidth = collapsed ? "md:w-[4.5rem]" : "md:w-[16rem]";
 
   return (
     <>
       {/* Mobile overlay */}
       {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
+        <div className="fixed inset-0 z-40 bg-black/60 md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
-      <div className={`
+      <div
+        className={`
         ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         md:translate-x-0 fixed md:relative z-50 md:z-auto
-        ${w} h-full border-r border-border bg-card flex flex-col
+        w-[calc(100vw-2rem)] max-w-80 md:max-w-none ${desktopWidth} h-full border-r border-white/10 bg-slate-950/45 backdrop-blur-2xl flex flex-col
         transition-all duration-200 ease-in-out flex-shrink-0
-      `}>
-
+      `}
+      >
         {/* Header */}
-        <div className={`flex items-center border-b border-border ${collapsed ? "justify-center p-3" : "px-4 py-3 gap-2"}`}>
+        <div className={`border-b border-white/10 ${collapsed ? "flex justify-center p-3" : "px-4 py-3"}`}>
           {!collapsed && (
-            <>
-              <Bot className="w-5 h-5 text-primary flex-shrink-0" />
-              <span className="font-semibold text-sm tracking-tight flex-1">AgentHub</span>
-            </>
+            <div className="mb-4 flex gap-2">
+              <span className="agenthub-mac-dot bg-[#ff6b61]" />
+              <span className="agenthub-mac-dot bg-[#ffbd5b]" />
+              <span className="agenthub-mac-dot bg-[#5dd58c]" />
+            </div>
           )}
-          {collapsed && <Bot className="w-5 h-5 text-primary" />}
-          <button
-            className="md:hidden ml-auto p-1 rounded hover:bg-muted"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className={`flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
+            {!collapsed && (
+              <>
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-300 via-blue-500 to-violet-500 text-2xl font-bold shadow-lg shadow-blue-500/25">
+                  A
+                </div>
+                <span className="flex-1 text-[1.35rem] font-semibold tracking-tight text-white">AgentHub</span>
+              </>
+            )}
+            {collapsed && (
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-cyan-300 via-blue-500 to-violet-500 text-xl font-bold shadow-lg shadow-blue-500/25">
+                A
+              </div>
+            )}
+            <button
+              className="md:hidden ml-auto p-1 rounded hover:bg-white/10"
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Close navigation"
+              title="Close navigation"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Action buttons */}
         <div className={`${collapsed ? "flex flex-col items-center gap-1 py-3 px-1" : "flex flex-col gap-1.5 p-3"}`}>
           <button
+            data-testid="new-chat-button"
             onClick={() => createSession.mutate({ model: selectedModel })}
             disabled={createSession.isPending}
             title={collapsed ? "New Chat" : undefined}
-            className={`flex items-center gap-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors ${
+            aria-busy={createSession.isPending}
+            className={`agenthub-primary-button flex items-center gap-2 rounded-xl text-sm font-semibold transition-colors ${
               collapsed ? "p-2.5 justify-center" : "w-full px-3 py-2 justify-center"
             }`}
           >
             <Plus className="w-4 h-4 flex-shrink-0" />
-            {!collapsed && "New Chat"}
+            {!collapsed && (createSession.isPending ? "Creating..." : "New Chat")}
           </button>
+          {sessionCreateError && !collapsed && (
+            <p data-testid="new-chat-error" role="alert" className="px-1 text-xs leading-5 text-red-300">
+              {sessionCreateError}
+            </p>
+          )}
 
           <button
             onClick={handleNewAgent}
             title={collapsed ? "New Agent" : undefined}
-            className={`flex items-center gap-2 border border-border rounded-md text-sm font-medium hover:bg-muted transition-colors text-muted-foreground hover:text-foreground ${
+            className={`flex items-center gap-2 rounded-xl text-sm font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white ${
               collapsed ? "p-2.5 justify-center" : "w-full px-3 py-1.5 justify-start"
             }`}
           >
@@ -313,7 +426,7 @@ export function Sidebar() {
           <button
             onClick={handleNewGroup}
             title={collapsed ? "New Group" : undefined}
-            className={`flex items-center gap-2 border border-border rounded-md text-sm font-medium hover:bg-muted transition-colors text-muted-foreground hover:text-foreground ${
+            className={`flex items-center gap-2 rounded-xl text-sm font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white ${
               collapsed ? "p-2.5 justify-center" : "w-full px-3 py-1.5 justify-start"
             }`}
           >
@@ -322,9 +435,12 @@ export function Sidebar() {
           </button>
 
           <button
-            onClick={() => setMainView("memory-editor")}
+            onClick={() => {
+              setMainView("memory-editor");
+              setSidebarOpen(false);
+            }}
             title={collapsed ? "Memory" : undefined}
-            className={`flex items-center gap-2 border border-border rounded-md text-sm font-medium hover:bg-muted transition-colors text-muted-foreground hover:text-foreground ${
+            className={`flex items-center gap-2 rounded-xl text-sm font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white ${
               collapsed ? "p-2.5 justify-center" : "w-full px-3 py-1.5 justify-start"
             }`}
           >
@@ -333,9 +449,12 @@ export function Sidebar() {
           </button>
 
           <button
-            onClick={() => setMainView("marketplace")}
+            onClick={() => {
+              setMainView("marketplace");
+              setSidebarOpen(false);
+            }}
             title={collapsed ? "Marketplace" : undefined}
-            className={`flex items-center gap-2 border border-border rounded-md text-sm font-medium hover:bg-muted transition-colors text-muted-foreground hover:text-foreground ${
+            className={`flex items-center gap-2 rounded-xl text-sm font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white ${
               collapsed ? "p-2.5 justify-center" : "w-full px-3 py-1.5 justify-start"
             }`}
           >
@@ -348,13 +467,15 @@ export function Sidebar() {
         {!collapsed && (
           <div className="flex-1 overflow-y-auto px-2 pb-2">
             <div className="mb-4">
-              <div className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                Agents
-              </div>
+              <div className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-widest text-slate-300">Agents</div>
               {agentList.isLoading ? (
-                <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">Loading agents...</div>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-slate-300">
+                  Loading agents...
+                </div>
               ) : agentList.isError ? (
-                <div className="rounded-md border border-destructive/30 p-3 text-xs text-destructive">Could not load agents.</div>
+                <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                  Could not load agents.
+                </div>
               ) : (
                 <AgentList
                   agents={agents}
@@ -367,13 +488,15 @@ export function Sidebar() {
             </div>
 
             <div className="mb-4">
-              <div className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                Groups
-              </div>
+              <div className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-widest text-slate-300">Groups</div>
               {groupList.isLoading ? (
-                <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">Loading groups...</div>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-slate-300">
+                  Loading groups...
+                </div>
               ) : groupList.isError ? (
-                <div className="rounded-md border border-destructive/30 p-3 text-xs text-destructive">Could not load groups.</div>
+                <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                  Could not load groups.
+                </div>
               ) : (
                 <AgentGroupList
                   groups={agentGroups}
@@ -386,18 +509,18 @@ export function Sidebar() {
               )}
             </div>
 
-            <div className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground flex items-center justify-between">
+            <div className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-widest text-slate-300 flex items-center justify-between">
               <span>Chats</span>
               <span>{sessions.length}</span>
             </div>
             <div className="relative mb-2">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-300" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search messages..."
-                className="w-full pl-7 pr-2 py-1.5 text-xs rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-xl border border-white/10 bg-white/10 py-1.5 pl-7 pr-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
             <SessionList
@@ -414,7 +537,7 @@ export function Sidebar() {
               setEditingSessionId={setEditingSessionId}
               updateServerSession={updateServerSession}
               deleteServerSession={deleteServerSession}
-              setActiveSession={setActiveSession}
+              setActiveSession={handleSelectSession}
               pin={pin}
             />
           </div>
@@ -423,11 +546,17 @@ export function Sidebar() {
         {collapsed && <div className="flex-1" />}
 
         {/* Footer nav */}
-        <div className={`border-t border-border ${collapsed ? "flex flex-col items-center gap-1 py-3 px-1" : "p-2"}`}>
+        <div
+          className={`border-t border-white/10 bg-black/10 ${collapsed ? "flex flex-col items-center gap-1 py-3 px-1" : "p-2"}`}
+        >
+          <NavItem icon={<Database className="w-4 h-4" />} label="Projects" href="/projects" collapsed={collapsed} />
+          <NavItem icon={<FileText className="w-4 h-4" />} label="Pages" href="/pages" collapsed={collapsed} />
+          <NavItem icon={<Code2 className="w-4 h-4" />} label="Code" href="/code" collapsed={collapsed} />
           <NavItem icon={<FileText className="w-4 h-4" />} label="Knowledge Base" href="/kb" collapsed={collapsed} />
           <NavItem icon={<BarChart2 className="w-4 h-4" />} label="Analytics" href="/analytics" collapsed={collapsed} />
           <NavItem icon={<Zap className="w-4 h-4" />} label="Automations" href="/automations" collapsed={collapsed} />
           <NavItem icon={<ListTodo className="w-4 h-4" />} label="Tasks" href="/tasks" collapsed={collapsed} />
+          <NavItem icon={<GitBranch className="w-4 h-4" />} label="Review" href="/review" collapsed={collapsed} />
           {isAdmin && (
             <NavItem
               icon={<ShieldCheck className="w-4 h-4" />}
@@ -455,7 +584,7 @@ export function Sidebar() {
             <div className="mt-1 text-xs text-destructive px-3">Rename failed. Try again.</div>
           )}
           {!collapsed && (
-            <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground px-3">
+            <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-300 px-3">
               <div className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
               PostgreSQL + pgvector
             </div>
@@ -466,7 +595,7 @@ export function Sidebar() {
         <button
           onClick={toggleCollapsed}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-6 h-6 items-center justify-center rounded-full bg-card border border-border shadow-sm hover:bg-muted transition-colors"
+          className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-6 h-6 items-center justify-center rounded-full border border-white/10 bg-slate-900/90 shadow-sm hover:bg-white/10 transition-colors"
         >
           {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
         </button>
@@ -511,7 +640,7 @@ function SessionList({
   const utils = trpc.useUtils();
   const searchResults = trpc.messages.search.useQuery(
     { query: searchQuery },
-    { enabled: searchQuery.trim().length > 0 }
+    { enabled: searchQuery.trim().length > 0 },
   );
 
   if (isLoading) {
@@ -544,7 +673,7 @@ function SessionList({
           const session = sessions.find((s) => s.id === sessionId);
           if (!session) return null;
           return (
-            <div key={sessionId} className="rounded-md border border-border bg-muted/30 p-2">
+            <div key={sessionId} className="rounded-xl border border-white/10 bg-white/5 p-2">
               <div
                 className="text-xs font-medium mb-1 cursor-pointer hover:text-primary truncate"
                 onClick={() => setActiveSession(sessionId)}
@@ -555,12 +684,11 @@ function SessionList({
                 {msgs.slice(0, 3).map((msg) => (
                   <div
                     key={msg.messageId}
-                    className="text-xs text-muted-foreground line-clamp-2 cursor-pointer hover:bg-muted rounded px-1 py-0.5"
+                    className="line-clamp-2 cursor-pointer rounded px-1 py-0.5 text-xs text-muted-foreground hover:bg-white/10"
                     onClick={() => setActiveSession(sessionId)}
                     title={msg.content}
                   >
-                    <span className="font-medium text-foreground">{msg.role}:</span>{" "}
-                    {msg.content}
+                    <span className="font-medium text-foreground">{msg.role}:</span> {msg.content}
                   </div>
                 ))}
                 {msgs.length > 3 && (
@@ -580,16 +708,20 @@ function SessionList({
   const renderSession = (session: ChatSession) => (
     <div
       key={session.id}
-      className={`group flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm cursor-pointer transition-colors ${
+      data-testid="session-row"
+      aria-label={session.title}
+      className={`group flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition-colors ${
         session.id === activeSessionId
           ? "bg-primary/10 text-primary"
-          : "hover:bg-muted text-muted-foreground hover:text-foreground"
+          : "text-muted-foreground hover:bg-white/10 hover:text-foreground"
       } ${session.parentMessageId ? "ml-4" : ""}`}
       onClick={() => setActiveSession(session.id)}
     >
-      {session.parentMessageId
-        ? <GitBranch className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
-        : <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" />}
+      {session.parentMessageId ? (
+        <GitBranch className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+      ) : (
+        <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" />
+      )}
       {editingSessionId === session.id ? (
         <input
           value={draftTitle}
@@ -602,12 +734,15 @@ function SessionList({
           onClick={(e) => e.stopPropagation()}
           autoFocus
           disabled={updateServerSession.isPending}
-          className="min-w-0 flex-1 rounded bg-background px-1 py-0.5 text-xs outline-none ring-1 ring-primary disabled:opacity-60"
+          className="min-w-0 flex-1 rounded-lg bg-white/10 px-1 py-0.5 text-xs outline-none ring-1 ring-primary disabled:opacity-60"
         />
       ) : (
         <span
           className="flex-1 truncate text-xs"
-          onDoubleClick={(e) => { e.stopPropagation(); startRename(session); }}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            startRename(session);
+          }}
           title="Double-click to rename"
         >
           {session.parentMessageId && <span className="text-muted-foreground text-[10px] mr-0.5">⑂</span>}
@@ -621,7 +756,7 @@ function SessionList({
         }}
         disabled={pin.isPending}
         className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity ${
-          session.isPinned ? "text-primary opacity-100" : "hover:bg-muted text-muted-foreground"
+          session.isPinned ? "text-primary opacity-100" : "text-muted-foreground hover:bg-white/10"
         }`}
         aria-label={session.isPinned ? "Unpin" : "Pin"}
       >

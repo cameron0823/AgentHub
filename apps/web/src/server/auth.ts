@@ -6,7 +6,14 @@ import { db } from "./db";
 import { accounts, sessions, users, verificationTokens } from "./db/schema";
 
 const casdoorIssuer = process.env.AUTH_CASDOOR_ISSUER || "http://localhost:8000";
-const isDev = process.env.NODE_ENV === "development";
+const isDev =
+  process.env.NODE_ENV === "development" ||
+  process.env.AGENTHUB_ENABLE_DEV_LOGIN === "1" ||
+  process.env.E2E_ENABLE_DEV_LOGIN === "1";
+
+function getAllowedRedirectBase(baseUrl: string) {
+  return process.env.AGENTHUB_DESKTOP_ORIGIN || process.env.NEXTAUTH_URL || baseUrl;
+}
 
 export const authOptions: NextAuthOptions = {
   adapter: DrizzleAdapter(db, {
@@ -17,27 +24,31 @@ export const authOptions: NextAuthOptions = {
   }) as any,
   providers: [
     // Dev-only credentials provider — auto-creates user on first sign-in
-    ...(isDev ? [CredentialsProvider({
-      id: "dev-credentials",
-      name: "Dev Login",
-      credentials: {
-        email: { label: "Email", type: "email", placeholder: "admin@localhost" },
-        password: { label: "Password", type: "password", placeholder: "any" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email) return null;
-        const email = credentials.email.trim().toLowerCase();
-        let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-        if (!user) {
-          const [created] = await db
-            .insert(users)
-            .values({ email, name: email.split("@")[0], role: "admin" })
-            .returning();
-          user = created;
-        }
-        return { id: user.id, email: user.email!, name: user.name, role: (user as any).role };
-      },
-    })] : []),
+    ...(isDev
+      ? [
+          CredentialsProvider({
+            id: "dev-credentials",
+            name: "Dev Login",
+            credentials: {
+              email: { label: "Email", type: "email", placeholder: "admin@localhost" },
+              password: { label: "Password", type: "password", placeholder: "any" },
+            },
+            async authorize(credentials) {
+              if (!credentials?.email) return null;
+              const email = credentials.email.trim().toLowerCase();
+              let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+              if (!user) {
+                const [created] = await db
+                  .insert(users)
+                  .values({ email, name: email.split("@")[0], role: "admin" })
+                  .returning();
+                user = created;
+              }
+              return { id: user.id, email: user.email!, name: user.name, role: (user as any).role };
+            },
+          }),
+        ]
+      : []),
     {
       id: "casdoor",
       name: "Casdoor",
@@ -62,6 +73,24 @@ export const authOptions: NextAuthOptions = {
     },
   ],
   callbacks: {
+    async redirect({ url, baseUrl }) {
+      const allowedBase = getAllowedRedirectBase(baseUrl);
+      if (url.startsWith("/")) {
+        return `${allowedBase}${url}`;
+      }
+
+      try {
+        const targetUrl = new URL(url);
+        const allowedUrl = new URL(allowedBase);
+        if (targetUrl.origin === allowedUrl.origin) {
+          return url;
+        }
+      } catch {
+        return allowedBase;
+      }
+
+      return allowedBase;
+    },
     async session({ session, token, user }) {
       if (user && session.user) {
         (session.user as any).id = user.id;

@@ -1,7 +1,7 @@
 # AgentHub Technical Architecture
 
 > **Version:** 1.0  
-> **Status:** Planning  
+> **Status:** Archived architecture snapshot. `TODO.md` is the canonical current tracker and completion source.
 > **Scope:** Complete technical architecture for local-first AI agent platform
 
 ---
@@ -128,15 +128,17 @@
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
+Current implementation note: ADR 0002 supersedes local-first sync diagrams. The current supported runtime uses PostgreSQL + pgvector as the canonical data plane; Yjs, Electric SQL, WebRTC sync, SQLite replication, and IndexedDB mode are not production features.
+
 ### 1.2 Design Constraints
 
-| Constraint | Decision |
-|------------|----------|
-| **Single binary deployment** | Next.js bundles frontend + backend; SQLite is embedded |
-| **No runtime dependencies** | Ollama is the only required external service; everything else is optional |
-| **Cross-platform** | macOS, Linux, Windows — all local services run via Docker or native binaries |
-| **Offline-first** | Core features work without internet; sync is optional |
-| **Horizontal scaling** | Not a primary goal; designed for single-node or small-team deployment |
+| Constraint                   | Decision                                                                     |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+| **Single binary deployment** | Next.js bundles frontend + backend; SQLite is embedded                       |
+| **No runtime dependencies**  | Ollama is the only required external service; everything else is optional    |
+| **Cross-platform**           | macOS, Linux, Windows — all local services run via Docker or native binaries |
+| **Offline-first**            | Core features work without internet; sync is optional                        |
+| **Horizontal scaling**       | Not a primary goal; designed for single-node or small-team deployment        |
 
 ---
 
@@ -146,12 +148,13 @@
 
 Following LobeHub's proven hybrid approach:
 
-| Router | Use Case | Location |
-|--------|----------|----------|
-| **Next.js App Router** | Auth pages, settings, SSR, landing | `src/app/(site)/` |
-| **React Router DOM** | Chat SPA, agent builder, knowledge base | `src/spa/` |
+| Router                 | Use Case                                | Location          |
+| ---------------------- | --------------------------------------- | ----------------- |
+| **Next.js App Router** | Auth pages, settings, SSR, landing      | `src/app/(site)/` |
+| **React Router DOM**   | Chat SPA, agent builder, knowledge base | `src/spa/`        |
 
 **Why hybrid?**
+
 - App Router handles auth callbacks, OAuth flows, and static marketing pages with SSR
 - React Router DOM powers the chat interface — instant navigation, no full page reloads, reactive state
 
@@ -159,7 +162,7 @@ Following LobeHub's proven hybrid approach:
 
 ```typescript
 // stores/index.ts
-import { create } from 'zustand';
+import { create } from "zustand";
 
 interface AppState {
   // Auth slice
@@ -240,12 +243,12 @@ App
 
 ### 2.4 Data Fetching Strategy
 
-| Pattern | Technology | Use Case |
-|---------|-----------|----------|
-| Server state | tRPC + React Query | Sessions, messages, agents (cached, invalidated) |
-| Real-time | SSE (EventSource) | Streaming chat responses |
-| Local state | Zustand | UI state, ephemeral form data |
-| Optimistic updates | React Query | Sending messages (instant UI, rollback on error) |
+| Pattern            | Technology         | Use Case                                         |
+| ------------------ | ------------------ | ------------------------------------------------ |
+| Server state       | tRPC + React Query | Sessions, messages, agents (cached, invalidated) |
+| Real-time          | SSE (EventSource)  | Streaming chat responses                         |
+| Local state        | Zustand            | UI state, ephemeral form data                    |
+| Optimistic updates | React Query        | Sending messages (instant UI, rollback on error) |
 
 ---
 
@@ -313,9 +316,9 @@ export async function POST(req: Request) {
 
   return new Response(stream, {
     headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
     },
   });
 }
@@ -329,11 +332,11 @@ export async function POST(req: Request) {
 
 ```typescript
 // src/server/lib/db.ts
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import Database from 'better-sqlite3';
-import * as schema from './schema';
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import Database from "better-sqlite3";
+import * as schema from "./schema";
 
-const sqlite = new Database(process.env.DATABASE_URL || './data/agenthub.db');
+const sqlite = new Database(process.env.DATABASE_URL || "./data/agenthub.db");
 export const db = drizzle(sqlite, { schema });
 ```
 
@@ -365,7 +368,7 @@ class ProviderRegistry {
         id: p.id,
         name: p.name,
         ...(await p.healthCheck()),
-      }))
+      })),
     );
   }
 
@@ -379,10 +382,10 @@ class ProviderRegistry {
 
 ```typescript
 class OllamaProvider implements ModelProvider {
-  readonly id = 'ollama';
-  readonly name = 'Ollama';
-  readonly type = 'local';
-  private baseUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+  readonly id = "ollama";
+  readonly name = "Ollama";
+  readonly type = "local";
+  private baseUrl = process.env.OLLAMA_URL || "http://localhost:11434";
 
   async listModels(): Promise<ModelInfo[]> {
     const res = await fetch(`${this.baseUrl}/api/tags`);
@@ -398,7 +401,7 @@ class OllamaProvider implements ModelProvider {
 
   async *streamChat(options: ChatOptions): AsyncIterable<ChatStreamChunk> {
     const res = await fetch(`${this.baseUrl}/api/chat`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify({
         model: options.model,
         messages: options.messages,
@@ -417,16 +420,16 @@ class OllamaProvider implements ModelProvider {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const lines = decoder.decode(value).split('\n');
+      const lines = decoder.decode(value).split("\n");
       for (const line of lines) {
         if (!line.trim()) continue;
         const data = JSON.parse(line);
 
         if (data.message?.content) {
-          yield { type: 'content', content: data.message.content };
+          yield { type: "content", content: data.message.content };
         }
         if (data.done) {
-          yield { type: 'done', usage: data.eval_count };
+          yield { type: "done", usage: data.eval_count };
         }
       }
     }
@@ -436,12 +439,12 @@ class OllamaProvider implements ModelProvider {
     const results = await Promise.all(
       texts.map(async (text) => {
         const res = await fetch(`${this.baseUrl}/api/embeddings`, {
-          method: 'POST',
-          body: JSON.stringify({ model: 'nomic-embed-text', prompt: text }),
+          method: "POST",
+          body: JSON.stringify({ model: "nomic-embed-text", prompt: text }),
         });
         const data = await res.json();
         return data.embedding;
-      })
+      }),
     );
     return results;
   }
@@ -450,9 +453,9 @@ class OllamaProvider implements ModelProvider {
     try {
       const start = Date.now();
       await fetch(`${this.baseUrl}/api/tags`, { signal: AbortSignal.timeout(5000) });
-      return { status: 'healthy' as const, latency: Date.now() - start };
+      return { status: "healthy" as const, latency: Date.now() - start };
     } catch {
-      return { status: 'unhealthy' as const, latency: -1 };
+      return { status: "unhealthy" as const, latency: -1 };
     }
   }
 }
@@ -478,12 +481,12 @@ interface ExecutionContext {
 }
 
 type OrchestratorEvent =
-  | { type: 'agent_start'; agentId: string; role: string }
-  | { type: 'agent_output'; agentId: string; content: string }
-  | { type: 'agent_tool_call'; agentId: string; tool: string; args: unknown }
-  | { type: 'agent_complete'; agentId: string }
-  | { type: 'synthesis'; content: string }
-  | { type: 'error'; agentId: string; error: string };
+  | { type: "agent_start"; agentId: string; role: string }
+  | { type: "agent_output"; agentId: string; content: string }
+  | { type: "agent_tool_call"; agentId: string; tool: string; args: unknown }
+  | { type: "agent_complete"; agentId: string }
+  | { type: "synthesis"; content: string }
+  | { type: "error"; agentId: string; error: string };
 ```
 
 ### 5.2 Supervisor-Executor Implementation
@@ -760,6 +763,7 @@ services:
 ```
 
 **Prerequisites:**
+
 - Node.js 20+ (for dev) or Docker
 - Ollama installed on host
 
@@ -857,37 +861,37 @@ services:
 
 ### 9.1 Caching Strategy
 
-| Layer | Cache | TTL | Invalidation |
-|-------|-------|-----|--------------|
-| Model list | In-memory | 60s | Manual refresh |
-| Agent configs | Zustand + SQLite | Infinite | On edit |
-| Memory embeddings | LanceDB | Persistent | On memory update |
-| Document chunks | SQLite + LanceDB | Persistent | On re-ingest |
-| TTS audio | File system | Infinite | Manual clear |
-| Web search | SQLite | 5 min | Time-based |
+| Layer             | Cache            | TTL        | Invalidation     |
+| ----------------- | ---------------- | ---------- | ---------------- |
+| Model list        | In-memory        | 60s        | Manual refresh   |
+| Agent configs     | Zustand + SQLite | Infinite   | On edit          |
+| Memory embeddings | LanceDB          | Persistent | On memory update |
+| Document chunks   | SQLite + LanceDB | Persistent | On re-ingest     |
+| TTS audio         | File system      | Infinite   | Manual clear     |
+| Web search        | SQLite           | 5 min      | Time-based       |
 
 ### 9.2 Optimization Targets
 
-| Metric | Target | Strategy |
-|--------|--------|----------|
-| Time to first token | < 2s | Streaming, fast model loading, connection pooling |
-| RAG query latency | < 2s | Indexed embeddings, FTS5, cached chunks |
-| UI interaction | < 100ms | Optimistic updates, virtualization, code splitting |
-| App startup | < 3s | Lazy load non-critical components, SQLite is instant |
-| Memory extraction | < 5s (async) | Background job, small model, batched |
+| Metric              | Target       | Strategy                                             |
+| ------------------- | ------------ | ---------------------------------------------------- |
+| Time to first token | < 2s         | Streaming, fast model loading, connection pooling    |
+| RAG query latency   | < 2s         | Indexed embeddings, FTS5, cached chunks              |
+| UI interaction      | < 100ms      | Optimistic updates, virtualization, code splitting   |
+| App startup         | < 3s         | Lazy load non-critical components, SQLite is instant |
+| Memory extraction   | < 5s (async) | Background job, small model, batched                 |
 
 ### 9.3 Resource Budgets
 
-| Component | CPU | RAM | GPU | Notes |
-|-----------|-----|-----|-----|-------|
-| Next.js app | 1 core | 512 MB | — | Lightweight Node.js server |
-| Ollama (7B model) | 4 cores | 8 GB | Optional | 6 GB VRAM if GPU |
-| Ollama (14B model) | 8 cores | 16 GB | Optional | 10 GB VRAM |
-| Ollama (70B model) | 16 cores | 64 GB | Optional | 40 GB VRAM |
-| LanceDB | — | 256 MB | — | Embedded, negligible |
-| ComfyUI (SDXL) | 2 cores | 4 GB | 8 GB VRAM | Required for image gen |
-| Piper TTS | — | 128 MB | — | Very light |
-| Whisper (small) | 2 cores | 2 GB | Optional | Real-time capable |
+| Component          | CPU      | RAM    | GPU       | Notes                      |
+| ------------------ | -------- | ------ | --------- | -------------------------- |
+| Next.js app        | 1 core   | 512 MB | —         | Lightweight Node.js server |
+| Ollama (7B model)  | 4 cores  | 8 GB   | Optional  | 6 GB VRAM if GPU           |
+| Ollama (14B model) | 8 cores  | 16 GB  | Optional  | 10 GB VRAM                 |
+| Ollama (70B model) | 16 cores | 64 GB  | Optional  | 40 GB VRAM                 |
+| LanceDB            | —        | 256 MB | —         | Embedded, negligible       |
+| ComfyUI (SDXL)     | 2 cores  | 4 GB   | 8 GB VRAM | Required for image gen     |
+| Piper TTS          | —        | 128 MB | —         | Very light                 |
+| Whisper (small)    | 2 cores  | 2 GB   | Optional  | Real-time capable          |
 
 ---
 
@@ -895,62 +899,62 @@ services:
 
 ### 10.1 Core Stack
 
-| Layer | Technology | Version | Rationale |
-|-------|-----------|---------|-----------|
-| Framework | Next.js | 14+ | App Router, API routes, SSR/SPA hybrid |
-| Language | TypeScript | 5.4+ | Type safety, excellent DX |
-| Runtime | Node.js | 20 LTS | Stable, good SQLite support |
-| Package Manager | pnpm | 9+ | Fast, disk efficient |
-| Monorepo | Turborepo | 2+ | Workspace management, caching |
+| Layer           | Technology | Version | Rationale                              |
+| --------------- | ---------- | ------- | -------------------------------------- |
+| Framework       | Next.js    | 14+     | App Router, API routes, SSR/SPA hybrid |
+| Language        | TypeScript | 5.4+    | Type safety, excellent DX              |
+| Runtime         | Node.js    | 20 LTS  | Stable, good SQLite support            |
+| Package Manager | pnpm       | 9+      | Fast, disk efficient                   |
+| Monorepo        | Turborepo  | 2+      | Workspace management, caching          |
 
 ### 10.2 Frontend
 
-| Category | Technology | Rationale |
-|----------|-----------|-----------|
-| UI Framework | React 18 + Server Components | Industry standard |
-| Styling | Tailwind CSS + shadcn/ui | Utility-first, accessible components |
-| State | Zustand | Lightweight, slice pattern |
-| Data Fetching | tRPC + TanStack Query | End-to-end type safety |
-| Forms | React Hook Form + Zod | Validation, performance |
-| Routing | Next.js App Router + React Router DOM | Hybrid approach matching LobeHub |
-| Visualization | react-flow (agent groups), D3 (branching) | Proven libraries |
-| Markdown | react-markdown + remark/rehype plugins | Extensible rendering |
-| Code | react-syntax-highlighter + react-live | Code display + live editing |
+| Category      | Technology                                | Rationale                            |
+| ------------- | ----------------------------------------- | ------------------------------------ |
+| UI Framework  | React 18 + Server Components              | Industry standard                    |
+| Styling       | Tailwind CSS + shadcn/ui                  | Utility-first, accessible components |
+| State         | Zustand                                   | Lightweight, slice pattern           |
+| Data Fetching | tRPC + TanStack Query                     | End-to-end type safety               |
+| Forms         | React Hook Form + Zod                     | Validation, performance              |
+| Routing       | Next.js App Router + React Router DOM     | Hybrid approach matching LobeHub     |
+| Visualization | react-flow (agent groups), D3 (branching) | Proven libraries                     |
+| Markdown      | react-markdown + remark/rehype plugins    | Extensible rendering                 |
+| Code          | react-syntax-highlighter + react-live     | Code display + live editing          |
 
 ### 10.3 Backend
 
-| Category | Technology | Rationale |
-|----------|-----------|-----------|
-| API | tRPC + Next.js API Routes | Type-safe, co-located |
-| Auth | Better Auth | Modern, flexible, supports OAuth + MFA |
-| ORM | Drizzle ORM | Type-safe, SQL-like, small |
-| DB (local) | better-sqlite3 | Synchronous, fast, embedded |
-| DB (server) | PostgreSQL + pgvector | Production multi-user |
-| Vector DB | LanceDB (embedded) | Zero config, fast hybrid search |
-| Cache | Redis (optional) | Sessions, rate limiting |
-| Validation | Zod | Shared between client/server |
+| Category    | Technology                | Rationale                              |
+| ----------- | ------------------------- | -------------------------------------- |
+| API         | tRPC + Next.js API Routes | Type-safe, co-located                  |
+| Auth        | Better Auth               | Modern, flexible, supports OAuth + MFA |
+| ORM         | Drizzle ORM               | Type-safe, SQL-like, small             |
+| DB (local)  | better-sqlite3            | Synchronous, fast, embedded            |
+| DB (server) | PostgreSQL + pgvector     | Production multi-user                  |
+| Vector DB   | LanceDB (embedded)        | Zero config, fast hybrid search        |
+| Cache       | Redis (optional)          | Sessions, rate limiting                |
+| Validation  | Zod                       | Shared between client/server           |
 
 ### 10.4 AI / ML
 
-| Category | Technology | Rationale |
-|----------|-----------|-----------|
-| LLM Runtime | Ollama | Primary local inference |
-| Embeddings | Ollama (nomic-embed-text) | Local, no API cost |
-| Vector Search | LanceDB | Hybrid BM25 + cosine |
-| OCR | tesseract.js | Pure JS, no external deps |
-| STT | faster-whisper (Python service) | Fast, accurate |
-| TTS | Piper (HTTP service) | Neural quality, minimal resources |
-| Image Gen | ComfyUI (Python service) | Most flexible, latest models |
-| Vision | Ollama (LLaVA / Qwen2-VL) | Unified API |
+| Category      | Technology                      | Rationale                         |
+| ------------- | ------------------------------- | --------------------------------- |
+| LLM Runtime   | Ollama                          | Primary local inference           |
+| Embeddings    | Ollama (nomic-embed-text)       | Local, no API cost                |
+| Vector Search | LanceDB                         | Hybrid BM25 + cosine              |
+| OCR           | tesseract.js                    | Pure JS, no external deps         |
+| STT           | faster-whisper (Python service) | Fast, accurate                    |
+| TTS           | Piper (HTTP service)            | Neural quality, minimal resources |
+| Image Gen     | ComfyUI (Python service)        | Most flexible, latest models      |
+| Vision        | Ollama (LLaVA / Qwen2-VL)       | Unified API                       |
 
 ### 10.5 DevOps
 
-| Category | Technology | Rationale |
-|----------|-----------|-----------|
-| Container | Docker + Docker Compose | Standard, portable |
-| CI/CD | GitHub Actions | Free for public repos |
-| Linting | ESLint + Prettier + TypeScript strict | Code quality |
-| Testing | Vitest (unit) + Playwright (E2E) | Fast, modern |
+| Category  | Technology                            | Rationale             |
+| --------- | ------------------------------------- | --------------------- |
+| Container | Docker + Docker Compose               | Standard, portable    |
+| CI/CD     | GitHub Actions                        | Free for public repos |
+| Linting   | ESLint + Prettier + TypeScript strict | Code quality          |
+| Testing   | Vitest (unit) + Playwright (E2E)      | Fast, modern          |
 
 ---
 
@@ -1021,19 +1025,19 @@ This allows any OpenAI-compatible client (including other agent frameworks) to u
 
 ### 11.2 Worker Types
 
-| Worker | Queue | Concurrency | Max Runtime |
-|--------|-------|-------------|-------------|
-| `IngestWorker` | `ingest` | 3 | 10 min |
-| `AgentFlowWorker` | `agent-flow` | 2 | 30 min |
-| `ImageGenWorker` | `generate-image` | 2 | 5 min |
-| `MemoryWorker` | `memory-extract` | 4 | 2 min |
-| `SyncWorker` | `sync` | 5 | 30 sec |
+| Worker            | Queue            | Concurrency | Max Runtime |
+| ----------------- | ---------------- | ----------- | ----------- |
+| `IngestWorker`    | `ingest`         | 3           | 10 min      |
+| `AgentFlowWorker` | `agent-flow`     | 2           | 30 min      |
+| `ImageGenWorker`  | `generate-image` | 2           | 5 min       |
+| `MemoryWorker`    | `memory-extract` | 4           | 2 min       |
+| `SyncWorker`      | `sync`           | 5           | 30 sec      |
 
 ### 11.3 Checkpoint Resume for Agent Flows
 
 ```typescript
 // Worker pseudo-code
-const agentFlowWorker = new Worker('agent-flow', async (job) => {
+const agentFlowWorker = new Worker("agent-flow", async (job) => {
   const checkpointManager = new CheckpointManager(job.id);
   const graph = await loadGraph(job.data.graphId);
 
@@ -1054,8 +1058,8 @@ const agentFlowWorker = new Worker('agent-flow', async (job) => {
     await wsBroadcast(job.data.sessionId, event);
 
     // Handle HITL pause
-    if (event.type === 'human_input_required') {
-      await job.updateProgress({ status: 'waiting_human', prompt: event.prompt });
+    if (event.type === "human_input_required") {
+      await job.updateProgress({ status: "waiting_human", prompt: event.prompt });
       // Worker yields; resumes when human response arrives via API
       const humanResponse = await waitForHumanResponse(job.id, event.nodeId);
       executor.injectHumanResponse(event.nodeId, humanResponse);
@@ -1100,13 +1104,13 @@ const agentFlowWorker = new Worker('agent-flow', async (job) => {
 
 ### 12.2 Protocol Endpoints
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/.well-known/a2a/agent.json` | GET | Agent capability advertisement |
-| `/a2a/tasks/send` | POST | Submit task to agent |
-| `/a2a/tasks/{id}/status` | GET | Poll task status |
-| `/a2a/tasks/{id}/cancel` | POST | Cancel running task |
-| `/a2a/skills` | GET | List available skills |
+| Endpoint                      | Method | Purpose                        |
+| ----------------------------- | ------ | ------------------------------ |
+| `/.well-known/a2a/agent.json` | GET    | Agent capability advertisement |
+| `/a2a/tasks/send`             | POST   | Submit task to agent           |
+| `/a2a/tasks/{id}/status`      | GET    | Poll task status               |
+| `/a2a/tasks/{id}/cancel`      | POST   | Cancel running task            |
+| `/a2a/skills`                 | GET    | List available skills          |
 
 ---
 
@@ -1146,13 +1150,13 @@ const agentFlowWorker = new Worker('agent-flow', async (job) => {
 
 ### 13.2 Credential Types
 
-| Type | Example | Storage |
-|------|---------|---------|
-| API Keys | OpenAI, Anthropic | Vault, encrypted |
-| OAuth Tokens | GitHub, Google | Vault, encrypted, auto-refresh |
-| Passwords | Database, SSH | Vault, encrypted, Argon2-hashed master |
-| Certificates | TLS client certs | Vault, encrypted |
-| Desktop Permissions | Accessibility | OS keychain, vault reference |
+| Type                | Example           | Storage                                |
+| ------------------- | ----------------- | -------------------------------------- |
+| API Keys            | OpenAI, Anthropic | Vault, encrypted                       |
+| OAuth Tokens        | GitHub, Google    | Vault, encrypted, auto-refresh         |
+| Passwords           | Database, SSH     | Vault, encrypted, Argon2-hashed master |
+| Certificates        | TLS client certs  | Vault, encrypted                       |
+| Desktop Permissions | Accessibility     | OS keychain, vault reference           |
 
 ---
 
@@ -1191,12 +1195,12 @@ const agentFlowWorker = new Worker('agent-flow', async (job) => {
 
 ### 14.2 Action Types
 
-| Action | Linux (AT-SPI) | macOS (AX) | Windows (UIA) |
-|--------|---------------|------------|---------------|
-| Click | `atk_action_do_action` | `AXUIElementPerformAction` | `IUIAutomationElement.Click` |
-| Type | `atk_text_set_text_contents` | `AXUIElementSetAttributeValue` | `IUIAutomationValuePattern.SetValue` |
-| Read | `atk_text_get_text` | `AXUIElementCopyAttributeValue` | `IUIAutomationElement.CurrentName` |
-| Focus | `atk_component_grab_focus` | `AXUIElementSetAttributeValue` | `IUIAutomationElement.SetFocus` |
+| Action | Linux (AT-SPI)               | macOS (AX)                      | Windows (UIA)                        |
+| ------ | ---------------------------- | ------------------------------- | ------------------------------------ |
+| Click  | `atk_action_do_action`       | `AXUIElementPerformAction`      | `IUIAutomationElement.Click`         |
+| Type   | `atk_text_set_text_contents` | `AXUIElementSetAttributeValue`  | `IUIAutomationValuePattern.SetValue` |
+| Read   | `atk_text_get_text`          | `AXUIElementCopyAttributeValue` | `IUIAutomationElement.CurrentName`   |
+| Focus  | `atk_component_grab_focus`   | `AXUIElementSetAttributeValue`  | `IUIAutomationElement.SetFocus`      |
 
 ---
 
@@ -1234,9 +1238,9 @@ User selects Mode
 
 ```typescript
 interface ModeRegistry {
-  builtinModes: Mode[];     // Shipped with AgentHub
-  installedModes: Mode[];   // From marketplace
-  customModes: Mode[];      // User-created
+  builtinModes: Mode[]; // Shipped with AgentHub
+  installedModes: Mode[]; // From marketplace
+  customModes: Mode[]; // User-created
 
   activate(modeId: string): ActiveModeSession;
   deactivate(sessionId: string): void;
@@ -1307,7 +1311,7 @@ CREATE INDEX idx_checkpoints_run ON checkpoints(run_id, created_at DESC);
 
 ---
 
-*End of ARCHITECTURE.md v2.0*
+_End of ARCHITECTURE.md v2.0_
 
 ---
 
@@ -1351,14 +1355,14 @@ CREATE INDEX idx_checkpoints_run ON checkpoints(run_id, created_at DESC);
 
 ### 17.2 Collection Points
 
-| Layer | Hook | Data Captured |
-|-------|------|---------------|
-| API | tRPC middleware | Request duration, status, user, endpoint |
-| LLM | Provider wrapper | Model, tokens, latency, cost |
-| Tools | Tool router | Tool name, args (sanitized), duration, result status |
-| Agents | Orchestrator hooks | Agent name, step number, decision, output size |
-| RAG | KB pipeline | Document count, chunk count, retrieval time |
-| Queue | BullMQ events | Job type, wait time, processing time, retry count |
+| Layer  | Hook               | Data Captured                                        |
+| ------ | ------------------ | ---------------------------------------------------- |
+| API    | tRPC middleware    | Request duration, status, user, endpoint             |
+| LLM    | Provider wrapper   | Model, tokens, latency, cost                         |
+| Tools  | Tool router        | Tool name, args (sanitized), duration, result status |
+| Agents | Orchestrator hooks | Agent name, step number, decision, output size       |
+| RAG    | KB pipeline        | Document count, chunk count, retrieval time          |
+| Queue  | BullMQ events      | Job type, wait time, processing time, retry count    |
 
 ### 17.3 Dashboard Components
 
@@ -1389,4 +1393,4 @@ CREATE INDEX idx_checkpoints_run ON checkpoints(run_id, created_at DESC);
 
 ---
 
-*End of ARCHITECTURE.md v2.1 — Observability layer added.*
+_End of ARCHITECTURE.md v2.1 — Observability layer added._

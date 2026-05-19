@@ -1,6 +1,15 @@
 import { db } from "./db";
-import { documentChunks, documents } from "./db/schema";
-import { sql, eq, and } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+import { validateProviderBaseUrl } from "./security/outbound";
+import { createChunkCitation } from "./kb-ingestion";
+import { resolveVectorBackendConfig, searchVectorBackend } from "./vector-backends";
+import {
+  buildBm25FallbackScore,
+  buildKeywordPredicate,
+  computeRerankMetrics,
+  tokenizeSearchQuery,
+  type RerankMetrics,
+} from "./kb-relevance";
 
 const RRF_K = 60;
 
@@ -9,20 +18,24 @@ export interface KbSearchResult {
   documentId: string;
   content: string;
   similarity: number;
-}
-
-function validateOllamaUrl(raw: string): string {
-  try {
-    const parsed = new URL(raw);
-    if (!["http:", "https:"].includes(parsed.protocol)) return "http://localhost:11434";
-    return raw;
-  } catch {
-    return "http://localhost:11434";
-  }
+  sourceName?: string;
+  sourceType?: string;
+  mimeType?: string;
+  sourceUrl?: string;
+  citation?: string;
+  metadata?: Record<string, unknown>;
+  retrieval?: {
+    vectorScore?: number;
+    textScore?: number;
+    bm25Score?: number;
+    rrfScore?: number;
+    rerankScore?: number;
+    metrics?: RerankMetrics;
+  };
 }
 
 async function embedQuery(query: string, ollamaUrl: string, model: string): Promise<number[]> {
-  const safeUrl = validateOllamaUrl(ollamaUrl);
+  const safeUrl = validateProviderBaseUrl(ollamaUrl, "http://localhost:11434");
   const res = await fetch(`${safeUrl}/api/embeddings`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -41,8 +54,9 @@ async function rerankWithOllama(
   query: string,
   candidates: KbSearchResult[],
   ollamaUrl: string,
-  model: string
+  model: string,
 ): Promise<KbSearchResult[]> {
+  const safeUrl = validateProviderBaseUrl(ollamaUrl, "http://localhost:11434");
   const scored = await Promise.all(
     candidates.map(async (c) => {
       try {
@@ -53,23 +67,31 @@ Query: ${query}
 Passage: ${c.content.slice(0, 500)}
 
 Relevance (0-10):`;
-        const res = await fetch(`${ollamaUrl}/api/generate`, {
+        const res = await fetch(`${safeUrl}/api/generate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ model, prompt, stream: false }),
         });
-        if (!res.ok) return { ...c, rerankScore: 0 };
+        if (!res.ok) return { ...c, retrieval: { ...c.retrieval, rerankScore: 0 } };
         const data = await res.json();
         const match = String(data.response ?? "").match(/\d+/);
         const score = match ? Math.min(10, Math.max(0, parseInt(match[0], 10))) : 0;
-        return { ...c, rerankScore: score };
+        return { ...c, retrieval: { ...c.retrieval, rerankScore: score } };
       } catch {
-        return { ...c, rerankScore: 0 };
+        return { ...c, retrieval: { ...c.retrieval, rerankScore: 0 } };
       }
-    })
+    }),
   );
-  scored.sort((a, b) => b.rerankScore - a.rerankScore);
-  return scored.map(({ rerankScore: _, ...r }) => r);
+  scored.sort((a, b) => (b.retrieval?.rerankScore ?? 0) - (a.retrieval?.rerankScore ?? 0));
+  return scored;
+}
+
+function attachMetrics(results: KbSearchResult[], metrics: RerankMetrics): KbSearchResult[] {
+  // Metrics surface exactKeywordHits, semanticHits, candidateCount, and rerankScore coverage to callers.
+  return results.map((result) => ({
+    ...result,
+    retrieval: { ...result.retrieval, metrics },
+  }));
 }
 
 export async function hybridKbSearch(opts: {
@@ -89,22 +111,58 @@ export async function hybridKbSearch(opts: {
     rerank = !!process.env.RERANK_MODEL,
   } = opts;
 
+  const startedAt = Date.now();
+  const tokenizedQuery = tokenizeSearchQuery(query);
   const queryVector = await embedQuery(query, ollamaUrl, embeddingModel);
   const searchLimit = limit * 3;
-  const kbFilter = knowledgeBaseId
-    ? sql`dc.metadata->>'knowledgeBaseId' = ${knowledgeBaseId} OR d.knowledge_base_id = ${knowledgeBaseId}::uuid`
-    : sql`true`;
+  const vectorBackendConfig = resolveVectorBackendConfig();
+  const backendResults = await searchVectorBackend(vectorBackendConfig, {
+    queryVector,
+    knowledgeBaseId,
+    limit: searchLimit,
+  });
+  if (backendResults.length > 0) {
+    const citedResults: KbSearchResult[] = backendResults.map((result) => ({
+      ...result,
+      citation: result.citation ?? createChunkCitation(result.sourceName ?? result.documentId, result.metadata ?? {}),
+      sourceType:
+        result.sourceType ?? (typeof result.metadata?.sourceType === "string" ? result.metadata.sourceType : undefined),
+      retrieval: {
+        vectorScore: result.similarity,
+        rrfScore: result.similarity,
+      },
+    }));
+    if (!rerank) {
+      const returned = citedResults.slice(0, limit);
+      return attachMetrics(returned, computeRerankMetrics(citedResults, returned, startedAt, "external-vector"));
+    }
+    const reranked = await rerankWithOllama(query, citedResults, ollamaUrl, process.env.RERANK_MODEL || embeddingModel);
+    const returned = reranked.slice(0, limit);
+    return attachMetrics(returned, computeRerankMetrics(citedResults, returned, startedAt, "external-vector-rerank"));
+  }
+
+  const keywordPredicate = buildKeywordPredicate(sql`dc.content`, tokenizedQuery.tokens);
+  const pgTrgmTieBreaker = sql`similarity(dc.content, ${query})`;
+  const bm25Score = sql`${buildBm25FallbackScore(sql`dc.content`, tokenizedQuery.tokens, tokenizedQuery.normalizedQuery)} + (${pgTrgmTieBreaker} * 0.05)`;
 
   const rows = await db.execute<{
     id: string;
     document_id: string;
     content: string;
     similarity: number;
+    vector_score: number | null;
+    text_score: number | null;
+    bm25_score: number | null;
+    rrf_score: number;
+    source_name: string;
+    mime_type: string | null;
+    source_url: string | null;
+    metadata: Record<string, unknown> | null;
   }>(sql`
     WITH
       vector_search AS (
         SELECT
-          dc.id, dc.document_id, dc.content,
+          dc.id, dc.document_id, dc.content, d.name AS source_name, d.mime_type AS mime_type, d.s3_url AS source_url, dc.metadata,
           1 - (dc.embedding <=> ${JSON.stringify(queryVector)}::vector) AS score,
           ROW_NUMBER() OVER (
             ORDER BY dc.embedding <=> ${JSON.stringify(queryVector)}::vector
@@ -117,28 +175,70 @@ export async function hybridKbSearch(opts: {
       ),
       fts_search AS (
         SELECT
-          dc.id, dc.document_id, dc.content,
-          ts_rank(dc.content_tsv, websearch_to_tsquery('english', ${query})) AS score,
+          dc.id, dc.document_id, dc.content, d.name AS source_name, d.mime_type AS mime_type, d.s3_url AS source_url, dc.metadata,
+          ts_rank_cd(dc.content_tsv, websearch_to_tsquery('english', ${tokenizedQuery.normalizedQuery}), 32) AS score,
           ROW_NUMBER() OVER (
-            ORDER BY ts_rank(dc.content_tsv, websearch_to_tsquery('english', ${query})) DESC
+            ORDER BY ts_rank_cd(dc.content_tsv, websearch_to_tsquery('english', ${tokenizedQuery.normalizedQuery}), 32) DESC
           ) AS rank
         FROM document_chunks dc
         INNER JOIN documents d ON d.id = dc.document_id
-        WHERE dc.content_tsv @@ websearch_to_tsquery('english', ${query})
+        WHERE dc.content_tsv @@ websearch_to_tsquery('english', ${tokenizedQuery.normalizedQuery})
           AND ${knowledgeBaseId ? sql`d.knowledge_base_id = ${knowledgeBaseId}::uuid AND d.status = 'indexed'` : sql`d.status = 'indexed'`}
         LIMIT ${searchLimit}
       ),
+      bm25_search AS (
+        SELECT
+          dc.id, dc.document_id, dc.content, d.name AS source_name, d.mime_type AS mime_type, d.s3_url AS source_url, dc.metadata,
+          ${bm25Score} AS score,
+          ROW_NUMBER() OVER (
+            ORDER BY ${bm25Score} DESC
+          ) AS rank
+        FROM document_chunks dc
+        INNER JOIN documents d ON d.id = dc.document_id
+        WHERE ${keywordPredicate}
+          AND ${knowledgeBaseId ? sql`d.knowledge_base_id = ${knowledgeBaseId}::uuid AND d.status = 'indexed'` : sql`d.status = 'indexed'`}
+        LIMIT ${searchLimit}
+      ),
+      rrf_source AS (
+        SELECT id, document_id, content, source_name, mime_type, source_url, metadata,
+          score AS vector_score,
+          NULL::float AS text_score,
+          NULL::float AS bm25_score,
+          1.0 / (${RRF_K} + rank) AS rrf_score
+        FROM vector_search
+        UNION ALL
+        SELECT id, document_id, content, source_name, mime_type, source_url, metadata,
+          NULL::float AS vector_score,
+          score AS text_score,
+          NULL::float AS bm25_score,
+          1.0 / (${RRF_K} + rank) AS rrf_score
+        FROM fts_search
+        UNION ALL
+        SELECT id, document_id, content, source_name, mime_type, source_url, metadata,
+          NULL::float AS vector_score,
+          NULL::float AS text_score,
+          score AS bm25_score,
+          1.0 / (${RRF_K} + rank) AS rrf_score
+        FROM bm25_search
+      ),
       rrf AS (
         SELECT
-          COALESCE(v.id, f.id) AS id,
-          COALESCE(v.document_id, f.document_id) AS document_id,
-          COALESCE(v.content, f.content) AS content,
-          COALESCE(1.0 / (${RRF_K} + v.rank), 0) +
-            COALESCE(1.0 / (${RRF_K} + f.rank), 0) AS similarity
-        FROM vector_search v
-        FULL OUTER JOIN fts_search f ON v.id = f.id
+          id,
+          document_id,
+          content,
+          source_name,
+          mime_type,
+          source_url,
+          metadata,
+          MAX(vector_score) AS vector_score,
+          MAX(text_score) AS text_score,
+          MAX(bm25_score) AS bm25_score,
+          SUM(rrf_score) AS rrf_score,
+          SUM(rrf_score) AS similarity
+        FROM rrf_source
+        GROUP BY id, document_id, content, source_name, mime_type, source_url, metadata
       )
-    SELECT id, document_id, content, similarity
+    SELECT id, document_id, content, source_name, mime_type, source_url, metadata, vector_score, text_score, bm25_score, rrf_score, similarity
     FROM rrf
     ORDER BY similarity DESC
     LIMIT ${rerank ? searchLimit : limit}
@@ -149,11 +249,27 @@ export async function hybridKbSearch(opts: {
     documentId: r.document_id,
     content: r.content,
     similarity: Number(r.similarity),
+    sourceName: r.source_name,
+    sourceType: typeof r.metadata?.sourceType === "string" ? r.metadata.sourceType : undefined,
+    mimeType: r.mime_type ?? undefined,
+    sourceUrl: r.source_url ?? undefined,
+    metadata: r.metadata ?? undefined,
+    citation: createChunkCitation(r.source_name, r.metadata ?? {}),
+    retrieval: {
+      vectorScore: r.vector_score ?? undefined,
+      textScore: r.text_score ?? undefined,
+      bm25Score: r.bm25_score ?? undefined,
+      rrfScore: r.rrf_score,
+    },
   }));
 
-  if (!rerank || results.length === 0) return results.slice(0, limit);
+  if (!rerank || results.length === 0) {
+    const returned = results.slice(0, limit);
+    return attachMetrics(returned, computeRerankMetrics(results, returned, startedAt, "hybrid-rrf"));
+  }
 
   const rerankModel = process.env.RERANK_MODEL || embeddingModel;
   const reranked = await rerankWithOllama(query, results, ollamaUrl, rerankModel);
-  return reranked.slice(0, limit);
+  const returned = reranked.slice(0, limit);
+  return attachMetrics(returned, computeRerankMetrics(results, returned, startedAt, "hybrid-rrf-rerank"));
 }

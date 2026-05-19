@@ -1,0 +1,46 @@
+appId: com.agenthub.desktop
+productName: AgentHub
+directories:
+  output: release
+  buildResources: build
+files:
+  - from: dist
+    to: dist
+    filter:
+      - "**/*"
+  # dist/** is packaged through the explicit file set above so root ignore rules cannot drop it.
+  - package.json
+  - resources/web/**
+  - "!**/.env"
+  - "!**/.env.local"
+  - "!**/.env.*local"
+  - "!data/postgres/**"
+  - "!data/redis/**"
+  - "!data/minio/**"
+  - "!**/node_modules/.cache/**"
+extraResources:
+  - from: resources/web
+    to: web
+publish:
+  - provider: github
+    owner: cameron0823
+    repo: AgentHub
+    releaseType: release
+asar: true
+asarUnpack:
+  - resources/web/**
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+linux:
+  target:
+    - AppImage
+mac:
+  target:
+    - dmg

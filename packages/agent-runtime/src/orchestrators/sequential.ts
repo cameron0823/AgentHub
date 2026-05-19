@@ -29,7 +29,13 @@ export class SequentialOrchestrator extends BaseOrchestrator {
           yield { type: "agent_output", groupId: options.group.id, agentId: agent.id, agentName: agent.name, chunk };
         }
         outputs.push(result);
-        yield { type: "agent_complete", groupId: options.group.id, agentId: agent.id, agentName: agent.name, output: result.output };
+        yield {
+          type: "agent_complete",
+          groupId: options.group.id,
+          agentId: agent.id,
+          agentName: agent.name,
+          output: result.output,
+        };
       } catch (err) {
         yield {
           type: "error",

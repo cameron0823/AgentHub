@@ -17,11 +17,7 @@ test("MCP router gates all operations behind authedProcedure", async () => {
 test("MCP router scopes list to authenticated user only", async () => {
   const src = await readText("apps/web/src/server/routers/mcp.ts");
 
-  assert.match(
-    src,
-    /eq\(mcpServers\.userId, ctx\.user\.id\)/,
-    "list must filter mcpServers by ctx.user.id"
-  );
+  assert.match(src, /eq\(mcpServers\.userId, ctx\.user\.id\)/, "list must filter mcpServers by ctx.user.id");
 });
 
 test("MCP router create stamps userId from session — not from input", async () => {
@@ -37,7 +33,7 @@ test("MCP router update enforces ownership — compound id AND userId check", as
   assert.match(
     src,
     /and\(eq\(mcpServers\.id, id\), eq\(mcpServers\.userId, ctx\.user\.id\)\)/,
-    "update WHERE clause must include userId ownership"
+    "update WHERE clause must include userId ownership",
   );
 });
 
@@ -47,7 +43,7 @@ test("MCP router delete enforces ownership — compound id AND userId check", as
   assert.match(
     src,
     /db\.delete\(mcpServers\).*and\(eq\(mcpServers\.id, input\.id\), eq\(mcpServers\.userId, ctx\.user\.id\)\)/s,
-    "delete must use compound ownership check"
+    "delete must use compound ownership check",
   );
 });
 
@@ -57,7 +53,7 @@ test("MCP router test verifies server ownership before connecting", async () => 
   assert.match(
     src,
     /and\(eq\(mcpServers\.id, input\.id\), eq\(mcpServers\.userId, ctx\.user\.id\)\)/,
-    "test must verify server belongs to authenticated user before connecting"
+    "test must verify server belongs to authenticated user before connecting",
   );
 });
 
@@ -75,25 +71,22 @@ test("MCP router validateCommand rejects command strings containing shell metach
   const src = await readText("apps/web/src/server/routers/mcp.ts");
 
   assert.match(src, /validateCommand/, "must define validateCommand helper");
-  assert.match(
-    src,
-    /SHELL_METACHAR_RE\.test\(command\)/,
-    "validateCommand must test command against metachar regex"
-  );
-  assert.match(
-    src,
-    /forbidden shell metacharacters/,
-    "rejection message must mention forbidden shell metacharacters"
-  );
+  assert.match(src, /SHELL_METACHAR_RE\.test\(command\)/, "validateCommand must test command against metachar regex");
+  assert.match(src, /forbidden shell metacharacters/, "rejection message must mention forbidden shell metacharacters");
 });
 
-test("MCP router calls validateCommand on both create and discover before executing", async () => {
+test("MCP router calls validation on create, update, and discover before executing", async () => {
   const src = await readText("apps/web/src/server/routers/mcp.ts");
 
-  const validateCalls = (src.match(/validateCommand\(/g) ?? []).length;
+  const validateCalls = (src.match(/validateMcpConfig\(/g) ?? []).length;
   assert.ok(
     validateCalls >= 3,
-    `validateCommand must be called for create, update, and discover (found ${validateCalls} calls)`
+    `validateMcpConfig must be called for create, update, and discover (found ${validateCalls} calls)`,
+  );
+  assert.match(
+    src,
+    /validateCommand\(input\.command \?\? undefined\)/,
+    "validateMcpConfig must still enforce stdio command safety",
   );
 });
 
@@ -106,7 +99,7 @@ test("MCPClient imports spawn not exec from child_process", async () => {
   assert.doesNotMatch(
     src,
     /import.*\bexec\b.*from "child_process"/,
-    "must NOT import exec — exec passes command through a shell"
+    "must NOT import exec — exec passes command through a shell",
   );
 });
 
@@ -116,7 +109,7 @@ test("MCPClient uses spawn with args array — not a shell command string", asyn
   assert.match(
     src,
     /spawn\(this\.options\.command,\s*this\.options\.args/,
-    "spawn must receive command and args array separately, not a single shell string"
+    "spawn must receive command and args array separately, not a single shell string",
   );
 });
 
@@ -132,7 +125,7 @@ test("MCPClient stdio transport uses pipe for stdin, stdout, stderr", async () =
   assert.match(
     src,
     /stdio.*pipe.*pipe.*pipe/,
-    "must use pipe for all three stdio streams to avoid inheriting host terminal"
+    "must use pipe for all three stdio streams to avoid inheriting host terminal",
   );
 });
 
@@ -148,11 +141,7 @@ test("MCPClient communicates over stdio using JSON-RPC line protocol", async () 
 test("MCPClient disconnect cleans up child process to prevent zombie processes", async () => {
   const src = await readText("packages/agent-runtime/src/mcp/client.ts");
 
-  assert.match(
-    src,
-    /disconnect|kill|destroy|end/,
-    "must implement disconnect to clean up child process"
-  );
+  assert.match(src, /disconnect|kill|destroy|end/, "must implement disconnect to clean up child process");
 });
 
 // ── MCP router in app router ──────────────────────────────────────────────────
@@ -162,4 +151,23 @@ test("MCP router is registered in app router", async () => {
 
   assert.match(src, /mcpRouter/, "mcpRouter must be imported");
   assert.match(src, /mcp.*mcpRouter/, "mcp must be registered in appRouter");
+});
+
+test("MCP execution endpoint enforces ownership and governance before dispatch", async () => {
+  const [route, execution, spec] = await Promise.all([
+    readText("apps/web/src/app/api/mcp/call/route.ts"),
+    readText("apps/web/src/server/mcp-execution.ts"),
+    readText("apps/web/tests/e2e/specs/phase-h/mcp-execution.spec.ts"),
+  ]);
+
+  assert.match(route, /auth\(req\.headers\)/, "MCP execution endpoint must require session auth");
+  assert.match(route, /executeMcpToolForUser/, "route must delegate to the shared execution guard");
+  assert.match(execution, /eq\(mcpServers\.userId, input\.userId\)/, "execution must scope servers to the user");
+  assert.match(execution, /enforceMcpGovernance/, "execution must enforce MCP governance before tool dispatch");
+  assert.match(execution, /client\.callTool/, "execution must call the selected MCP tool after governance passes");
+  assert.match(spec, /createServer/, "E2E proof must use a real HTTP MCP fixture server");
+  assert.match(spec, /\/api\/mcp\/call/, "E2E proof must call the running app execution endpoint");
+  assert.match(spec, /toolName: "echo"/, "E2E proof must execute an allowed tool");
+  assert.match(spec, /toolName: "delete_all"/, "E2E proof must attempt a denied unsafe tool");
+  assert.match(spec, /expect\(calls\)\.toEqual\(\["echo"\]\)/, "denied tool must not reach the fixture server");
 });

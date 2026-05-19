@@ -14,7 +14,7 @@ async function readText(rel) {
 describe("MCP server settings", () => {
   it("mcpServers schema has transport, command, url, and enabled columns", async () => {
     const src = await readText("apps/web/src/server/db/schema.ts");
-    assert.match(src, /mcpServers = pgTable\("mcp_servers"/, "must define mcp_servers table");
+    assert.match(src, /mcpServers = pgTable\(\s*\"mcp_servers\"/, "must define mcp_servers table");
     assert.match(src, /transport.*text|text.*transport/, "must have transport column");
     assert.match(src, /command.*text|text.*command/, "must have command column");
     assert.match(src, /url.*text|text.*url/, "must have url column");
@@ -36,9 +36,12 @@ describe("MCP server settings", () => {
     assert.match(src, /and\(eq\(mcpServers\.id/, "must check both id and userId for mutations");
   });
 
-  it("mcpRouter validates transport enum as stdio or http", async () => {
+  it("mcpRouter validates transport enum as stdio, http, streamable HTTP, or SSE", async () => {
     const src = await readText("apps/web/src/server/routers/mcp.ts");
-    assert.match(src, /z\.enum\(\["stdio", "http"\]\)/, "transport must be constrained to stdio or http");
+    const config = await readText("apps/web/src/server/mcp-config.ts");
+    assert.match(src, /MCP_TRANSPORTS/, "transport must use the centralized supported transport list");
+    assert.match(config, /"streamable-http"/, "transport must include streamable HTTP");
+    assert.match(config, /"sse"/, "transport must include SSE");
   });
 
   it("test procedure uses MCPClient from agent-runtime and returns tool count", async () => {

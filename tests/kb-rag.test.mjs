@@ -17,11 +17,7 @@ test("KB router gates all operations behind authedProcedure", async () => {
 test("KB router list scopes to authenticated user only", async () => {
   const src = await readText("apps/web/src/server/routers/kb.ts");
 
-  assert.match(
-    src,
-    /eq\(knowledgeBases\.userId, ctx\.user\.id\)/,
-    "list must filter knowledgeBases by ctx.user.id"
-  );
+  assert.match(src, /eq\(knowledgeBases\.userId, ctx\.user\.id\)/, "list must filter knowledgeBases by ctx.user.id");
 });
 
 test("KB router delete enforces ownership — compound check on id and userId", async () => {
@@ -30,18 +26,14 @@ test("KB router delete enforces ownership — compound check on id and userId", 
   assert.match(
     src,
     /and\(eq\(knowledgeBases\.id, input\.id\), eq\(knowledgeBases\.userId, ctx\.user\.id\)\)/,
-    "delete must use compound ownership check (id AND userId)"
+    "delete must use compound ownership check (id AND userId)",
   );
 });
 
 test("KB router documents scopes to authenticated user's knowledge base", async () => {
   const src = await readText("apps/web/src/server/routers/kb.ts");
 
-  assert.match(
-    src,
-    /eq\(documents\.userId, ctx\.user\.id\)/,
-    "documents must filter by ctx.user.id"
-  );
+  assert.match(src, /eq\(documents\.userId, ctx\.user\.id\)/, "documents must filter by ctx.user.id");
 });
 
 test("KB router query verifies KB ownership before performing search", async () => {
@@ -50,7 +42,7 @@ test("KB router query verifies KB ownership before performing search", async () 
   assert.match(
     src,
     /eq\(knowledgeBases\.userId, ctx\.user\.id\)/,
-    "query must verify KB belongs to the authenticated user"
+    "query must verify KB belongs to the authenticated user",
   );
 });
 
@@ -73,34 +65,25 @@ test("KB query API route requires session authentication", async () => {
 test("KB query API route scopes search to authenticated user's KB", async () => {
   const src = await readText("apps/web/src/app/api/kb/query/route.ts");
 
-  assert.match(
-    src,
-    /eq\(knowledgeBases\.userId, session\.user\.id\)/,
-    "route must verify KB ownership before search"
-  );
+  assert.match(src, /eq\(knowledgeBases\.userId, session\.user\.id\)/, "route must verify KB ownership before search");
 });
 
 // ── kb-search.ts: SSRF protection ────────────────────────────────────────────
 
 test("validateOllamaUrl rejects non-http/https protocols to prevent SSRF", async () => {
-  const src = await readText("apps/web/src/server/kb-search.ts");
+  const [src, outbound] = await Promise.all([
+    readText("apps/web/src/server/kb-search.ts"),
+    readText("apps/web/src/server/security/outbound.ts"),
+  ]);
 
-  assert.match(src, /validateOllamaUrl/, "must export validateOllamaUrl");
-  assert.match(
-    src,
-    /protocol.*http/,
-    "must check that URL protocol is http or https"
-  );
+  assert.match(src, /validateProviderBaseUrl/, "must use centralized provider base URL validation");
+  assert.match(outbound, /protocol.*http/, "must check that URL protocol is http or https");
 });
 
 test("validateOllamaUrl falls back to localhost when URL is invalid", async () => {
-  const src = await readText("apps/web/src/server/kb-search.ts");
+  const src = await readText("apps/web/src/server/security/outbound.ts");
 
-  assert.match(
-    src,
-    /localhost/,
-    "must fall back to localhost Ollama URL on invalid input"
-  );
+  assert.match(src, /localhost/, "must fall back to localhost Ollama URL on invalid input");
 });
 
 // ── kb-search.ts: hybrid search ──────────────────────────────────────────────
@@ -110,11 +93,7 @@ test("hybridKbSearch is exported and performs RRF fusion of vector and full-text
 
   assert.match(src, /hybridKbSearch/, "must export hybridKbSearch");
   assert.match(src, /tsvector|tsv|full.?text/i, "must include full-text search component");
-  assert.match(
-    src,
-    /cosine|<=>|pgvector/i,
-    "must include vector cosine similarity component"
-  );
+  assert.match(src, /cosine|<=>|pgvector/i, "must include vector cosine similarity component");
 });
 
 test("hybridKbSearch uses RRF (Reciprocal Rank Fusion) to merge result sets", async () => {
@@ -131,7 +110,7 @@ test("embedding function guards against non-finite values before vector insert",
   assert.match(
     src,
     /non-numeric or non-finite|isFinite|Number\.isFinite/,
-    "must guard against non-finite embedding values"
+    "must guard against non-finite embedding values",
   );
 });
 
@@ -156,24 +135,12 @@ test("rerankWithOllama scores candidates via LLM prompt and re-sorts results", a
 test("knowledgeBases schema userId references users table", async () => {
   const src = await readText("apps/web/src/server/db/schema.ts");
 
-  assert.match(
-    src,
-    /knowledge_bases|knowledgeBases/,
-    "schema must define knowledge_bases table"
-  );
-  assert.match(
-    src,
-    /user_id.*references.*users.*id/,
-    "knowledge_bases userId must reference users table"
-  );
+  assert.match(src, /knowledge_bases|knowledgeBases/, "schema must define knowledge_bases table");
+  assert.match(src, /user_id.*references.*users.*id/, "knowledge_bases userId must reference users table");
 });
 
 test("documents schema userId references users table and KB", async () => {
   const src = await readText("apps/web/src/server/db/schema.ts");
 
-  assert.match(
-    src,
-    /documents/,
-    "schema must define documents table"
-  );
+  assert.match(src, /documents/, "schema must define documents table");
 });

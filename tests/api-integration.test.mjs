@@ -25,7 +25,7 @@ test("API key router scopes all DB operations to the authenticated user", async 
   assert.match(
     src,
     /and\(eq\(apiKeys\.id, input\.id\), eq\(apiKeys\.userId, ctx\.user\.id\)\)/,
-    "revoke/delete must use compound ownership check"
+    "revoke/delete must use compound ownership check",
   );
 });
 
@@ -155,14 +155,13 @@ test("A2A delegate endpoint requires session authentication", async () => {
 });
 
 test("A2A delegate enforces agent ownership before execution", async () => {
-  const src = await readText("apps/web/src/app/api/a2a/delegate/route.ts");
+  const [src, helper] = await Promise.all([
+    readText("apps/web/src/app/api/a2a/delegate/route.ts"),
+    readText("apps/web/src/server/a2a.ts"),
+  ]);
 
-  assert.match(
-    src,
-    /eq\(agents\.userId, session\.user\.id\)/,
-    "must verify agent belongs to authenticated user"
-  );
-  assert.match(src, /status: 404/, "must return 404 when agent not found or not owned");
+  assert.match(helper, /eq\(agents\.userId, input\.userId\)/, "must verify agent belongs to authenticated user");
+  assert.match(src, /message === "Agent not found" \? 404/, "must return 404 when agent not found or not owned");
 });
 
 test("A2A delegate enforces task length limit", async () => {
@@ -204,7 +203,10 @@ test("PWA icon files exist at paths declared in manifest", async () => {
     const buf = await readFile(new URL(`../${relPath}`, import.meta.url));
     // Verify PNG signature
     const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-    assert.ok(PNG_SIG.every((b, i) => buf[i] === b), `${icon.src} must be a valid PNG`);
+    assert.ok(
+      PNG_SIG.every((b, i) => buf[i] === b),
+      `${icon.src} must be a valid PNG`,
+    );
     assert.ok(buf.length > 100, `${icon.src} must not be empty`);
   }
 });
@@ -216,7 +218,9 @@ test("Service worker is registered client-side and covers static assets", async 
   ]);
 
   assert.match(registrar, /"serviceWorker" in navigator/, "must check serviceWorker support");
-  assert.match(registrar, /register\("\/sw\.js"\)/, "must register /sw.js");
+  assert.match(registrar, /navigator\.serviceWorker\.register/, "must register a service worker");
+  assert.match(registrar, /return "\/sw\.js"/, "must use /sw.js when Trusted Types is unavailable");
+  assert.match(registrar, /createScriptURL\("\/sw\.js"\)/, "must register /sw.js through Trusted Types policy");
   assert.match(sw, /cache-first/, "service worker must implement cache-first strategy for static assets");
   assert.match(sw, /\/api\//, "service worker must skip API routes");
   assert.match(sw, /\/trpc\//, "service worker must skip tRPC routes");
@@ -264,17 +268,37 @@ test("Trust engine migration scopes tables to user and cascades deletes", async 
 test("Trust engine migration has audit log outcome CHECK constraint", async () => {
   const sql = await readText("apps/web/drizzle/0005_trust_engine.sql");
 
-  assert.match(
-    sql,
-    /CHECK \(outcome IN \('success', 'denied', 'error'\)\)/,
-    "outcome must have CHECK constraint"
-  );
+  assert.match(sql, /CHECK \(outcome IN \('success', 'denied', 'error'\)\)/, "outcome must have CHECK constraint");
+});
+
+test("Trust engine hardening adds tamper-evident audit hash chain columns", async () => {
+  const [schema, migration, trustEngine] = await Promise.all([
+    readText("apps/web/src/server/db/schema.ts"),
+    readText("apps/web/drizzle/0027_trust_engine_hardening.sql"),
+    readText("apps/web/src/server/trust-engine.ts"),
+  ]);
+
+  assert.match(schema, /previousHash: text\(\s*\"previous_hash\"\)/, "audit schema must store previous hash");
+  assert.match(schema, /entryHash: text\(\s*\"entry_hash\"\)/, "audit schema must store entry hash");
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS "previous_hash"/, "migration must add previous_hash");
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS "entry_hash"/, "migration must add entry_hash");
+  assert.match(trustEngine, /computeCredentialAuditHash/, "trust engine must compute audit hashes");
+  assert.match(trustEngine, /appendCredentialAuditLog/, "audit writes must flow through append helper");
+  assert.match(trustEngine, /AUDIT_GENESIS_HASH/, "hash chain must define genesis hash");
 });
 
 test("Trust engine router enforces authedProcedure on all operations", async () => {
   const src = await readText("apps/web/src/server/routers/trust.ts");
 
-  for (const proc of ["listCredentials", "createCredential", "deleteCredential", "getPolicy", "upsertPolicy", "deletePolicy", "auditLog"]) {
+  for (const proc of [
+    "listCredentials",
+    "createCredential",
+    "deleteCredential",
+    "getPolicy",
+    "upsertPolicy",
+    "deletePolicy",
+    "auditLog",
+  ]) {
     assert.match(src, new RegExp(`${proc}: authedProcedure`), `${proc} must use authedProcedure`);
   }
 });
@@ -293,6 +317,7 @@ test("Trust engine uses AES-256-GCM encryption with separate iv and authTag", as
   const src = await readText("apps/web/src/server/trust-engine.ts");
 
   assert.match(src, /aes-256-gcm/, "must use AES-256-GCM algorithm");
+  assert.match(src, /TRUST_VAULT_BOUNDARY/, "must expose an explicit vault isolation boundary");
   assert.match(src, /randomBytes/, "must generate random IV per encryption");
   assert.match(src, /getAuthTag/, "must capture GCM auth tag for integrity");
   assert.match(src, /setAuthTag/, "must verify auth tag on decryption");
@@ -306,7 +331,7 @@ test("Trust engine throws if TRUST_ENGINE_SECRET env var is missing", async () =
   assert.doesNotMatch(
     src,
     /NEXTAUTH_SECRET.*insecure|insecure.*NEXTAUTH_SECRET/,
-    "must not cascade from NEXTAUTH_SECRET to insecure fallback"
+    "must not cascade from NEXTAUTH_SECRET to insecure fallback",
   );
   // Must explicitly check for missing env var and throw
   assert.match(src, /TRUST_ENGINE_SECRET/, "must reference TRUST_ENGINE_SECRET");
@@ -320,7 +345,7 @@ test("Trust engine uses PBKDF2 key derivation, not a raw hash", async () => {
   assert.doesNotMatch(
     src,
     /createHash\("sha256"\)\.update\(secret\)\.digest\(\)/,
-    "must not use single SHA-256 hash for key derivation"
+    "must not use single SHA-256 hash for key derivation",
   );
 });
 
@@ -330,7 +355,25 @@ test("Trust engine keyHint is a hash fingerprint, not plaintext prefix", async (
   // Must not slice plaintext (first 4 chars exposure)
   assert.doesNotMatch(src, /rawValue\.slice\(0, 4\)/, "keyHint must not expose first 4 chars of plaintext");
   // Must use SHA-256 hash fingerprint
-  assert.match(src, /createHash\("sha256"\).*keyHint|keyHint.*createHash\("sha256"\)/s, "keyHint must use SHA-256 fingerprint");
+  assert.match(
+    src,
+    /createHash\("sha256"\).*keyHint|keyHint.*createHash\("sha256"\)/s,
+    "keyHint must use SHA-256 fingerprint",
+  );
+});
+
+test("Trust engine enforces secret-use policy before credential resolution", async () => {
+  const src = await readText("apps/web/src/server/trust-engine.ts");
+
+  assert.match(src, /enforceSecretUsePolicy/, "must expose credential-use policy enforcement");
+  assert.match(src, /trustPolicies/, "must inspect trust policies");
+  assert.match(src, /allowedTools/, "must enforce allowed tool list");
+  assert.match(src, /Trust policy denied credential use/, "denied secret use must be audited");
+  assert.match(
+    src,
+    /if \(!\(await enforceSecretUsePolicy\(opts\)\)\) return null/,
+    "resolveCredential must enforce policy before decrypting",
+  );
 });
 
 test("Trust engine deleteCredential returns NOT_FOUND for non-existent credentials", async () => {

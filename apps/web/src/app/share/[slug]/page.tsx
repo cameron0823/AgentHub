@@ -21,11 +21,7 @@ export default async function SharePage({ params }: Props) {
 
   if (!session) notFound();
 
-  const msgs = await db
-    .select()
-    .from(messages)
-    .where(eq(messages.sessionId, session.id))
-    .orderBy(messages.createdAt);
+  const msgs = await db.select().from(messages).where(eq(messages.sessionId, session.id)).orderBy(messages.createdAt);
 
   let agentName: string | null = null;
   if (session.agentId) {
@@ -34,41 +30,41 @@ export default async function SharePage({ params }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b px-6 py-4 flex items-center gap-3">
+    <div className="agenthub-page min-h-screen">
+      <header className="agenthub-window mx-auto flex max-w-5xl items-center gap-3 px-6 py-4">
         <div>
-          <h1 className="font-semibold text-lg">{session.title}</h1>
+          <h1 className="text-lg font-semibold">{session.title}</h1>
           {agentName && <p className="text-sm text-muted-foreground">with {agentName}</p>}
         </div>
         <div className="ml-auto">
-          <Link
-            href="/"
-            className="text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
-          >
+          <Link href="/" className="agenthub-primary-button rounded-xl px-3 py-2 text-sm font-medium">
             Fork this conversation
           </Link>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto py-8 px-4 space-y-1">
+      <main className="mx-auto max-w-3xl space-y-2 px-4 py-8">
         {msgs
           .filter((m) => m.role === "user" || m.role === "assistant")
           .map((m) => (
-            <div key={m.id} className={`flex gap-3 px-4 py-5 ${m.role === "user" ? "bg-muted/30 rounded-lg" : ""}`}>
-              <div className="flex-shrink-0 mt-1">
+            <div
+              key={m.id}
+              className={`flex gap-3 rounded-2xl px-4 py-5 ${m.role === "user" ? "bg-white/10" : "agenthub-glass-panel"}`}
+            >
+              <div className="mt-1 flex-shrink-0">
                 {m.role === "user" ? (
-                  <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary">
                     <User className="w-4 h-4 text-primary-foreground" />
                   </div>
                 ) : (
-                  <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10">
                     <Bot className="w-4 h-4" />
                   </div>
                 )}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm mb-1">{m.role === "user" ? "You" : agentName ?? "Assistant"}</div>
-                <div className="text-sm whitespace-pre-wrap">{m.content}</div>
+              <div className="min-w-0 flex-1">
+                <div className="mb-1 text-sm font-medium">{m.role === "user" ? "You" : (agentName ?? "Assistant")}</div>
+                <div className="whitespace-pre-wrap text-sm">{m.content}</div>
               </div>
             </div>
           ))}

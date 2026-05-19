@@ -14,7 +14,7 @@ async function readText(rel) {
 describe("Prompt Library", () => {
   it("promptLibrary schema has required columns", async () => {
     const src = await readText("apps/web/src/server/db/schema.ts");
-    assert.match(src, /promptLibrary = pgTable\("prompt_library"/, "must define prompt_library table");
+    assert.match(src, /promptLibrary = pgTable\(\s*\"prompt_library\"/, "must define prompt_library table");
     assert.match(src, /title.*text|text.*title/, "must have title column");
     assert.match(src, /content.*text|text.*content/, "must have content column");
     assert.match(src, /isPinned.*boolean|boolean.*isPinned/, "must have isPinned boolean column");
@@ -35,7 +35,11 @@ describe("Prompt Library", () => {
     const src = await readText("apps/web/src/server/routers/promptLibrary.ts");
     assert.match(src, /ctx\.user\.id/, "must reference authenticated user id");
     assert.match(src, /eq\(promptLibrary\.userId, ctx\.user\.id\)/, "must scope queries to user");
-    assert.match(src, /and\(eq\(promptLibrary\.id, (?:input\.id|id)\), eq\(promptLibrary\.userId, ctx\.user\.id\)\)/, "must check both id and userId for mutations");
+    assert.match(
+      src,
+      /and\(eq\(promptLibrary\.id, (?:input\.id|id)\), eq\(promptLibrary\.userId, ctx\.user\.id\)\)/,
+      "must check both id and userId for mutations",
+    );
   });
 
   it("list query supports full-text search across title and content", async () => {

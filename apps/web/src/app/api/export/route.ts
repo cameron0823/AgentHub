@@ -20,17 +20,17 @@ function buildZip(entries: { name: string; data: Buffer }[]): Buffer {
 
     // Local file header
     const local = Buffer.alloc(30 + nameBytes.length);
-    local.writeUInt32LE(0x04034b50, 0);   // signature
-    local.writeUInt16LE(20, 4);            // version needed
-    local.writeUInt16LE(0, 6);             // flags
-    local.writeUInt16LE(0, 8);             // compression: STORE
+    local.writeUInt32LE(0x04034b50, 0); // signature
+    local.writeUInt16LE(20, 4); // version needed
+    local.writeUInt16LE(0, 6); // flags
+    local.writeUInt16LE(0, 8); // compression: STORE
     local.writeUInt16LE(now.time, 10);
     local.writeUInt16LE(now.date, 12);
     local.writeUInt32LE(crc, 14);
-    local.writeUInt32LE(size, 18);         // compressed size
-    local.writeUInt32LE(size, 22);         // uncompressed size
+    local.writeUInt32LE(size, 18); // compressed size
+    local.writeUInt32LE(size, 22); // uncompressed size
     local.writeUInt16LE(nameBytes.length, 26);
-    local.writeUInt16LE(0, 28);            // extra field length
+    local.writeUInt16LE(0, 28); // extra field length
     nameBytes.copy(local, 30);
 
     localHeaders.push(local);
@@ -38,23 +38,23 @@ function buildZip(entries: { name: string; data: Buffer }[]): Buffer {
 
     // Central directory entry
     const central = Buffer.alloc(46 + nameBytes.length);
-    central.writeUInt32LE(0x02014b50, 0);  // signature
-    central.writeUInt16LE(20, 4);           // version made by
-    central.writeUInt16LE(20, 6);           // version needed
-    central.writeUInt16LE(0, 8);            // flags
-    central.writeUInt16LE(0, 10);           // compression: STORE
+    central.writeUInt32LE(0x02014b50, 0); // signature
+    central.writeUInt16LE(20, 4); // version made by
+    central.writeUInt16LE(20, 6); // version needed
+    central.writeUInt16LE(0, 8); // flags
+    central.writeUInt16LE(0, 10); // compression: STORE
     central.writeUInt16LE(now.time, 12);
     central.writeUInt16LE(now.date, 14);
     central.writeUInt32LE(crc, 16);
-    central.writeUInt32LE(size, 20);        // compressed size
-    central.writeUInt32LE(size, 24);        // uncompressed size
+    central.writeUInt32LE(size, 20); // compressed size
+    central.writeUInt32LE(size, 24); // uncompressed size
     central.writeUInt16LE(nameBytes.length, 28);
-    central.writeUInt16LE(0, 30);           // extra length
-    central.writeUInt16LE(0, 32);           // comment length
-    central.writeUInt16LE(0, 34);           // disk start
-    central.writeUInt16LE(0, 36);           // internal attrs
-    central.writeUInt32LE(0, 38);           // external attrs
-    central.writeUInt32LE(offset, 42);      // local header offset
+    central.writeUInt16LE(0, 30); // extra length
+    central.writeUInt16LE(0, 32); // comment length
+    central.writeUInt16LE(0, 34); // disk start
+    central.writeUInt16LE(0, 36); // internal attrs
+    central.writeUInt32LE(0, 38); // external attrs
+    central.writeUInt32LE(offset, 42); // local header offset
     nameBytes.copy(central, 46);
 
     centralDirs.push(central);
@@ -63,14 +63,14 @@ function buildZip(entries: { name: string; data: Buffer }[]): Buffer {
 
   const centralBuf = Buffer.concat(centralDirs);
   const endRecord = Buffer.alloc(22);
-  endRecord.writeUInt32LE(0x06054b50, 0);  // signature
-  endRecord.writeUInt16LE(0, 4);            // disk number
-  endRecord.writeUInt16LE(0, 6);            // start disk
+  endRecord.writeUInt32LE(0x06054b50, 0); // signature
+  endRecord.writeUInt16LE(0, 4); // disk number
+  endRecord.writeUInt16LE(0, 6); // start disk
   endRecord.writeUInt16LE(entries.length, 8);
   endRecord.writeUInt16LE(entries.length, 10);
   endRecord.writeUInt32LE(centralBuf.length, 12);
   endRecord.writeUInt32LE(offset, 16);
-  endRecord.writeUInt16LE(0, 20);           // comment length
+  endRecord.writeUInt16LE(0, 20); // comment length
 
   return Buffer.concat([...localHeaders, centralBuf, endRecord]);
 }
@@ -118,13 +118,10 @@ export async function GET(req: NextRequest) {
 
   // Fetch messages for all sessions
   const sessionIds = userSessions.map((s) => s.id);
-  const allMessages = sessionIds.length > 0
-    ? await Promise.all(
-        sessionIds.map((sid) =>
-          db.select().from(messages).where(eq(messages.sessionId, sid))
-        )
-      )
-    : [];
+  const allMessages =
+    sessionIds.length > 0
+      ? await Promise.all(sessionIds.map((sid) => db.select().from(messages).where(eq(messages.sessionId, sid))))
+      : [];
 
   const sessionsWithMessages = userSessions.map((s, i) => ({
     ...s,
@@ -138,10 +135,7 @@ export async function GET(req: NextRequest) {
     },
     {
       name: "sessions.jsonl",
-      data: Buffer.from(
-        sessionsWithMessages.map((s) => JSON.stringify(s)).join("\n"),
-        "utf8"
-      ),
+      data: Buffer.from(sessionsWithMessages.map((s) => JSON.stringify(s)).join("\n"), "utf8"),
     },
     {
       name: "memory.json",
@@ -151,11 +145,17 @@ export async function GET(req: NextRequest) {
       name: "files.json",
       data: Buffer.from(
         JSON.stringify(
-          userFiles.map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, size: f.size, createdAt: f.createdAt })),
+          userFiles.map((f) => ({
+            id: f.id,
+            name: f.name,
+            mimeType: f.mimeType,
+            size: f.size,
+            createdAt: f.createdAt,
+          })),
           null,
-          2
+          2,
         ),
-        "utf8"
+        "utf8",
       ),
     },
   ];

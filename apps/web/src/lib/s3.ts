@@ -1,4 +1,10 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const endpoint = process.env.S3_ENDPOINT || "http://localhost:9000";
@@ -14,7 +20,7 @@ export const s3Client = new S3Client({
   forcePathStyle: true,
 });
 
-export async function getUploadUrl(key: string, contentType: string, expiresIn = 300) {
+export async function getUploadUrl(key: string, contentType: string, expiresIn = 900) {
   const command = new PutObjectCommand({
     Bucket: bucket,
     Key: key,
@@ -29,6 +35,47 @@ export async function getDownloadUrl(key: string, expiresIn = 300) {
     Key: key,
   });
   return getSignedUrl(s3Client, command, { expiresIn });
+}
+
+export async function headObject(key: string) {
+  const command = new HeadObjectCommand({
+    Bucket: bucket,
+    Key: key,
+  });
+  return s3Client.send(command);
+}
+
+function concatChunks(chunks: Uint8Array[]) {
+  const size = chunks.reduce((total, chunk) => total + chunk.byteLength, 0);
+  const output = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return output;
+}
+
+export async function getObjectPrefix(key: string, byteLength = 4100) {
+  const command = new GetObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Range: `bytes=0-${Math.max(0, byteLength - 1)}`,
+  });
+  const response = await s3Client.send(command);
+  const body = response.Body;
+  if (!body) return new Uint8Array();
+
+  const sdkBody = body as { transformToByteArray?: () => Promise<Uint8Array> };
+  if (typeof sdkBody.transformToByteArray === "function") {
+    return sdkBody.transformToByteArray();
+  }
+
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of body as AsyncIterable<Uint8Array | string>) {
+    chunks.push(typeof chunk === "string" ? new TextEncoder().encode(chunk) : chunk);
+  }
+  return concatChunks(chunks);
 }
 
 export async function deleteObject(key: string) {

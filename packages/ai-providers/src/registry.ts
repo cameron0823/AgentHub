@@ -1,13 +1,23 @@
 import type { ModelProvider, ProviderHealth, ModelInfo } from "./types";
 import { createProviderFromCatalogCredential, type ProviderCredentialConfig } from "./factories";
+import { providerCatalog } from "./catalog";
 import { OllamaProvider } from "./providers/ollama";
 import { LMStudioProvider } from "./providers/lmstudio";
 import { VLLMProvider } from "./providers/vllm";
+import { A1111Provider, ComfyUIProvider, FasterWhisperProvider, PiperProvider } from "./providers/local-media";
 
 export const DEFAULT_QUALIFIED_MODEL_ID = "ollama:qwen2.5:7b";
-export const LOCAL_PROVIDER_IDS = ["ollama", "lmstudio", "vllm"] as const;
+export const LOCAL_PROVIDER_IDS = [
+  "ollama",
+  "lmstudio",
+  "vllm",
+  "piper",
+  "faster-whisper",
+  "comfyui",
+  "a1111",
+] as const;
 
-export type LocalProviderId = typeof LOCAL_PROVIDER_IDS[number];
+export type LocalProviderId = (typeof LOCAL_PROVIDER_IDS)[number];
 
 export interface QualifiedModelResolution {
   provider: ModelProvider;
@@ -39,6 +49,10 @@ export function createDefaultLocalProviders(): ModelProvider[] {
     new OllamaProvider(),
     new LMStudioProvider(),
     new VLLMProvider(),
+    new PiperProvider(),
+    new FasterWhisperProvider(),
+    new ComfyUIProvider(),
+    new A1111Provider(),
   ];
 }
 
@@ -105,9 +119,7 @@ export class ProviderRegistry {
   }
 
   async healthCheckAll(): Promise<ProviderHealth[]> {
-    return Promise.all(
-      this.list().map(async (p) => p.healthCheck())
-    );
+    return Promise.all(this.list().map(async (p) => p.healthCheck()));
   }
 
   async listAllModels(): Promise<(ModelInfo & { providerId: string; providerName: string })[]> {
@@ -125,7 +137,7 @@ export class ProviderRegistry {
         } catch {
           return [];
         }
-      })
+      }),
     );
     return results.flat();
   }
@@ -148,3 +160,15 @@ export class ProviderRegistry {
 }
 
 export const providerRegistry = new ProviderRegistry();
+
+const _paidPlanProviderIds = new Set(providerCatalog.filter((e) => e.type === "cloud").map((e) => e.id));
+
+export function isPaidPlanRequired(providerId: string): boolean {
+  return _paidPlanProviderIds.has(providerId);
+}
+
+export function checkProviderPlanAccess(providerId: string, plan: string): { allowed: boolean; requiredPlan: string } {
+  if (!isPaidPlanRequired(providerId)) return { allowed: true, requiredPlan: "free" };
+  const allowed = plan === "pro" || plan === "team" || plan === "enterprise";
+  return { allowed, requiredPlan: "pro" };
+}

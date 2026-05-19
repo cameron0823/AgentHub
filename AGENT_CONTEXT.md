@@ -4,6 +4,7 @@
 > **Audience:** AI coding agents, new team members, architectural reviewers  
 > **Last Updated:** 2026-05-11  
 > **Version:** 1.0
+> **Status:** Archived context snapshot. Start with `TODO.md` for current completion state and use this file only as historical architecture context.
 
 ---
 
@@ -40,13 +41,13 @@
 
 ### Core Philosophy
 
-| Principle | Description |
-|-----------|-------------|
-| **Agent-first** | Agents are first-class entities with personas, tools, memory, and knowledge. Conversations happen *through* agents, not around models. |
-| **Local-first** | Primary inference via Ollama, vLLM, LM Studio. No cloud API keys required. Optional cloud providers via OAuth. |
-| **White-box memory** | User-editable, structured memory entries with categories, confidence scores, and manual curation. |
-| **Deep orchestration** | 5 multi-agent patterns: sequential, parallel, supervisor, debate, groupchat. |
-| **Extensibility** | MCP (Model Context Protocol) + A2A (Agent-to-Agent) protocol for tool and agent interoperability. |
+| Principle              | Description                                                                                                                            |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Agent-first**        | Agents are first-class entities with personas, tools, memory, and knowledge. Conversations happen _through_ agents, not around models. |
+| **Local-first**        | Primary inference via Ollama, vLLM, LM Studio. No cloud API keys required. Optional cloud providers via OAuth.                         |
+| **White-box memory**   | User-editable, structured memory entries with categories, confidence scores, and manual curation.                                      |
+| **Deep orchestration** | 5 multi-agent patterns: sequential, parallel, supervisor, debate, groupchat.                                                           |
+| **Extensibility**      | MCP (Model Context Protocol) + A2A (Agent-to-Agent) protocol for tool and agent interoperability.                                      |
 
 ### What AgentHub Is NOT
 
@@ -61,18 +62,18 @@
 
 ### Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| **Frontend** | Next.js 15.5.18 (App Router), React 18, TypeScript, Tailwind CSS |
-| **State Management** | Zustand (client-side), tRPC + React Query (server state) |
-| **API Layer** | tRPC 11 (typesafe RPC), Next.js API Routes (SSE streaming) |
-| **ORM** | Drizzle ORM with PostgreSQL |
-| **Database** | PostgreSQL 16 + pgvector extension |
-| **Auth** | NextAuth v4 + Casdoor OIDC |
-| **File Storage** | MinIO (S3-compatible, self-hosted) |
-| **Cache** | Redis (future use, currently minimal) |
-| **Package Manager** | pnpm 9 + Turborepo |
-| **Monorepo** | 3 packages: `@agenthub/web`, `@agenthub/agent-runtime`, `@agenthub/ai-providers` |
+| Layer                | Technology                                                                       |
+| -------------------- | -------------------------------------------------------------------------------- |
+| **Frontend**         | Next.js 15.5.18 (App Router), React 18, TypeScript, Tailwind CSS                 |
+| **State Management** | Zustand (client-side), tRPC + React Query (server state)                         |
+| **API Layer**        | tRPC 11 (typesafe RPC), Next.js API Routes (SSE streaming)                       |
+| **ORM**              | Drizzle ORM with PostgreSQL                                                      |
+| **Database**         | PostgreSQL 16 + pgvector extension                                               |
+| **Auth**             | NextAuth v4 + Casdoor OIDC                                                       |
+| **File Storage**     | MinIO (S3-compatible, self-hosted)                                               |
+| **Cache**            | Redis (future use, currently minimal)                                            |
+| **Package Manager**  | pnpm 9 + Turborepo                                                               |
+| **Monorepo**         | 3 packages: `@agenthub/web`, `@agenthub/agent-runtime`, `@agenthub/ai-providers` |
 
 ### System Architecture
 
@@ -216,6 +217,7 @@ AgentHub/
 ## 4. Database Schema (Complete)
 
 All tables use Drizzle ORM with PostgreSQL. Key conventions:
+
 - Primary keys: `uuid("id").primaryKey().defaultRandom()`
 - Timestamps: `timestamp("created_at", { mode: "date" }).notNull().defaultNow()`
 - Foreign keys: `references(() => table.id, { onDelete: "cascade" })` or `"set null"`
@@ -226,39 +228,40 @@ All tables use Drizzle ORM with PostgreSQL. Key conventions:
 
 ```typescript
 // Auth (NextAuth)
-users                    // id, name, email, emailVerified, image, role
-accounts                 // NextAuth OAuth accounts
-sessions                 // NextAuth session tokens
-verificationTokens       // NextAuth email verification
+users; // id, name, email, emailVerified, image, role
+accounts; // NextAuth OAuth accounts
+sessions; // NextAuth session tokens
+verificationTokens; // NextAuth email verification
 
 // Core Entities
-agents                   // Agent definitions (personas)
-agentGroups              // Multi-agent groups
-groupMembers             // Agent-to-group assignments
+agents; // Agent definitions (personas)
+agentGroups; // Multi-agent groups
+groupMembers; // Agent-to-group assignments
 
 // Conversations
-chatSessions             // Chat conversations
-messages                 // Individual messages
+chatSessions; // Chat conversations
+messages; // Individual messages
 
 // Knowledge Base
-knowledgeBases           // KB collections
-documents                // Uploaded files
-documentChunks           // Chunked text with embeddings (pgvector)
+knowledgeBases; // KB collections
+documents; // Uploaded files
+documentChunks; // Chunked text with embeddings (pgvector)
 
 // Memory
-memoryEntries            // White-box memory facts
+memoryEntries; // White-box memory facts
 
 // Files
-files                    // Generic file uploads
+files; // Generic file uploads
 
 // Settings & Credentials
-settings                 // Key-value user settings
-providerCredentials      // OAuth/API key storage for cloud LLMs
+settings; // Key-value user settings
+providerCredentials; // OAuth/API key storage for cloud LLMs
 ```
 
 ### Detailed Schema
 
 #### `users`
+
 ```typescript
 id: uuid(pk)
 name: text
@@ -271,6 +274,7 @@ createdAt: timestamp
 ```
 
 #### `agents`
+
 ```typescript
 id: uuid(pk)
 userId: uuid (FK → users, onDelete: cascade)
@@ -291,6 +295,7 @@ updatedAt: timestamp
 ```
 
 #### `agentGroups`
+
 ```typescript
 id: uuid(pk)
 userId: uuid (FK → users)
@@ -302,6 +307,7 @@ updatedAt: timestamp
 ```
 
 #### `groupMembers`
+
 ```typescript
 id: uuid(pk)
 groupId: uuid (FK → agentGroups, cascade)
@@ -311,6 +317,7 @@ sortOrder: integer (default 0)
 ```
 
 #### `chatSessions`
+
 ```typescript
 id: uuid(pk)
 userId: uuid (FK → users, cascade)
@@ -324,6 +331,7 @@ updatedAt: timestamp
 ```
 
 #### `messages`
+
 ```typescript
 id: uuid(pk)
 sessionId: uuid (FK → chatSessions, cascade)
@@ -340,6 +348,7 @@ createdAt: timestamp
 ```
 
 #### `knowledgeBases`
+
 ```typescript
 id: uuid(pk)
 userId: uuid (FK → users, cascade)
@@ -353,6 +362,7 @@ updatedAt: timestamp
 ```
 
 #### `documents`
+
 ```typescript
 id: uuid(pk)
 userId: uuid (FK → users, cascade)
@@ -371,6 +381,7 @@ updatedAt: timestamp
 ```
 
 #### `documentChunks`
+
 ```typescript
 id: uuid(pk)
 documentId: uuid (FK → documents, cascade)
@@ -379,10 +390,12 @@ embedding: vector("embedding", { dimensions: 768 })  // pgvector
 metadata: jsonb
 createdAt: timestamp
 ```
+
 - Index: `embedding_index` using HNSW with `vector_cosine_ops`
 - Additional: GIN index on `messages.content` via `pg_trgm` for text search
 
 #### `memoryEntries`
+
 ```typescript
 id: uuid(pk)
 userId: uuid (FK → users)
@@ -399,6 +412,7 @@ updatedAt: timestamp
 ```
 
 #### `providerCredentials`
+
 ```typescript
 id: uuid(pk)
 userId: uuid (FK → users, cascade)
@@ -417,6 +431,7 @@ updatedAt: timestamp
 ```
 
 #### `files`
+
 ```typescript
 id: uuid(pk)
 userId: uuid (FK → users, cascade)
@@ -430,6 +445,7 @@ createdAt: timestamp
 ```
 
 #### `settings`
+
 ```typescript
 id: uuid(pk)
 userId: uuid (FK → users)
@@ -464,18 +480,22 @@ messages → session (many-to-one)
 ### NextAuth v4 + Casdoor
 
 **Primary auth:** Casdoor OIDC running at `localhost:8000`
+
 - Users click "Sign in with Casdoor" → redirect to Casdoor login → OIDC callback → session created
 - Session stored in PostgreSQL via `@auth/drizzle-adapter`
 
 **Session strategy:** JWT (not database sessions)
+
 - Access token valid for short duration
 - Refresh handled automatically by NextAuth
 
 **User roles:**
+
 - `"user"` (default)
 - `"admin"` (has access to `adminProcedure` tRPC middleware)
 
 **Auth flow:**
+
 ```
 User clicks sign in
     → /api/auth/signin/casdoor
@@ -487,11 +507,13 @@ User clicks sign in
 ```
 
 **Middleware:** All tRPC procedures use either:
+
 - `publicProcedure` — no auth required (marketplace catalog, health check)
 - `authedProcedure` — requires valid session; injects `ctx.user`
 - `adminProcedure` — requires `role === "admin"`
 
 **Environment variables for auth:**
+
 ```
 CASDOOR_CLIENT_ID=
 CASDOOR_CLIENT_SECRET=
@@ -594,15 +616,15 @@ appRouter = {
 
 These are Next.js App Router API routes (not tRPC):
 
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/api/auth/[...nextauth]` | ALL | NextAuth handlers |
-| `/api/chat/stream` | POST | SSE streaming for single-agent chat |
-| `/api/groups/stream` | POST | SSE streaming for multi-agent groups |
-| `/api/kb/ingest` | POST | Document chunking + embedding pipeline |
-| `/api/kb/query` | POST | Vector similarity search |
-| `/api/upload/presigned` | POST | Generate presigned S3 URL for file upload |
-| `/api/trpc/[trpc]` | ALL | tRPC HTTP handler |
+| Route                     | Method | Purpose                                   |
+| ------------------------- | ------ | ----------------------------------------- |
+| `/api/auth/[...nextauth]` | ALL    | NextAuth handlers                         |
+| `/api/chat/stream`        | POST   | SSE streaming for single-agent chat       |
+| `/api/groups/stream`      | POST   | SSE streaming for multi-agent groups      |
+| `/api/kb/ingest`          | POST   | Document chunking + embedding pipeline    |
+| `/api/kb/query`           | POST   | Vector similarity search                  |
+| `/api/upload/presigned`   | POST   | Generate presigned S3 URL for file upload |
+| `/api/trpc/[trpc]`        | ALL    | tRPC HTTP handler                         |
 
 ### SSE Streaming Format
 
@@ -621,6 +643,7 @@ data: {"type":"done"}
 ```
 
 **Group-specific events:**
+
 ```
 data: {"type":"group_start","groupId":"...","groupName":"Dev Team","pattern":"supervisor","agentCount":3}
 
@@ -652,19 +675,20 @@ interface ModelProvider {
 
 ### Built-in Providers
 
-| Provider | Type | Connection | Status |
-|----------|------|------------|--------|
-| **Ollama** | local | `OLLAMA_URL` env (default localhost:11434) | ✅ Primary, fully implemented |
-| **LM Studio** | local | OpenAI-compatible endpoint | 🔧 Registered, untested |
-| **vLLM** | local | OpenAI-compatible endpoint | 🔧 Registered, untested |
-| **Anthropic** | cloud | API key or OAuth | ✅ Implemented |
-| **OpenAI** | cloud | API key or OAuth | ✅ Implemented |
-| **Gemini** | cloud | API key or OAuth | ✅ Implemented |
-| **Moonshot** | cloud | API key or OAuth | ✅ Implemented |
+| Provider      | Type  | Connection                                 | Status                        |
+| ------------- | ----- | ------------------------------------------ | ----------------------------- |
+| **Ollama**    | local | `OLLAMA_URL` env (default localhost:11434) | ✅ Primary, fully implemented |
+| **LM Studio** | local | OpenAI-compatible endpoint                 | 🔧 Registered, untested       |
+| **vLLM**      | local | OpenAI-compatible endpoint                 | 🔧 Registered, untested       |
+| **Anthropic** | cloud | API key or OAuth                           | ✅ Implemented                |
+| **OpenAI**    | cloud | API key or OAuth                           | ✅ Implemented                |
+| **Gemini**    | cloud | API key or OAuth                           | ✅ Implemented                |
+| **Moonshot**  | cloud | API key or OAuth                           | ✅ Implemented                |
 
 ### Model ID Format
 
 Models are identified as `providerId:modelId`:
+
 - `ollama:qwen2.5:7b`
 - `ollama:llama3.1:8b`
 - `anthropic:claude-3-sonnet`
@@ -673,6 +697,7 @@ Models are identified as `providerId:modelId`:
 ### Cloud Provider Credentials
 
 Users add credentials at `/settings/providers`:
+
 - **API Key mode:** Store encrypted key in `providerCredentials.apiKey`
 - **OAuth mode:** Store access/refresh tokens in `providerCredentials.accessToken`
 
@@ -692,15 +717,15 @@ The core execution engine for single-agent conversations.
 
 ```typescript
 class AgentRuntime {
-  constructor(options: AgentOptions)  // model, systemPrompt, temperature, maxTokens, etc.
+  constructor(options: AgentOptions); // model, systemPrompt, temperature, maxTokens, etc.
 
-  async *run(options: RunOptions): AsyncGenerator<AgentStreamChunk>
-    // 1. Resolves model via ProviderRegistry
-    // 2. Injects system prompt if not present
-    // 3. Enables tools specified in RunOptions.tools
-    // 4. Streams via provider.streamChat()
-    // 5. Handles tool calls: executes tool → adds result to messages → continues streaming
-    // 6. Repeats up to maxToolIterations (default 3)
+  async *run(options: RunOptions): AsyncGenerator<AgentStreamChunk>;
+  // 1. Resolves model via ProviderRegistry
+  // 2. Injects system prompt if not present
+  // 3. Enables tools specified in RunOptions.tools
+  // 4. Streams via provider.streamChat()
+  // 5. Handles tool calls: executes tool → adds result to messages → continues streaming
+  // 6. Repeats up to maxToolIterations (default 3)
 }
 ```
 
@@ -708,18 +733,18 @@ class AgentRuntime {
 
 ```typescript
 interface AgentOptions {
-  model: string;              // "provider:modelId" format
+  model: string; // "provider:modelId" format
   systemPrompt?: string;
   temperature?: number;
   maxTokens?: number;
   maxToolIterations?: number; // default 3
-  toolTimeoutMs?: number;     // default 30s
+  toolTimeoutMs?: number; // default 30s
 }
 
 interface RunOptions {
   sessionId: string;
-  messages: Message[];        // { role, content, tool_calls?, tool_call_id?, name? }
-  tools?: string[];           // List of tool names to enable
+  messages: Message[]; // { role, content, tool_calls?, tool_call_id?, name? }
+  tools?: string[]; // List of tool names to enable
   signal?: AbortSignal;
 }
 ```
@@ -731,7 +756,7 @@ type AgentStreamChunk =
   | { type: "content"; content: string }
   | { type: "reasoning"; content: string }
   | { type: "tool_call"; toolCall: ToolCall }
-  | { type: "tool_result"; toolName: string; toolCallId?: string; result: any }
+  | { type: "tool_result"; toolName: string; toolCallId?: string; result: any };
 ```
 
 ### Tool Execution Loop
@@ -758,10 +783,10 @@ Global singleton `globalToolRegistry` maintains all available tools.
 
 ```typescript
 class ToolRegistry {
-  register(tool: ToolDefinition): void
-  list(): ToolDefinition[]
-  find(name: string): ToolDefinition | undefined
-  zodToJSONSchema(schema: ZodSchema): JSONSchema
+  register(tool: ToolDefinition): void;
+  list(): ToolDefinition[];
+  find(name: string): ToolDefinition | undefined;
+  zodToJSONSchema(schema: ZodSchema): JSONSchema;
 }
 ```
 
@@ -771,22 +796,23 @@ class ToolRegistry {
 interface ToolDefinition {
   name: string;
   description: string;
-  parameters: ZodSchema;      // Zod schema converted to JSON Schema for LLM
+  parameters: ZodSchema; // Zod schema converted to JSON Schema for LLM
   execute: (args: any) => Promise<any>;
 }
 ```
 
 ### Built-in Tools
 
-| Tool | Description | Parameters |
-|------|-------------|------------|
+| Tool         | Description               | Parameters               |
+| ------------ | ------------------------- | ------------------------ |
 | `calculator` | Evaluate math expressions | `{ expression: string }` |
-| `datetime` | Get current date/time | `{}` |
-| `read_file` | Read file content | `{ path: string }` |
+| `datetime`   | Get current date/time     | `{}`                     |
+| `read_file`  | Read file content         | `{ path: string }`       |
 
 ### Tool Enablement
 
 Tools are enabled per-agent or per-request:
+
 - Agent config stores `tools` as JSON string array: `["calculator", "datetime"]`
 - `AgentRuntime.run({ tools: ["calculator"] })` enables only specified tools
 - Tools are converted to OpenAI function-calling format before being sent to the LLM
@@ -814,13 +840,13 @@ interface Orchestrator {
 
 ### Orchestrator Types
 
-| Pattern | Class | Description |
-|---------|-------|-------------|
-| **Sequential** | `SequentialOrchestrator` | Agents run one after another. Each sees previous outputs. |
-| **Parallel** | `ParallelOrchestrator` | All agents run simultaneously. Results synthesized at end. |
-| **Supervisor** | `SupervisorOrchestrator` | Coordinator agent plans, delegates to workers, synthesizes. |
-| **Debate** | `DebateOrchestrator` | Agents argue in rounds. Moderator synthesizes final position. |
-| **GroupChat** | `GroupChatOrchestrator` | Turn-based conversation until consensus or max turns. |
+| Pattern        | Class                    | Description                                                   |
+| -------------- | ------------------------ | ------------------------------------------------------------- |
+| **Sequential** | `SequentialOrchestrator` | Agents run one after another. Each sees previous outputs.     |
+| **Parallel**   | `ParallelOrchestrator`   | All agents run simultaneously. Results synthesized at end.    |
+| **Supervisor** | `SupervisorOrchestrator` | Coordinator agent plans, delegates to workers, synthesizes.   |
+| **Debate**     | `DebateOrchestrator`     | Agents argue in rounds. Moderator synthesizes final position. |
+| **GroupChat**  | `GroupChatOrchestrator`  | Turn-based conversation until consensus or max turns.         |
 
 ### Event Types
 
@@ -848,7 +874,7 @@ type OrchestratorEvent =
 
   // GroupChat-specific
   | { type: "groupchat_start"; groupId; agents; maxTurns }
-  | { type: "groupchat_turn"; groupId; turn; maxTurns }
+  | { type: "groupchat_turn"; groupId; turn; maxTurns };
 ```
 
 ### Execution Flow
@@ -868,6 +894,7 @@ User sends message to group
 ### Role Assignment
 
 Group members have optional `role` strings. Patterns use roles to assign responsibilities:
+
 - **Supervisor:** Member with `role === "supervisor"` becomes coordinator; others are workers
 - **Debate:** `role` can be "debater" or "moderator"
 - **GroupChat:** `role` is informational (e.g., "optimist", "pessimist")
@@ -881,14 +908,15 @@ Group members have optional `role` strings. Patterns use roles to assign respons
 AgentHub uses **user-editable, structured memory** rather than black-box model memory.
 
 **Memory Entry Schema:**
+
 ```typescript
 {
   id: string;
-  agentId: string | null;     // null = global memory
-  category: string;            // e.g., "profile", "preference", "fact", "goal"
-  key: string;                 // e.g., "favorite_language"
-  value: string;               // e.g., "Python"
-  confidence: number;          // 0.0 to 1.0
+  agentId: string | null; // null = global memory
+  category: string; // e.g., "profile", "preference", "fact", "goal"
+  key: string; // e.g., "favorite_language"
+  value: string; // e.g., "Python"
+  confidence: number; // 0.0 to 1.0
   sourceMessageId: string | null;
   status: "accepted" | "proposed" | "rejected" | "archived";
   isEdited: boolean;
@@ -898,6 +926,7 @@ AgentHub uses **user-editable, structured memory** rather than black-box model m
 ### Memory Injection
 
 Before each chat stream:
+
 1. If `agent.memoryEnabled === true`:
    - Fetch `status = "accepted"` memories for this agent (up to 12)
    - Format as memory block:
@@ -911,6 +940,7 @@ Before each chat stream:
 ### Auto Extraction
 
 After each assistant response:
+
 1. If `agent.memoryEnabled === true`:
    - Send user message + assistant response to Ollama with extraction prompt
    - Parse returned `CATEGORY / KEY / VALUE` triples
@@ -920,6 +950,7 @@ After each assistant response:
 ### Memory Editor UI
 
 `/memory-editor` route (accessed via sidebar):
+
 - Create/edit/delete memory entries manually
 - Filter by agent, category, status
 - Pending review banner for proposed memories
@@ -949,23 +980,27 @@ User uploads file to KB
 ### Vector Search
 
 When agent has `knowledgeBaseId` and user sends message:
+
 1. Embed user's last message via Ollama
 2. Query `documentChunks` using pgvector `<=>` (cosine distance) operator
 3. Retrieve top-5 most similar chunks
 4. Format as context block:
+
    ```
    ## Relevant Knowledge Base Context
    [1] <chunk content>
    [2] <chunk content>
    ...
-   
+
    Use the above context to answer. Cite sources using [1], [2], etc.
    ```
+
 5. Append to system prompt before streaming
 
 ### KB Configuration
 
 Per-KB settings:
+
 - `embeddingModel`: default `"nomic-embed-text"` (Ollama model)
 - `chunkSize`: default 1000 characters
 - `chunkOverlap`: default 200 characters
@@ -973,6 +1008,7 @@ Per-KB settings:
 ### UI
 
 `/kb` route:
+
 - List all KBs
 - Create/delete KBs
 - Per-KB: upload documents, view status, search/query, delete documents
@@ -1006,23 +1042,24 @@ Layout (Server Component)
 
 ### Key Components
 
-| Component | Purpose |
-|-----------|---------|
-| `ChatInterface` | Main chat UI. Handles sending, streaming, stop, edit, regenerate, branch. |
-| `ChatMessage` | Individual message rendering. Markdown (GFM + KaTeX + syntax highlighting). Edit mode for user messages. Action buttons (edit, regenerate, branch, feedback). |
-| `ChatInput` | Message input with file upload, drag-and-drop, send button. |
-| `VirtualizedMessageList` | Efficient scrolling for long conversations. |
-| `Sidebar` | Navigation: agents, groups, sessions, search, quick actions. |
-| `AgentBuilder` | Create/edit agents. Form with name, avatar, system prompt, model, temperature, max tokens, tools, memory enabled, KB selector. |
-| `AgentGroupBuilder` | Create/edit groups. Pattern selector (5 options), member selection with roles. |
-| `KnowledgeBaseManager` | KB management: create, upload, search, delete. |
-| `MemoryEditor` | CRUD for memory entries. Filter, pending review. |
-| `ModelSelector` | Dropdown of available models with health status. |
-| `ProviderSettings` | Add/manage cloud provider credentials (OAuth/API key). |
+| Component                | Purpose                                                                                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ChatInterface`          | Main chat UI. Handles sending, streaming, stop, edit, regenerate, branch.                                                                                     |
+| `ChatMessage`            | Individual message rendering. Markdown (GFM + KaTeX + syntax highlighting). Edit mode for user messages. Action buttons (edit, regenerate, branch, feedback). |
+| `ChatInput`              | Message input with file upload, drag-and-drop, send button.                                                                                                   |
+| `VirtualizedMessageList` | Efficient scrolling for long conversations.                                                                                                                   |
+| `Sidebar`                | Navigation: agents, groups, sessions, search, quick actions.                                                                                                  |
+| `AgentBuilder`           | Create/edit agents. Form with name, avatar, system prompt, model, temperature, max tokens, tools, memory enabled, KB selector.                                |
+| `AgentGroupBuilder`      | Create/edit groups. Pattern selector (5 options), member selection with roles.                                                                                |
+| `KnowledgeBaseManager`   | KB management: create, upload, search, delete.                                                                                                                |
+| `MemoryEditor`           | CRUD for memory entries. Filter, pending review.                                                                                                              |
+| `ModelSelector`          | Dropdown of available models with health status.                                                                                                              |
+| `ProviderSettings`       | Add/manage cloud provider credentials (OAuth/API key).                                                                                                        |
 
 ### Routing
 
 Next.js App Router:
+
 - `/` — Main app (sidebar + chat)
 - `/kb` — Knowledge Base manager
 - `/settings` — Settings page (providers, etc.)
@@ -1088,6 +1125,7 @@ const createSession = trpc.sessions.create.useMutation({
 ### SSE Streaming
 
 Chat streaming bypasses tRPC and uses raw `fetch()` for SSE:
+
 ```typescript
 const res = await fetch("/api/chat/stream", {
   method: "POST",
@@ -1142,6 +1180,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 ### Settings Table
 
 User-specific settings stored in DB (key-value):
+
 - `default_model`
 - `theme` (light/dark/system)
 - `language`
@@ -1155,15 +1194,15 @@ Currently no UI for settings management beyond the provider credentials page.
 
 ### Services (`docker-compose.yml`)
 
-| Service | Port | Purpose |
-|---------|------|---------|
-| `network` | 3000, 8000, 9000, 9001, 11434 | Shared network namespace container |
-| `postgresql` | 5432 | PostgreSQL 16 + pgvector |
-| `redis` | 6379 | Cache (minimal use currently) |
-| `minio` | 9000/9001 | S3-compatible object storage |
-| `minio-init` | — | Creates bucket on startup |
-| `casdoor` | 8000 | OIDC provider |
-| `agenthub` | 3000 | Next.js app (built from Dockerfile) |
+| Service      | Port                          | Purpose                             |
+| ------------ | ----------------------------- | ----------------------------------- |
+| `network`    | 3000, 8000, 9000, 9001, 11434 | Shared network namespace container  |
+| `postgresql` | 5432                          | PostgreSQL 16 + pgvector            |
+| `redis`      | 6379                          | Cache (minimal use currently)       |
+| `minio`      | 9000/9001                     | S3-compatible object storage        |
+| `minio-init` | —                             | Creates bucket on startup           |
+| `casdoor`    | 8000                          | OIDC provider                       |
+| `agenthub`   | 3000                          | Next.js app (built from Dockerfile) |
 
 ### Network Mode
 
@@ -1234,6 +1273,7 @@ Each package has its own scripts, orchestrated by Turborepo:
 ### Database Migrations
 
 Drizzle Kit is used for schema management:
+
 ```bash
 cd apps/web
 npx drizzle-kit push              # Push schema changes to DB
@@ -1290,69 +1330,69 @@ tests/e2e/
 
 ### ✅ Complete (Shipped)
 
-| Feature | Notes |
-|---------|-------|
-| Streaming chat | SSE via AgentRuntime |
-| Markdown rendering | GFM + KaTeX math + Prism syntax highlighting |
-| Reasoning/CoT display | `<think>` tag extraction + collapsible panel |
-| Auto title generation | Based on first user message |
-| Agent CRUD | Full UI + API |
-| Agent Group CRUD | All 5 patterns supported |
-| Built-in tools | calculator, datetime, read_file |
-| Provider registry | Ollama, vLLM, LM Studio, Anthropic, OpenAI, Gemini, Moonshot |
-| NextAuth + Casdoor | Full OIDC flow |
-| Session forking | Branch conversations at any message |
-| File attachments | Upload to MinIO, attach to chat |
-| Message editing | Inline edit + truncate + regenerate |
-| Message regeneration | Delete + re-run with same context |
-| Conversation search | pg_trgm fuzzy search across messages |
-| KB creation/management | UI + API |
-| Document upload/ingest | Full pipeline: upload → chunk → embed → index |
-| KB query | Vector similarity search |
-| RAG in chat | Retrieve chunks, inject into system prompt |
-| Agent-KB binding | Select KB per agent |
-| Memory CRUD | Full UI + API |
-| Memory injection | Accepted memories appended to system prompt |
-| Auto memory extraction | Post-response extraction, pending review |
-| All 5 orchestrators | Sequential, Parallel, Supervisor, Debate, GroupChat |
-| Pattern selector UI | Dropdown with descriptions |
-| Cloud provider credentials | OAuth + API key storage |
-| Provider settings page | `/settings` with provider management |
-| Marketplace | Bundled catalog + manifest import/export |
-| ThemeProvider | Dark/light mode support (toggle exists but minimal) |
+| Feature                    | Notes                                                        |
+| -------------------------- | ------------------------------------------------------------ |
+| Streaming chat             | SSE via AgentRuntime                                         |
+| Markdown rendering         | GFM + KaTeX math + Prism syntax highlighting                 |
+| Reasoning/CoT display      | `<think>` tag extraction + collapsible panel                 |
+| Auto title generation      | Based on first user message                                  |
+| Agent CRUD                 | Full UI + API                                                |
+| Agent Group CRUD           | All 5 patterns supported                                     |
+| Built-in tools             | calculator, datetime, read_file                              |
+| Provider registry          | Ollama, vLLM, LM Studio, Anthropic, OpenAI, Gemini, Moonshot |
+| NextAuth + Casdoor         | Full OIDC flow                                               |
+| Session forking            | Branch conversations at any message                          |
+| File attachments           | Upload to MinIO, attach to chat                              |
+| Message editing            | Inline edit + truncate + regenerate                          |
+| Message regeneration       | Delete + re-run with same context                            |
+| Conversation search        | pg_trgm fuzzy search across messages                         |
+| KB creation/management     | UI + API                                                     |
+| Document upload/ingest     | Full pipeline: upload → chunk → embed → index                |
+| KB query                   | Vector similarity search                                     |
+| RAG in chat                | Retrieve chunks, inject into system prompt                   |
+| Agent-KB binding           | Select KB per agent                                          |
+| Memory CRUD                | Full UI + API                                                |
+| Memory injection           | Accepted memories appended to system prompt                  |
+| Auto memory extraction     | Post-response extraction, pending review                     |
+| All 5 orchestrators        | Sequential, Parallel, Supervisor, Debate, GroupChat          |
+| Pattern selector UI        | Dropdown with descriptions                                   |
+| Cloud provider credentials | OAuth + API key storage                                      |
+| Provider settings page     | `/settings` with provider management                         |
+| Marketplace                | Bundled catalog + manifest import/export                     |
+| ThemeProvider              | Dark/light mode support (toggle exists but minimal)          |
 
 ### ✅ Recently Shipped (was Partial or Not Started)
 
-| Feature | Location |
-|---------|----------|
-| MCP client UI | `McpSettings.tsx`, `McpGovernancePanel.tsx`, `mcp-governance.ts` |
-| MCP marketplace UI | `McpMarketplace.tsx` |
-| Theme toggle | `ThemeToggle.tsx`, `ThemeSettings.tsx` |
-| Admin panel UI | `AdminPanel.tsx` |
-| Vision / image input | `packages/agent-runtime/src/tools/builtin/visual-understanding.ts` |
-| Code interpreter / sandbox | `sandbox.ts`, `SandboxOutput.tsx` |
-| TTS & STT voice | `TTSButton.tsx`, `VoiceInput.tsx` |
-| Scheduled automations | `AutomationsManager.tsx`, `automationWorker.ts` |
-| Prompt library / slash commands | `PromptLibraryManager.tsx` |
-| Context window management | `ContextWindowBar.tsx` |
-| Pattern visualizer | `PatternVisualizer.tsx` |
-| A2A protocol | `apps/web/src/app/api/a2a/` |
+| Feature                         | Location                                                           |
+| ------------------------------- | ------------------------------------------------------------------ |
+| MCP client UI                   | `McpSettings.tsx`, `McpGovernancePanel.tsx`, `mcp-governance.ts`   |
+| MCP marketplace UI              | `McpMarketplace.tsx`                                               |
+| Theme toggle                    | `ThemeToggle.tsx`, `ThemeSettings.tsx`                             |
+| Admin panel UI                  | `AdminPanel.tsx`                                                   |
+| Vision / image input            | `packages/agent-runtime/src/tools/builtin/visual-understanding.ts` |
+| Code interpreter / sandbox      | `sandbox.ts`, `SandboxOutput.tsx`                                  |
+| TTS & STT voice                 | `TTSButton.tsx`, `VoiceInput.tsx`                                  |
+| Scheduled automations           | `AutomationsManager.tsx`, `automationWorker.ts`                    |
+| Prompt library / slash commands | `PromptLibraryManager.tsx`                                         |
+| Context window management       | `ContextWindowBar.tsx`                                             |
+| Pattern visualizer              | `PatternVisualizer.tsx`                                            |
+| A2A protocol                    | `apps/web/src/app/api/a2a/`                                        |
 
 ### 🔧 Partial (Backend Ready, UI Incomplete)
 
-| Feature | What's Missing |
-|---------|----------------|
-| Token tracking | `tokensUsed`/`latencyMs` columns exist but not populated in all code paths |
-| Opening messages | Schema missing `openingMessage`/`openingQuestions` |
+| Feature          | What's Missing                                                             |
+| ---------------- | -------------------------------------------------------------------------- |
+| Token tracking   | `tokensUsed`/`latencyMs` columns exist but not populated in all code paths |
+| Opening messages | Schema missing `openingMessage`/`openingQuestions`                         |
 
 ### ⬜ Not Started (On Roadmap)
 
-| Feature | Priority |
-|---------|----------|
-| Inline citation UI for RAG | P2 |
-| A2UI rendering | Strategic |
-| CRDT sync | Strategic |
-| Deep research mode | Strategic |
+| Feature                    | Priority  |
+| -------------------------- | --------- |
+| Inline citation UI for RAG | P2        |
+| A2UI rendering             | Strategic |
+| CRDT sync                  | Strategic |
+| Deep research mode         | Strategic |
 
 ### ❌ Out of Scope
 
@@ -1367,18 +1407,18 @@ tests/e2e/
 
 ## 20. Key Design Decisions
 
-| Decision | Rationale |
-|----------|-----------|
-| **PostgreSQL over SQLite** | Vector search (pgvector) + auth scalability |
-| **NextAuth v4 over v5** | Stability; v5 beta lacked PG adapters at decision time |
-| **Casdoor as primary auth** | Matches reference stack; self-hosted IAM |
-| **Agent-first over chat-first** | Differentiation: agent is the entity |
-| **White-box memory** | Transparency: user owns and curates memory |
-| **Local providers primary** | Privacy-first: no cloud API keys required |
-| **Manifest-based marketplace** | Portability: agents as JSON |
-| **tRPC over REST** | End-to-end type safety |
-| **Zustand over Redux** | Simplicity, minimal boilerplate |
-| **Turborepo monorepo** | Shared packages (runtime, providers) with independent versioning |
+| Decision                        | Rationale                                                        |
+| ------------------------------- | ---------------------------------------------------------------- |
+| **PostgreSQL over SQLite**      | Vector search (pgvector) + auth scalability                      |
+| **NextAuth v4 over v5**         | Stability; v5 beta lacked PG adapters at decision time           |
+| **Casdoor as primary auth**     | Matches reference stack; self-hosted IAM                         |
+| **Agent-first over chat-first** | Differentiation: agent is the entity                             |
+| **White-box memory**            | Transparency: user owns and curates memory                       |
+| **Local providers primary**     | Privacy-first: no cloud API keys required                        |
+| **Manifest-based marketplace**  | Portability: agents as JSON                                      |
+| **tRPC over REST**              | End-to-end type safety                                           |
+| **Zustand over Redux**          | Simplicity, minimal boilerplate                                  |
+| **Turborepo monorepo**          | Shared packages (runtime, providers) with independent versioning |
 
 ---
 
@@ -1418,14 +1458,14 @@ tests/e2e/
 
 ### Common Issues
 
-| Issue | Cause | Fix |
-|-------|-------|-----|
-| `tsc` errors about `@agenthub/*` imports | Path aliases not resolving | Ensure `tsconfig.json` has `paths` configured; run `pnpm build` first |
-| Drizzle push hangs | PostgreSQL not accessible | Check `docker ps`; ensure `agenthub-db` is healthy |
-| Ollama models not appearing | Ollama not running | Start Ollama on host; verify `OLLAMA_URL` |
-| MinIO upload fails | Bucket doesn't exist | Restart `minio-init` container: `docker compose up minio-init` |
-| Casdoor login redirect fails | Callback URL mismatch | Check `CASDOOR_ISSUER` and `NEXTAUTH_URL` match Casdoor app config |
-| Type error on `Map` iteration | Missing `target` in tsconfig | `agent-runtime` tsconfig has `target: "ES2022"` |
+| Issue                                    | Cause                        | Fix                                                                   |
+| ---------------------------------------- | ---------------------------- | --------------------------------------------------------------------- |
+| `tsc` errors about `@agenthub/*` imports | Path aliases not resolving   | Ensure `tsconfig.json` has `paths` configured; run `pnpm build` first |
+| Drizzle push hangs                       | PostgreSQL not accessible    | Check `docker ps`; ensure `agenthub-db` is healthy                    |
+| Ollama models not appearing              | Ollama not running           | Start Ollama on host; verify `OLLAMA_URL`                             |
+| MinIO upload fails                       | Bucket doesn't exist         | Restart `minio-init` container: `docker compose up minio-init`        |
+| Casdoor login redirect fails             | Callback URL mismatch        | Check `CASDOOR_ISSUER` and `NEXTAUTH_URL` match Casdoor app config    |
+| Type error on `Map` iteration            | Missing `target` in tsconfig | `agent-runtime` tsconfig has `target: "ES2022"`                       |
 
 ### Debug Commands
 
@@ -1470,22 +1510,22 @@ npx drizzle-kit push
 
 ### File Paths Cheat Sheet
 
-| What | Where |
-|------|-------|
-| Add a tRPC procedure | `apps/web/src/server/routers/_app.ts` |
-| Add a React component | `apps/web/src/components/MyComponent.tsx` |
-| Add a tool | `packages/agent-runtime/src/tools/builtin/my-tool.ts` |
-| Add a provider | `packages/ai-providers/src/providers/my-provider.ts` |
-| Modify schema | `apps/web/src/server/db/schema.ts` |
-| Add an API route | `apps/web/src/app/api/my-route/route.ts` |
-| Modify chat stream | `apps/web/src/app/api/chat/stream/route.ts` |
-| Modify group stream | `apps/web/src/app/api/groups/stream/route.ts` |
-| Client state | `apps/web/src/stores/chatStore.ts` |
-| Auth config | `apps/web/src/server/auth.ts` |
-| DB client | `apps/web/src/server/db/index.ts` |
-| tRPC context | `apps/web/src/server/trpc.ts` |
-| S3/MinIO client | `apps/web/src/lib/s3.ts` |
-| Theme config | `apps/web/tailwind.config.ts` |
+| What                  | Where                                                 |
+| --------------------- | ----------------------------------------------------- |
+| Add a tRPC procedure  | `apps/web/src/server/routers/_app.ts`                 |
+| Add a React component | `apps/web/src/components/MyComponent.tsx`             |
+| Add a tool            | `packages/agent-runtime/src/tools/builtin/my-tool.ts` |
+| Add a provider        | `packages/ai-providers/src/providers/my-provider.ts`  |
+| Modify schema         | `apps/web/src/server/db/schema.ts`                    |
+| Add an API route      | `apps/web/src/app/api/my-route/route.ts`              |
+| Modify chat stream    | `apps/web/src/app/api/chat/stream/route.ts`           |
+| Modify group stream   | `apps/web/src/app/api/groups/stream/route.ts`         |
+| Client state          | `apps/web/src/stores/chatStore.ts`                    |
+| Auth config           | `apps/web/src/server/auth.ts`                         |
+| DB client             | `apps/web/src/server/db/index.ts`                     |
+| tRPC context          | `apps/web/src/server/trpc.ts`                         |
+| S3/MinIO client       | `apps/web/src/lib/s3.ts`                              |
+| Theme config          | `apps/web/tailwind.config.ts`                         |
 
 ### Model Capability Tags
 
@@ -1496,6 +1536,7 @@ type Capability = "chat" | "vision" | "tools" | "embeddings" | "reasoning";
 ### Tool JSON Schema Conversion
 
 Tools use Zod schemas that are automatically converted to JSON Schema for LLM function calling:
+
 ```typescript
 const calculatorSchema = z.object({
   expression: z.string().describe("Math expression to evaluate"),
@@ -1505,4 +1546,4 @@ const calculatorSchema = z.object({
 
 ---
 
-*This document is comprehensive but not exhaustive. When in doubt, check the source code — but this should provide enough context for 90% of development tasks without filesystem access.*
+_This document is comprehensive but not exhaustive. When in doubt, check the source code — but this should provide enough context for 90% of development tasks without filesystem access._

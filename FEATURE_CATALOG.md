@@ -14,6 +14,7 @@
 - **Tier 3 (Hard):** Weeks+. Architecturally complex, requires novel systems, significant infrastructure, or advanced AI patterns.
 
 Each feature includes:
+
 - **What it does** — User-facing description
 - **Why it matters** — Value proposition
 - **Implementation sketch** — High-level approach
@@ -30,6 +31,7 @@ Each feature includes:
 **Why it matters:** Power users avoid retyping complex prompts. Agents already have system prompts; this gives users quick personal macros.
 
 **Implementation sketch:**
+
 - Add `prompt_templates` table (id, userId, name, shortcut, template, variables[])
 - tRPC CRUD router
 - In `ChatInput`, listen for `/` → show autocomplete dropdown → replace with template text on selection
@@ -46,6 +48,7 @@ Each feature includes:
 **Why it matters:** Collaboration — share agent outputs with teammates without exporting/importing.
 
 **Implementation sketch:**
+
 - Add `chatSessions.shareToken` (uuid, nullable)
 - New API route `/s/:token` that renders conversation in a stripped-down view
 - "Share" button in sidebar/chat header → copy link
@@ -62,6 +65,7 @@ Each feature includes:
 **Why it matters:** Users frequently want to grab one code block or one response, not the entire conversation.
 
 **Implementation sketch:**
+
 - Add dropdown to `ChatMessage` actions (next to edit/regenerate)
 - `navigator.clipboard.writeText()` for copy
 - Blob + `URL.createObjectURL` for JSON download
@@ -77,6 +81,7 @@ Each feature includes:
 **Why it matters:** Users with 50+ chats need organization. Search helps find; folders help browse.
 
 **Implementation sketch:**
+
 - Add `chatSessions.folder` (text) or `chatSessions.tags` (text[])
 - Sidebar grouped by folder name
 - Drag-and-drop to reorder (optional)
@@ -93,6 +98,7 @@ Each feature includes:
 **Why it matters:** AgentHub's local-first ethos means users constantly compare Ollama models. This makes it a first-class feature.
 
 **Implementation sketch:**
+
 - New UI mode: split-pane chat view
 - Two parallel `fetch('/api/chat/stream')` calls with different `model` params
 - Both streams render independently in left/right panes
@@ -106,9 +112,10 @@ Each feature includes:
 
 **What it does:** When running a multi-agent group, show which agent is currently "typing" (generating) in real-time. Currently only a generic spinner exists.
 
-**Why it matters:** Groups can take 30+ seconds. Users want to know *which* agent is active and which are waiting.
+**Why it matters:** Groups can take 30+ seconds. Users want to know _which_ agent is active and which are waiting.
 
 **Implementation sketch:**
+
 - `OrchestratorEvent` already emits `agent_start` / `agent_complete`
 - `ChatInterface` tracks active agent ID from SSE stream
 - Show agent name + animated dots in a banner above messages
@@ -124,6 +131,7 @@ Each feature includes:
 **Why it matters:** Power users expect hotkeys. The current app has zero discoverable shortcuts.
 
 **Implementation sketch:**
+
 - `useHotkeys` hook (or manual `keydown` listener)
 - Modal component with shortcut grid
 - Persist shortcuts in a constants file
@@ -139,6 +147,7 @@ Each feature includes:
 **Why it matters:** Users managing context windows need visibility into token burn. The `tokensUsed` column exists but is never populated.
 
 **Implementation sketch:**
+
 - Add `js-tiktoken` dependency
 - `estimateTokens(text)` utility
 - Display in message metadata row (next to timestamp/model)
@@ -155,6 +164,7 @@ Each feature includes:
 **Why it matters:** Users want to save conversations outside the app for documentation, blogging, or backups.
 
 **Implementation sketch:**
+
 - Format messages as markdown: `## You\n\ncontent\n\n## Assistant\n\ncontent`
 - Blob download
 - Add to chat header menu
@@ -170,6 +180,7 @@ Each feature includes:
 **Why it matters:** Debugging, reviewing conversation flow, understanding latency between messages.
 
 **Implementation sketch:**
+
 - `messages.createdAt` already exists
 - Format with `Intl.DateTimeFormat`
 - Toggle in settings or message hover
@@ -187,6 +198,7 @@ Each feature includes:
 **Why it matters:** Local models have stale knowledge cutoffs. Web search grounds responses in current information.
 
 **Implementation sketch:**
+
 - **Sub-task 2.1.1:** Add `web_search` built-in tool to `agent-runtime`
   - Calls SearXNG API (self-hosted, no API key needed)
   - Returns `{title, url, snippet}` array
@@ -211,6 +223,7 @@ Each feature includes:
 **Why it matters:** Hands-free interaction, accessibility, mobile usability.
 
 **Implementation sketch:**
+
 - **Sub-task 2.2.1:** Web Audio API recording
   - `MediaRecorder` for browser capture
   - Visual waveform feedback
@@ -234,6 +247,7 @@ Each feature includes:
 **Why it matters:** Accessibility, hands-free consumption of long responses, multimodal experience.
 
 **Implementation sketch:**
+
 - **Sub-task 2.3.1:** Browser TTS fallback
   - `window.speechSynthesis` with voice selection
 - **Sub-task 2.3.2:** Edge TTS integration (free, high quality)
@@ -255,6 +269,7 @@ Each feature includes:
 **Why it matters:** Data analysis, visualization, calculations beyond calculator tool, file processing.
 
 **Implementation sketch:**
+
 - **Sub-task 2.4.1:** Sandbox backend
   - Docker container with Python + common packages (pandas, matplotlib, numpy)
   - `execute_code` tool: accepts Python code → runs in container → returns stdout/stderr/artifacts
@@ -281,6 +296,7 @@ Each feature includes:
 **Why it matters:** Proactive agents — AgentHub becomes a background intelligence layer, not just a chat UI.
 
 **Implementation sketch:**
+
 - **Sub-task 2.5.1:** Schema
   - `automations` table: id, userId, agentId, prompt, cron, lastRun, nextRun, isActive, webhookUrl
 - **Sub-task 2.5.2:** Scheduler
@@ -305,6 +321,7 @@ Each feature includes:
 **Why it matters:** Onboarding — users don't know what to ask a new agent. Starter questions guide discovery.
 
 **Implementation sketch:**
+
 - **Sub-task 2.6.1:** Schema
   - `agents.openingMessage` (text, nullable)
   - `agents.openingQuestions` (text[] or JSONB, default [])
@@ -323,9 +340,10 @@ Each feature includes:
 
 **What it does:** When RAG retrieves KB chunks, show a collapsible "Sources" panel below the assistant message listing the top retrieved documents with similarity scores and excerpt previews.
 
-**Why it matters:** Trust and verification — users need to see *where* the answer came from. Currently citations exist in the raw prompt but are invisible to users.
+**Why it matters:** Trust and verification — users need to see _where_ the answer came from. Currently citations exist in the raw prompt but are invisible to users.
 
 **Implementation sketch:**
+
 - **Sub-task 2.7.1:** Backend
   - Modify `/api/chat/stream` to emit `rag_sources` SSE event containing chunk metadata
 - **Sub-task 2.7.2:** Frontend
@@ -347,6 +365,7 @@ Each feature includes:
 **Why it matters:** Personalization without hardcoding. One agent template works for all users.
 
 **Implementation sketch:**
+
 - **Sub-task 2.8.1:** Substitution engine
   - `substituteVariables(text, context)` utility
   - Built-in vars: `user.name`, `date`, `time`, `agent.name`, `kb.name`
@@ -367,6 +386,7 @@ Each feature includes:
 **Why it matters:** Users want visibility into their usage patterns. The `tokensUsed` and `latencyMs` fields exist but are never populated or visualized.
 
 **Implementation sketch:**
+
 - **Sub-task 2.9.1:** Populate metrics
   - Calculate tokens in chat stream route
   - Record `latencyMs` (time from first to last chunk)
@@ -387,6 +407,7 @@ Each feature includes:
 **Why it matters:** MCP is the emerging standard for tool extensibility. AgentHub needs a first-class MCP experience.
 
 **Implementation sketch:**
+
 - **Sub-task 2.10.1:** Schema
   - `mcpServers` table: id, userId, name, transport (stdio/http), command, url, env, isEnabled
 - **Sub-task 2.10.2:** tRPC router
@@ -409,9 +430,10 @@ Each feature includes:
 
 **What it does:** Agents output structured JSON (A2UI schema) that renders as interactive React components inline in chat: charts, tables, forms, buttons, calendars. The agent can later update these components via follow-up messages.
 
-**Why it matters:** This is AgentHub's biggest architectural differentiator. Chat is text-only; A2UI makes agents output *interfaces*. A data analyst agent outputs a live chart. A task manager outputs a checklist with checkboxes.
+**Why it matters:** This is AgentHub's biggest architectural differentiator. Chat is text-only; A2UI makes agents output _interfaces_. A data analyst agent outputs a live chart. A task manager outputs a checklist with checkboxes.
 
 **Implementation sketch:**
+
 - **Sub-task 3.1.1:** A2UI Schema Design
   - JSON Schema for components: `type: "chart"`, `type: "table"`, `type: "form"`, `type: "calendar"`
   - Each component has `id`, `state`, `actions` (what happens on interaction)
@@ -441,6 +463,7 @@ Each feature includes:
 **Why it matters:** The lightweight Docker sandbox (Tier 2) is stateless. A full sandbox maintains files across turns, installs dependencies, and feels like a real dev environment.
 
 **Implementation sketch:**
+
 - **Sub-task 3.2.1:** Sandbox Infrastructure
   - Long-running Docker containers per user (or per session)
   - Volume persistence across chat turns
@@ -474,6 +497,7 @@ Each feature includes:
 **Why it matters:** AgentHub's architecture doc mentions local-first as a differentiator. Currently everything is server-dependent.
 
 **Implementation sketch:**
+
 - **Sub-task 3.3.1:** Yjs Integration
   - `yjs` + `y-indexeddb` for local persistence
   - Shared types: `Y.Array` for messages, `Y.Map` for agent config
@@ -499,6 +523,7 @@ Each feature includes:
 **Why it matters:** Transforms AgentHub from reactive chat to proactive automation. Users delegate multi-step workflows.
 
 **Implementation sketch:**
+
 - **Sub-task 3.4.1:** Task Schema
   - `tasks` table: id, userId, title, description, status, parentId, dependencies[], agentId, deadline, retryCount, maxRetries
   - DAG validation (no cycles)
@@ -526,6 +551,7 @@ Each feature includes:
 **Why it matters:** Local models + RAG + web search + reasoning = a private research assistant that rivals commercial tools.
 
 **Implementation sketch:**
+
 - **Sub-task 3.5.1:** Research Planner
   - Agent decomposes query into sub-questions
   - Generates research plan (what to search, what to read)
@@ -554,6 +580,7 @@ Each feature includes:
 **Why it matters:** Security is critical as agents gain tool access. Users should understand and control what agents can do.
 
 **Implementation sketch:**
+
 - **Sub-task 3.6.1:** Capability Schema
   - Tools declare `capabilities: ["network", "filesystem.read"]` in manifest
   - Agent config stores `grantedCapabilities`
@@ -580,6 +607,7 @@ Each feature includes:
 **Why it matters:** Cross-framework interoperability. Your AgentHub researcher can collaborate with a LangChain agent or a CrewAI agent.
 
 **Implementation sketch:**
+
 - **Sub-task 3.7.1:** A2A Server
   - Implement A2A protocol endpoints: `/.well-known/agent.json`, `/tasks/send`, `/tasks/get`, `/tasks/list`
   - Agent card metadata (name, description, capabilities, skills)
@@ -592,7 +620,7 @@ Each feature includes:
   - Health checking (ping agents periodically)
   - Search/filter by capability
 - **Sub-task 3.7.4:** Integration with Orchestrators
-  - Group patterns can include *remote* A2A agents as members
+  - Group patterns can include _remote_ A2A agents as members
   - Supervisor delegates to external specialist agents
 
 **Est. effort:** 4–5 weeks
@@ -606,6 +634,7 @@ Each feature includes:
 **Why it matters:** Team collaboration — brainstorm with colleagues + AI agents in one thread. Agents can be summoned on-demand.
 
 **Implementation sketch:**
+
 - **Sub-task 3.8.1:** Real-Time Transport
   - WebSocket or SSE for live message delivery
   - Presence indicators (who's online)
@@ -635,6 +664,7 @@ Each feature includes:
 **Why it matters:** Vector RAG answers "what is similar?" Graph RAG answers "what is connected?" Critical for structured domain knowledge.
 
 **Implementation sketch:**
+
 - **Sub-task 3.9.1:** Entity Extraction
   - Post-ingest step: run NER + relation extraction on chunks
   - Store entities in `entities` table (id, type, name, documentId)
@@ -662,6 +692,7 @@ Each feature includes:
 **Why it matters:** Personalized agents. Train a model on your writing style, domain knowledge, or conversation history.
 
 **Implementation sketch:**
+
 - **Sub-task 3.10.1:** Dataset Export
   - Filter conversations by agent → export as ShareGPT or Alpaca format
   - Deduplication and quality filtering
@@ -685,50 +716,50 @@ Each feature includes:
 
 ### Immediate Next (Highest ROI)
 
-| Feature | Tier | Why Now |
-|---------|------|---------|
-| Web Search with Citations (2.1) | Medium | Local models need current info; SearXNG is free/self-hosted |
-| Prompt Library / Slash Commands (1.1) | Easy | Huge UX boost for power users; minimal code |
-| Inline Citation / Sources Panel (2.7) | Medium | RAG is shipped but invisible; this surfaces it |
-| Code Interpreter Sandbox (2.4) | Medium | Differentiator; Docker already in stack |
-| Voice Input STT (2.2) | Medium | Accessibility + mobile; Web Speech API is free |
+| Feature                               | Tier   | Why Now                                                     |
+| ------------------------------------- | ------ | ----------------------------------------------------------- |
+| Web Search with Citations (2.1)       | Medium | Local models need current info; SearXNG is free/self-hosted |
+| Prompt Library / Slash Commands (1.1) | Easy   | Huge UX boost for power users; minimal code                 |
+| Inline Citation / Sources Panel (2.7) | Medium | RAG is shipped but invisible; this surfaces it              |
+| Code Interpreter Sandbox (2.4)        | Medium | Differentiator; Docker already in stack                     |
+| Voice Input STT (2.2)                 | Medium | Accessibility + mobile; Web Speech API is free              |
 
 ### Short-Term (Next 2–3 Sprints)
 
-| Feature | Tier | Why Soon |
-|---------|------|----------|
-| Scheduled Automations (2.5) | Medium | Proactive agents > reactive chat |
-| Model Comparison Mode (1.5) | Easy | Local-first users compare models constantly |
-| MCP Marketplace UI (2.10) | Medium | MCP is the emerging tool standard |
-| TTS for Responses (2.3) | Medium | Completes multimodal loop with STT |
-| Agent Opening Messages (2.6) | Medium | Onboarding friction reduction |
+| Feature                      | Tier   | Why Soon                                    |
+| ---------------------------- | ------ | ------------------------------------------- |
+| Scheduled Automations (2.5)  | Medium | Proactive agents > reactive chat            |
+| Model Comparison Mode (1.5)  | Easy   | Local-first users compare models constantly |
+| MCP Marketplace UI (2.10)    | Medium | MCP is the emerging tool standard           |
+| TTS for Responses (2.3)      | Medium | Completes multimodal loop with STT          |
+| Agent Opening Messages (2.6) | Medium | Onboarding friction reduction               |
 
 ### Long-Term (Strategic Differentiators)
 
-| Feature | Tier | Why Strategic |
-|---------|------|---------------|
+| Feature                          | Tier | Why Strategic                                  |
+| -------------------------------- | ---- | ---------------------------------------------- |
 | A2UI Declarative Rendering (3.1) | Hard | AgentHub's defining feature — agents output UI |
-| Deep Research Mode (3.5) | Hard | Positions against Perplexity/ChatGPT |
-| A2A Protocol Gateway (3.7) | Hard | Cross-framework interoperability |
-| CRDT Local-First Sync (3.3) | Hard | Architecture differentiation |
-| Agent Task System (3.4) | Hard | From chat to autonomous workflows |
+| Deep Research Mode (3.5)         | Hard | Positions against Perplexity/ChatGPT           |
+| A2A Protocol Gateway (3.7)       | Hard | Cross-framework interoperability               |
+| CRDT Local-First Sync (3.3)      | Hard | Architecture differentiation                   |
+| Agent Task System (3.4)          | Hard | From chat to autonomous workflows              |
 
 ---
 
 ## Out of Scope (Deliberately Excluded)
 
-| Feature | Reason |
-|---------|--------|
-| 40+ cloud provider integrations | AgentHub is local-first; cloud is gateway-only |
-| Image generation (DALL-E/FLUX) | Use ComfyUI/FLUX externally; not core to agent platform |
-| Video recognition | Too niche; out of scope for v1 |
-| Native mobile apps | PWA + responsive web sufficient |
-| Desktop app (Electron/Tauri) | Web-first; packaging later if demand |
-| Telegram/Discord bots | A2A protocol enables third-party bridges |
-| Commercial white-label / license tiers | Open source only |
-| Langfuse/observability dashboards | Out of scope; basic analytics in Tier 2 |
-| SCIM 2.0 / enterprise provisioning | Single-tenant for now |
+| Feature                                | Reason                                                  |
+| -------------------------------------- | ------------------------------------------------------- |
+| 40+ cloud provider integrations        | AgentHub is local-first; cloud is gateway-only          |
+| Image generation (DALL-E/FLUX)         | Use ComfyUI/FLUX externally; not core to agent platform |
+| Video recognition                      | Too niche; out of scope for v1                          |
+| Native mobile apps                     | PWA + responsive web sufficient                         |
+| Desktop app (Electron/Tauri)           | Web-first; packaging later if demand                    |
+| Telegram/Discord bots                  | A2A protocol enables third-party bridges                |
+| Commercial white-label / license tiers | Open source only                                        |
+| Langfuse/observability dashboards      | Out of scope; basic analytics in Tier 2                 |
+| SCIM 2.0 / enterprise provisioning     | Single-tenant for now                                   |
 
 ---
 
-*This document should be reviewed quarterly. Features move between tiers as the codebase evolves and dependencies are resolved.*
+_This document should be reviewed quarterly. Features move between tiers as the codebase evolves and dependencies are resolved._

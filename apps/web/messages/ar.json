@@ -1,0 +1,74 @@
+{
+  "nav": {
+    "newChat": "محادثة جديدة",
+    "search": "بحث",
+    "agents": "الوكلاء",
+    "kb": "قواعد المعرفة",
+    "automations": "الأتمتة",
+    "analytics": "التحليلات",
+    "settings": "الإعدادات",
+    "admin": "المسؤول"
+  },
+  "chat": {
+    "placeholder": "راسل وكيلك...",
+    "send": "إرسال",
+    "thinking": "جار التفكير...",
+    "copyMessage": "نسخ الرسالة",
+    "editMessage": "تعديل الرسالة",
+    "regenerate": "إعادة التوليد",
+    "forkHere": "التفرع من هنا",
+    "pinConversation": "تثبيت المحادثة",
+    "exportMarkdown": "تصدير كماركداون",
+    "noMessages": "ابدأ المحادثة",
+    "startNewChat": "بدء محادثة جديدة"
+  },
+  "agents": {
+    "title": "الوكلاء",
+    "create": "إنشاء وكيل",
+    "edit": "تعديل الوكيل",
+    "delete": "حذف الوكيل",
+    "name": "الاسم",
+    "description": "الوصف",
+    "systemPrompt": "تعليمات النظام",
+    "model": "النموذج",
+    "temperature": "درجة الحرارة",
+    "maxTokens": "الحد الأقصى للرموز",
+    "tools": "الأدوات",
+    "memoryEnabled": "الذاكرة",
+    "save": "حفظ",
+    "cancel": "إلغاء"
+  },
+  "kb": {
+    "title": "قواعد المعرفة",
+    "create": "إنشاء قاعدة معرفة",
+    "upload": "رفع مستند",
+    "query": "استعلام",
+    "noResults": "لم يتم العثور على نتائج"
+  },
+  "auth": {
+    "signIn": "تسجيل الدخول",
+    "signOut": "تسجيل الخروج",
+    "profile": "الملف الشخصي"
+  },
+  "common": {
+    "loading": "جار التحميل...",
+    "error": "حدث خطأ ما",
+    "retry": "إعادة المحاولة",
+    "close": "إغلاق",
+    "confirm": "تأكيد",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "search": "بحث...",
+    "noData": "لا يوجد شيء هنا بعد"
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "language": "اللغة",
+    "theme": "السمة",
+    "dark": "داكن",
+    "light": "فاتح",
+    "system": "النظام"
+  }
+}

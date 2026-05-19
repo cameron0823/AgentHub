@@ -61,7 +61,10 @@ describe("agents router — CRUD and user isolation", () => {
     const agents: { id: string }[] = [{ id: "agent-1" }];
     const members: { agentId: string; groupId: string }[] = [{ agentId: "agent-1", groupId: "grp-1" }];
 
-    agents.splice(agents.findIndex((a) => a.id === "agent-1"), 1);
+    agents.splice(
+      agents.findIndex((a) => a.id === "agent-1"),
+      1,
+    );
     const remaining = members.filter((m) => agents.some((a) => a.id === m.agentId));
     assert.equal(remaining.length, 0, "orphaned memberships must be removed");
   });

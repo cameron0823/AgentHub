@@ -276,7 +276,7 @@ export class AnthropicProvider implements ModelProvider {
             content: message.content.map((part) =>
               part.type === "text"
                 ? { type: "text", text: part.text }
-                : { type: "image", source: { type: "url", url: part.url } }
+                : { type: "image", source: { type: "url", url: part.url } },
             ),
           };
         }

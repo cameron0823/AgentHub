@@ -1,3 +1,5 @@
+import { validateProviderBaseUrl } from "./security/outbound";
+
 const TOKEN_ESTIMATE_RATIO = 4; // chars per token approximation
 const DEFAULT_MAX_CONTEXT_TOKENS = parseInt(process.env.MAX_CONTEXT_TOKENS || "8000", 10);
 const SUMMARIZE_TARGET_RATIO = 0.6; // target 60% of max after summarization
@@ -6,25 +8,41 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / TOKEN_ESTIMATE_RATIO);
 }
 
-function messageTokens(msg: { role: string; content?: string | null }): number {
-  return estimateTokens((msg.content ?? "") + msg.role) + 4; // 4 overhead per message
+function contentToText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (content == null) return "";
+  if (!Array.isArray(content)) return String(content);
+
+  return content
+    .map((part) => {
+      if (!part || typeof part !== "object") return "";
+      const typedPart = part as { type?: unknown; text?: unknown; url?: unknown };
+      if (typedPart.type === "text" && typeof typedPart.text === "string") return typedPart.text;
+      if (typedPart.type === "image_url" && typeof typedPart.url === "string") return `[image_url: ${typedPart.url}]`;
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n");
 }
 
-function totalTokens(messages: { role: string; content?: string | null }[]): number {
+function messageTokens(msg: { role: string; content?: unknown }): number {
+  return estimateTokens(contentToText(msg.content) + msg.role) + 4; // 4 overhead per message
+}
+
+function totalTokens(messages: { role: string; content?: unknown }[]): number {
   return messages.reduce((sum, m) => sum + messageTokens(m), 0);
 }
 
 async function summarizeOldest(
-  messages: { role: string; content?: string | null }[],
+  messages: { role: string; content?: unknown }[],
   ollamaUrl: string,
-  model: string
+  model: string,
 ): Promise<string> {
-  const transcript = messages
-    .map((m) => `${m.role.toUpperCase()}: ${m.content ?? ""}`)
-    .join("\n");
+  const transcript = messages.map((m) => `${m.role.toUpperCase()}: ${contentToText(m.content)}`).join("\n");
 
   try {
-    const res = await fetch(`${ollamaUrl}/api/generate`, {
+    const safeUrl = validateProviderBaseUrl(ollamaUrl, "http://localhost:11434");
+    const res = await fetch(`${safeUrl}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -43,9 +61,9 @@ async function summarizeOldest(
   return "Earlier conversation context has been summarized.";
 }
 
-export async function truncateToContextWindow<T extends { role: string; content?: string | null }>(
+export async function truncateToContextWindow<T extends { role: string; content?: unknown }>(
   messages: T[],
-  opts?: { maxTokens?: number; ollamaUrl?: string; model?: string }
+  opts?: { maxTokens?: number; ollamaUrl?: string; model?: string },
 ): Promise<T[]> {
   const maxTokens = opts?.maxTokens ?? DEFAULT_MAX_CONTEXT_TOKENS;
   const ollamaUrl = opts?.ollamaUrl ?? process.env.OLLAMA_URL ?? "http://localhost:11434";

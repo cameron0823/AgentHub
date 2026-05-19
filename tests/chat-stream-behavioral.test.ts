@@ -69,11 +69,15 @@ class MockEmptyProvider implements ModelProvider {
   readonly name = "Mock Empty";
   readonly type = "local" as const;
 
-  async listModels(): Promise<ModelInfo[]> { return []; }
+  async listModels(): Promise<ModelInfo[]> {
+    return [];
+  }
   async healthCheck(): Promise<ProviderHealth> {
     return { id: this.id, name: this.name, status: "healthy", latency: 0 };
   }
-  async chat(_options: ChatOptions): Promise<ChatResponse> { return { content: "" }; }
+  async chat(_options: ChatOptions): Promise<ChatResponse> {
+    return { content: "" };
+  }
   async *streamChat(_options: ChatOptions): AsyncGenerator<ChatStreamChunk> {
     // yields nothing — server must still emit done
   }
@@ -84,11 +88,15 @@ class MockErrorProvider implements ModelProvider {
   readonly name = "Mock Error Provider";
   readonly type = "local" as const;
 
-  async listModels(): Promise<ModelInfo[]> { return []; }
+  async listModels(): Promise<ModelInfo[]> {
+    return [];
+  }
   async healthCheck(): Promise<ProviderHealth> {
     return { id: this.id, name: this.name, status: "healthy", latency: 0 };
   }
-  async chat(_options: ChatOptions): Promise<ChatResponse> { return { content: "" }; }
+  async chat(_options: ChatOptions): Promise<ChatResponse> {
+    return { content: "" };
+  }
   async *streamChat(_options: ChatOptions): AsyncGenerator<ChatStreamChunk> {
     yield { type: "content", content: "partial " };
     throw new Error("Provider stream failure");
@@ -168,7 +176,7 @@ before(async () => {
       }
       const approxTokens = Math.ceil(fullContent.length / 4);
       res.write(
-        `data: ${JSON.stringify({ type: "done", tokensUsed: approxTokens, latencyMs: Date.now() - startMs })}\n\n`
+        `data: ${JSON.stringify({ type: "done", tokensUsed: approxTokens, latencyMs: Date.now() - startMs })}\n\n`,
       );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Stream error";
@@ -190,9 +198,7 @@ after(async () => {
   providerRegistry.unregister("mock-empty");
   providerRegistry.unregister("mock-error");
 
-  await new Promise<void>((resolve, reject) =>
-    server.close((err) => (err ? reject(err) : resolve()))
-  );
+  await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -239,7 +245,7 @@ function postStream(body: unknown): Promise<SseResult> {
           });
         });
         res.on("error", reject);
-      }
+      },
     );
     req.on("error", reject);
     req.write(payload);
@@ -275,9 +281,7 @@ test("content chunks carry the correct text values", async () => {
     messages: [{ role: "user", content: "hi" }],
   });
 
-  const contentChunks = (chunks as Array<{ type: string; content?: string }>).filter(
-    (c) => c.type === "content"
-  );
+  const contentChunks = (chunks as Array<{ type: string; content?: string }>).filter((c) => c.type === "content");
   assert.equal(contentChunks.length, 2, "MockProvider yields exactly 2 content chunks");
   assert.equal(contentChunks[0].content, "Hello ");
   assert.equal(contentChunks[1].content, "world");
@@ -290,7 +294,7 @@ test("done chunk has numeric tokensUsed and latencyMs", async () => {
   });
 
   const done = (chunks as Array<{ type: string; tokensUsed?: unknown; latencyMs?: unknown }>).find(
-    (c) => c.type === "done"
+    (c) => c.type === "done",
   );
   assert.ok(done, "done chunk must exist");
   assert.equal(typeof done!.tokensUsed, "number", "tokensUsed must be a number");
@@ -305,9 +309,7 @@ test("tokensUsed approximates content length / 4", async () => {
   });
 
   // "Hello " + "world" = 11 chars → ceil(11/4) = 3
-  const done = (chunks as Array<{ type: string; tokensUsed?: number }>).find(
-    (c) => c.type === "done"
-  );
+  const done = (chunks as Array<{ type: string; tokensUsed?: number }>).find((c) => c.type === "done");
   assert.equal(done?.tokensUsed, Math.ceil("Hello world".length / 4));
 });
 
@@ -317,9 +319,7 @@ test("multi-chunk provider: all 5 chunks arrive in order", async () => {
     messages: [{ role: "user", content: "go" }],
   });
 
-  const content = (chunks as Array<{ type: string; content?: string }>).filter(
-    (c) => c.type === "content"
-  );
+  const content = (chunks as Array<{ type: string; content?: string }>).filter((c) => c.type === "content");
   assert.equal(content.length, 5);
   for (let i = 0; i < 5; i++) {
     assert.equal(content[i].content, `chunk${i + 1} `);
@@ -335,9 +335,7 @@ test("empty provider: no content chunks, only done", async () => {
   const content = (chunks as Array<{ type: string }>).filter((c) => c.type === "content");
   assert.equal(content.length, 0, "no content chunks expected");
 
-  const done = (chunks as Array<{ type: string; tokensUsed?: number }>).find(
-    (c) => c.type === "done"
-  );
+  const done = (chunks as Array<{ type: string; tokensUsed?: number }>).find((c) => c.type === "done");
   assert.ok(done, "done must still be emitted");
   assert.equal(done!.tokensUsed, 0, "empty stream → 0 tokens");
 });
@@ -362,9 +360,7 @@ test("error SSE event carries the provider error message", async () => {
     messages: [{ role: "user", content: "go" }],
   });
 
-  const errChunk = (chunks as Array<{ type: string; error?: string }>).find(
-    (c) => c.type === "error"
-  );
+  const errChunk = (chunks as Array<{ type: string; error?: string }>).find((c) => c.type === "error");
   assert.ok(errChunk, "error chunk must exist");
   assert.equal(errChunk!.error, "Provider stream failure");
 });
@@ -383,7 +379,7 @@ test("invalid JSON body → 400 status", async () => {
       (res) => {
         res.resume();
         res.on("end", () => resolve({ status: res.statusCode ?? 0 }));
-      }
+      },
     );
     req.on("error", reject);
     req.write(payload);
@@ -410,7 +406,7 @@ test("missing messages field → 400 status", async () => {
       (res) => {
         res.resume();
         res.on("end", () => resolve({ status: res.statusCode ?? 0 }));
-      }
+      },
     );
     req.on("error", reject);
     req.write(payload);
@@ -430,20 +426,17 @@ test("each SSE event is valid JSON parseable independently", async () => {
   for (const chunk of chunks) {
     assert.ok(
       !Object.prototype.hasOwnProperty.call(chunk, "_raw"),
-      `chunk failed JSON parse: ${JSON.stringify(chunk)}`
+      `chunk failed JSON parse: ${JSON.stringify(chunk)}`,
     );
   }
 });
 
 test("unknown route → 404", async () => {
   const result = await new Promise<{ status: number }>((resolve, reject) => {
-    const req = http.request(
-      { hostname: "127.0.0.1", port, path: "/unknown", method: "GET" },
-      (res) => {
-        res.resume();
-        res.on("end", () => resolve({ status: res.statusCode ?? 0 }));
-      }
-    );
+    const req = http.request({ hostname: "127.0.0.1", port, path: "/unknown", method: "GET" }, (res) => {
+      res.resume();
+      res.on("end", () => resolve({ status: res.statusCode ?? 0 }));
+    });
     req.on("error", reject);
     req.end();
   });

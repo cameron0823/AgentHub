@@ -32,21 +32,26 @@ export interface RunOptions {
   signal?: AbortSignal;
 }
 
-export type AgentStreamChunk = ChatStreamChunk | {
-  type: "reasoning_event";
-  event: ReasoningTimelineEvent;
-} | {
-  type: "tool_result";
-  toolName: string;
-  toolCallId?: string;
-  result: any;
-} | {
-  type: "approval_request";
-  approvalId: string;
-  request: ApprovalRequest;
-} | {
-  type: "approval_result";
-  approvalId: string;
-  toolName?: string;
-  decision: ApprovalDecision;
-};
+export type AgentStreamChunk =
+  | ChatStreamChunk
+  | {
+      type: "reasoning_event";
+      event: ReasoningTimelineEvent;
+    }
+  | {
+      type: "tool_result";
+      toolName: string;
+      toolCallId?: string;
+      result: any;
+    }
+  | {
+      type: "approval_request";
+      approvalId: string;
+      request: ApprovalRequest;
+    }
+  | {
+      type: "approval_result";
+      approvalId: string;
+      toolName?: string;
+      decision: ApprovalDecision;
+    };

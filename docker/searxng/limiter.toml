@@ -1,0 +1,3 @@
+# Local desktop SearXNG keeps limiter disabled in settings.yml, but the
+# container still probes this file at startup. Keeping it present avoids noisy
+# missing-config warnings without enabling bot detection.

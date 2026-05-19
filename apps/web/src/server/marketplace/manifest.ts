@@ -6,46 +6,63 @@ export const SUPPORTED_MARKETPLACE_TOOLS = ["calculator", "datetime", "read_file
 
 const supportedToolSchema = z.enum(SUPPORTED_MARKETPLACE_TOOLS);
 
-const metadataSchema = z.object({
-  slug: z.string().trim().min(1).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use a lowercase kebab-case slug."),
-  name: z.string().trim().min(1),
-  description: z.string().trim().min(1).optional(),
-  author: z.string().trim().min(1).optional(),
-  license: z.string().trim().min(1).optional(),
-  version: z.string().trim().min(1).optional(),
-  tags: z.array(z.string().trim().min(1)).default([]),
-}).strict();
+const metadataSchema = z
+  .object({
+    slug: z
+      .string()
+      .trim()
+      .min(1)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use a lowercase kebab-case slug."),
+    name: z.string().trim().min(1),
+    description: z.string().trim().min(1).optional(),
+    author: z.string().trim().min(1).optional(),
+    license: z.string().trim().min(1).optional(),
+    version: z.string().trim().min(1).optional(),
+    sourceUrl: z.string().trim().url().optional(),
+    upstreamId: z.string().trim().min(1).optional(),
+    tags: z.array(z.string().trim().min(1)).default([]),
+  })
+  .strict();
 
-const manifestAgentSchema = z.object({
-  localKey: z.string().trim().min(1).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use a lowercase kebab-case localKey."),
-  name: z.string().trim().min(1),
-  description: z.string().trim().min(1).optional(),
-  avatar: z.string().trim().min(1).optional(),
-  systemPrompt: z.string().trim().min(1),
-  model: z.string().trim().min(1).default(DEFAULT_MARKETPLACE_MODEL),
-  temperature: z.number().min(0).max(2).default(0.7),
-  maxTokens: z.number().int().positive().max(128000).default(4096),
-  tools: z.array(supportedToolSchema).default([]),
-  memoryEnabled: z.boolean().default(true),
-}).strict();
+const manifestAgentSchema = z
+  .object({
+    localKey: z
+      .string()
+      .trim()
+      .min(1)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use a lowercase kebab-case localKey."),
+    name: z.string().trim().min(1),
+    description: z.string().trim().min(1).optional(),
+    avatar: z.string().trim().min(1).optional(),
+    systemPrompt: z.string().trim().min(1),
+    model: z.string().trim().min(1).default(DEFAULT_MARKETPLACE_MODEL),
+    temperature: z.number().min(0).max(2).default(0.7),
+    maxTokens: z.number().int().positive().max(128000).default(4096),
+    tools: z.array(supportedToolSchema).default([]),
+    memoryEnabled: z.boolean().default(true),
+  })
+  .strict();
 
-const manifestSchema = z.object({
-  schemaVersion: z.literal(MARKETPLACE_SCHEMA_VERSION),
-  metadata: metadataSchema,
-  agents: z.array(manifestAgentSchema).min(1, "Manifest must include at least one agent."),
-}).strict().superRefine((manifest, ctx) => {
-  const seen = new Set<string>();
-  for (const agent of manifest.agents) {
-    if (seen.has(agent.localKey)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["agents"],
-        message: `Duplicate agent localKey: ${agent.localKey}`,
-      });
+export const manifestSchema = z
+  .object({
+    schemaVersion: z.literal(MARKETPLACE_SCHEMA_VERSION),
+    metadata: metadataSchema,
+    agents: z.array(manifestAgentSchema).min(1, "Manifest must include at least one agent."),
+  })
+  .strict()
+  .superRefine((manifest, ctx) => {
+    const seen = new Set<string>();
+    for (const agent of manifest.agents) {
+      if (seen.has(agent.localKey)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["agents"],
+          message: `Duplicate agent localKey: ${agent.localKey}`,
+        });
+      }
+      seen.add(agent.localKey);
     }
-    seen.add(agent.localKey);
-  }
-});
+  });
 
 export type MarketplaceManifest = z.infer<typeof manifestSchema>;
 export type MarketplaceManifestAgent = MarketplaceManifest["agents"][number];
@@ -57,6 +74,8 @@ export type MarketplaceManifestSummary = {
   author?: string;
   license?: string;
   version?: string;
+  sourceUrl?: string;
+  upstreamId?: string;
   tags: string[];
   agentCount: number;
   agents: Array<{
@@ -67,6 +86,12 @@ export type MarketplaceManifestSummary = {
     tools: string[];
     memoryEnabled: boolean;
   }>;
+};
+
+export type MarketplaceCatalogItem = {
+  summary: MarketplaceManifestSummary;
+  manifest: MarketplaceManifest;
+  source: "local" | "remote";
 };
 
 export const bundledMarketplaceCatalog: MarketplaceManifest[] = [
@@ -87,7 +112,8 @@ export const bundledMarketplaceCatalog: MarketplaceManifest[] = [
         name: "Research Analyst",
         description: "Breaks broad topics into grounded findings and concise summaries.",
         avatar: "research",
-        systemPrompt: "You are a local-first research analyst. Ask clarifying questions only when blocked, separate observed facts from inference, and produce concise findings with source notes when provided.",
+        systemPrompt:
+          "You are a local-first research analyst. Ask clarifying questions only when blocked, separate observed facts from inference, and produce concise findings with source notes when provided.",
         tools: ["datetime"],
       },
     ],
@@ -109,7 +135,8 @@ export const bundledMarketplaceCatalog: MarketplaceManifest[] = [
         name: "Local Code Reviewer",
         description: "Reviews pasted code for correctness, edge cases, and maintainability.",
         avatar: "dev",
-        systemPrompt: "You are a pragmatic local code reviewer. Prioritize bugs, regressions, unsafe assumptions, and missing tests. Keep summaries brief and actionable.",
+        systemPrompt:
+          "You are a pragmatic local code reviewer. Prioritize bugs, regressions, unsafe assumptions, and missing tests. Keep summaries brief and actionable.",
         tools: ["datetime", "read_file"],
       },
       {
@@ -117,7 +144,8 @@ export const bundledMarketplaceCatalog: MarketplaceManifest[] = [
         name: "Calculation Helper",
         description: "Solves quantitative checks and explains assumptions.",
         avatar: "calc",
-        systemPrompt: "You are a careful calculation assistant. State formulas, validate units, use calculator when useful, and flag uncertain assumptions.",
+        systemPrompt:
+          "You are a careful calculation assistant. State formulas, validate units, use calculator when useful, and flag uncertain assumptions.",
         tools: ["calculator"],
       },
     ],
@@ -139,7 +167,8 @@ export const bundledMarketplaceCatalog: MarketplaceManifest[] = [
         name: "Daily Planner",
         description: "Turns goals into a realistic local task plan.",
         avatar: "plan",
-        systemPrompt: "You are a grounded daily planning assistant. Convert goals into sequenced actions, call out constraints, and keep plans realistic for today.",
+        systemPrompt:
+          "You are a grounded daily planning assistant. Convert goals into sequenced actions, call out constraints, and keep plans realistic for today.",
         tools: ["datetime"],
       },
     ],
@@ -159,6 +188,8 @@ export function summarizeMarketplaceManifest(manifest: MarketplaceManifest): Mar
     author: manifest.metadata.author,
     license: manifest.metadata.license,
     version: manifest.metadata.version,
+    sourceUrl: manifest.metadata.sourceUrl,
+    upstreamId: manifest.metadata.upstreamId,
     tags: manifest.metadata.tags,
     agentCount: manifest.agents.length,
     agents: manifest.agents.map((agent) => ({
@@ -176,6 +207,7 @@ export function getBundledCatalogItems() {
   return bundledMarketplaceCatalog.map((manifest) => ({
     summary: summarizeMarketplaceManifest(manifest),
     manifest,
+    source: "local" as const,
   }));
 }
 
@@ -194,10 +226,11 @@ export function createAgentExportManifest(agent: {
   tools: string | null;
   memoryEnabled: boolean | null;
 }): MarketplaceManifest {
-  const safeLocalKey = agent.name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "exported-agent";
+  const safeLocalKey =
+    agent.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "exported-agent";
   const parsedTools = parseExportedTools(agent.tools);
 
   return parseMarketplaceManifest({
@@ -210,18 +243,20 @@ export function createAgentExportManifest(agent: {
       version: "1.0.0",
       tags: ["exported", "local-first"],
     },
-    agents: [{
-      localKey: safeLocalKey,
-      name: agent.name,
-      description: agent.description || undefined,
-      avatar: agent.avatar || undefined,
-      systemPrompt: agent.systemPrompt,
-      model: agent.model || DEFAULT_MARKETPLACE_MODEL,
-      temperature: agent.temperature ?? 0.7,
-      maxTokens: agent.maxTokens ?? 4096,
-      tools: parsedTools,
-      memoryEnabled: agent.memoryEnabled ?? true,
-    }],
+    agents: [
+      {
+        localKey: safeLocalKey,
+        name: agent.name,
+        description: agent.description || undefined,
+        avatar: agent.avatar || undefined,
+        systemPrompt: agent.systemPrompt,
+        model: agent.model || DEFAULT_MARKETPLACE_MODEL,
+        temperature: agent.temperature ?? 0.7,
+        maxTokens: agent.maxTokens ?? 4096,
+        tools: parsedTools,
+        memoryEnabled: agent.memoryEnabled ?? true,
+      },
+    ],
   });
 }
 

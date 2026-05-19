@@ -1,24 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
-import { providerRegistry, type ProviderRegistry } from "@agenthub/ai-providers";
+import { checkProviderPlanAccess, providerRegistry, type ProviderRegistry } from "@agenthub/ai-providers";
 import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { providerCredentials } from "@/server/db/schema";
+import { decryptProviderCredentials } from "@/server/provider-credentials";
+import { ensureUserQuota } from "@/server/quotas";
 
 export const runtime = "nodejs";
 
 async function loadUserProviders(userId: string): Promise<ProviderRegistry> {
-  const userCreds = await db.select().from(providerCredentials)
+  const encryptedUserCreds = await db
+    .select()
+    .from(providerCredentials)
     .where(and(eq(providerCredentials.userId, userId), eq(providerCredentials.isEnabled, true)));
+  const quota = await ensureUserQuota(userId);
+  const userCreds = decryptProviderCredentials(encryptedUserCreds).filter(
+    (credential) => checkProviderPlanAccess(credential.providerId, quota.plan).allowed,
+  );
   if (userCreds.length === 0) return providerRegistry;
-  return providerRegistry.forUser(userCreds.map((c) => ({
-    providerId: c.providerId,
-    authType: c.authType as "api_key" | "oauth",
-    apiKey: c.apiKey || undefined,
-    baseUrl: c.baseUrl || undefined,
-    accessToken: c.accessToken || undefined,
-    expiresAt: c.expiresAt,
-  })));
+  return providerRegistry.forUser(
+    userCreds.map((c) => ({
+      providerId: c.providerId,
+      authType: c.authType as "api_key" | "oauth",
+      apiKey: c.apiKey || undefined,
+      baseUrl: c.baseUrl || undefined,
+      accessToken: c.accessToken || undefined,
+      expiresAt: c.expiresAt,
+    })),
+  );
 }
 
 function formString(formData: FormData, key: string, fallback?: string) {

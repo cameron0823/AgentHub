@@ -10,7 +10,8 @@ test.describe("Knowledge Base Upload", () => {
     await page.getByPlaceholder("Knowledge base name").fill(kbName);
     await page.getByRole("button", { name: "Create" }).click();
 
-    await expect(page.getByText(kbName)).toBeVisible();
+    await expect(page.getByPlaceholder("Knowledge base name")).toBeHidden({ timeout: 20_000 });
+    await expect(page.getByText(kbName)).toBeVisible({ timeout: 20_000 });
     await page.getByText(kbName).click();
     await expect(page.getByRole("button", { name: /upload document/i })).toBeVisible();
   });

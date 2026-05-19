@@ -18,7 +18,7 @@ export function AgentList({ agents, activeAgentId, onEditAgent, onStartChat, isS
     const normalized = query.trim().toLowerCase();
     if (!normalized) return agents;
     return agents.filter((agent) =>
-      [agent.name, agent.description || "", agent.model].some((value) => value.toLowerCase().includes(normalized))
+      [agent.name, agent.description || "", agent.model].some((value) => value.toLowerCase().includes(normalized)),
     );
   }, [agents, query]);
 
@@ -30,12 +30,12 @@ export function AgentList({ agents, activeAgentId, onEditAgent, onStartChat, isS
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search agents..."
-          className="w-full rounded-lg border bg-background py-2 pl-7 pr-2 text-xs outline-none focus:ring-1 focus:ring-primary"
+          className="agenthub-field w-full py-2 pl-7 pr-2 text-xs"
         />
       </div>
 
       {filteredAgents.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-3 text-xs text-muted-foreground">
           No agents found.
         </div>
       ) : (
@@ -44,8 +44,10 @@ export function AgentList({ agents, activeAgentId, onEditAgent, onStartChat, isS
             <div
               key={agent.id}
               data-testid="agent-card"
-              className={`rounded-lg border p-2 text-xs transition-colors ${
-                agent.id === activeAgentId ? "border-primary bg-primary/5" : "hover:bg-muted/60"
+              className={`rounded-xl border p-2 text-xs transition-colors ${
+                agent.id === activeAgentId
+                  ? "border-primary/70 bg-primary/10"
+                  : "border-white/10 bg-white/5 hover:bg-white/10"
               }`}
             >
               <button
@@ -53,7 +55,7 @@ export function AgentList({ agents, activeAgentId, onEditAgent, onStartChat, isS
                 onClick={() => onEditAgent(agent.id)}
                 className="flex w-full items-start gap-2 text-left"
               >
-                <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm">
+                <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-white/10 text-sm">
                   {agent.avatar || <Bot className="h-3.5 w-3.5" />}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -65,7 +67,7 @@ export function AgentList({ agents, activeAgentId, onEditAgent, onStartChat, isS
                 type="button"
                 onClick={() => onStartChat(agent.id)}
                 disabled={isStartingChat}
-                className="mt-2 flex w-full items-center justify-center gap-1 rounded-md bg-muted px-2 py-1 text-xs hover:bg-muted/80 disabled:opacity-60"
+                className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg bg-white/10 px-2 py-1 text-xs hover:bg-white/15 disabled:opacity-60"
               >
                 <MessageSquare className="h-3 w-3" />
                 Start chat

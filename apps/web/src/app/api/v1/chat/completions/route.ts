@@ -3,9 +3,11 @@ import { AgentRuntime } from "@agenthub/agent-runtime";
 import { db } from "@/server/db";
 import { agents, providerCredentials } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
-import { providerRegistry, type ProviderRegistry } from "@agenthub/ai-providers";
+import { checkProviderPlanAccess, providerRegistry, type ProviderRegistry } from "@agenthub/ai-providers";
 import { validateApiKey } from "@/server/routers/apiKeys";
+import { decryptProviderCredentials } from "@/server/provider-credentials";
 import { fetchAcceptedMemoriesForAgent, formatMemoryBlock, appendMemoryBlockToSystemPrompt } from "@/server/memory";
+import { ensureUserQuota } from "@/server/quotas";
 
 export const runtime = "nodejs";
 
@@ -43,7 +45,7 @@ async function resolveRuntime(
   temperature: number,
   maxTokens: number,
   registry: ProviderRegistry,
-  systemOverride?: string
+  systemOverride?: string,
 ): Promise<ResolvedRuntime | null> {
   if (UUID_RE.test(model)) {
     // model is an agent ID
@@ -56,7 +58,7 @@ async function resolveRuntime(
 
     let systemPrompt = systemOverride ?? agent.systemPrompt;
     if (!systemOverride && agent.memoryEnabled) {
-      const memories = await fetchAcceptedMemoriesForAgent(agent.id);
+      const memories = await fetchAcceptedMemoriesForAgent(agent.id, userId);
       const block = formatMemoryBlock(memories);
       systemPrompt = appendMemoryBlockToSystemPrompt(systemPrompt, block) ?? systemPrompt;
     }
@@ -85,7 +87,7 @@ export async function POST(req: NextRequest) {
   if (!userId) {
     return NextResponse.json(
       { error: { message: "Unauthorized", type: "invalid_request_error", code: "invalid_api_key" } },
-      { status: 401 }
+      { status: 401 },
     );
   }
 
@@ -99,32 +101,45 @@ export async function POST(req: NextRequest) {
   const { model, messages, stream = false, temperature, max_tokens } = body as CompletionsRequest;
 
   if (!model || typeof model !== "string") {
-    return NextResponse.json({ error: { message: "model is required", type: "invalid_request_error" } }, { status: 400 });
+    return NextResponse.json(
+      { error: { message: "model is required", type: "invalid_request_error" } },
+      { status: 400 },
+    );
   }
   if (!Array.isArray(messages) || messages.length === 0) {
-    return NextResponse.json({ error: { message: "messages must be a non-empty array", type: "invalid_request_error" } }, { status: 400 });
+    return NextResponse.json(
+      { error: { message: "messages must be a non-empty array", type: "invalid_request_error" } },
+      { status: 400 },
+    );
   }
   if (messages.length > MAX_MESSAGES) {
     return NextResponse.json(
       { error: { message: `messages exceeds limit of ${MAX_MESSAGES}`, type: "invalid_request_error" } },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
-  const userCreds = await db
+  const quota = await ensureUserQuota(userId);
+  const encryptedUserCreds = await db
     .select()
     .from(providerCredentials)
     .where(and(eq(providerCredentials.userId, userId), eq(providerCredentials.isEnabled, true)));
-  const userRegistry: ProviderRegistry = userCreds.length > 0
-    ? providerRegistry.forUser(userCreds.map((c) => ({
-        providerId: c.providerId,
-        authType: c.authType as "api_key" | "oauth",
-        apiKey: c.apiKey || undefined,
-        baseUrl: c.baseUrl || undefined,
-        accessToken: c.accessToken || undefined,
-        expiresAt: c.expiresAt,
-      })))
-    : providerRegistry;
+  const userCreds = decryptProviderCredentials(encryptedUserCreds).filter(
+    (credential) => checkProviderPlanAccess(credential.providerId, quota.plan).allowed,
+  );
+  const userRegistry: ProviderRegistry =
+    userCreds.length > 0
+      ? providerRegistry.forUser(
+          userCreds.map((c) => ({
+            providerId: c.providerId,
+            authType: c.authType as "api_key" | "oauth",
+            apiKey: c.apiKey || undefined,
+            baseUrl: c.baseUrl || undefined,
+            accessToken: c.accessToken || undefined,
+            expiresAt: c.expiresAt,
+          })),
+        )
+      : providerRegistry;
 
   const systemMsg = messages.find((m) => m.role === "system");
   const chatMessages = messages
@@ -137,10 +152,13 @@ export async function POST(req: NextRequest) {
     temperature ?? 0.7,
     max_tokens ?? 4096,
     userRegistry,
-    systemMsg?.content
+    systemMsg?.content,
   );
   if (!resolved) {
-    return NextResponse.json({ error: { message: "Model or agent not found", type: "invalid_request_error" } }, { status: 404 });
+    return NextResponse.json(
+      { error: { message: "Model or agent not found", type: "invalid_request_error" } },
+      { status: 404 },
+    );
   }
 
   const id = makeId();
@@ -173,8 +191,8 @@ export async function POST(req: NextRequest) {
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(done)}\n\n`));
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        } catch (err) {
-          const errEvent = { error: { message: (err as Error).message, type: "server_error" } };
+        } catch {
+          const errEvent = { error: { message: "Chat completion failed", type: "server_error" } };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(errEvent)}\n\n`));
         } finally {
           controller.close();
@@ -197,8 +215,8 @@ export async function POST(req: NextRequest) {
     for await (const chunk of resolved.runtime.run({ sessionId, messages: chatMessages, tools: [] })) {
       if (chunk.type === "content" && chunk.content) output += chunk.content;
     }
-  } catch (err) {
-    return NextResponse.json({ error: { message: (err as Error).message, type: "server_error" } }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: { message: "Chat completion failed", type: "server_error" } }, { status: 500 });
   }
 
   const promptTokens = messages.reduce((a, m) => a + Math.ceil(m.content.length / 4), 0);

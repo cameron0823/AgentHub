@@ -36,7 +36,7 @@ describe("Admin panel", () => {
   it("adminRouter registered in _app.ts", async () => {
     const src = await readText("apps/web/src/server/routers/_app.ts");
     assert.match(src, /adminRouter/, "adminRouter must be imported");
-    assert.match(src, /admin.*adminRouter/, "admin key must be wired up");
+    assert.match(src, /admin[\s\S]*adminRouter/, "admin key must be wired up");
   });
 
   it("AdminPanel component has Users and Stats tabs", async () => {
@@ -62,18 +62,18 @@ describe("Admin panel", () => {
   it("page.tsx renders AdminPanel for admin mainView", async () => {
     const src = await readText("apps/web/src/app/page.tsx");
     assert.match(src, /AdminPanel/, "must import AdminPanel");
-    assert.match(src, /mainView.*admin.*AdminPanel/, "must render AdminPanel for admin view");
+    assert.match(src, /mainView[\s\S]*admin[\s\S]*AdminPanel/, "must render AdminPanel for admin view");
   });
 
   it("Sidebar shows admin link only for admin users", async () => {
     const src = await readText("apps/web/src/components/Sidebar.tsx");
     assert.match(src, /isAdmin/, "must check isAdmin");
-    assert.match(src, /role.*admin/, "must check role === admin");
+    assert.match(src, /role[\s\S]*admin/, "must check role === admin");
     assert.match(src, /ShieldCheck/, "must use ShieldCheck icon for admin link");
   });
 
   it("MainView type includes admin", async () => {
     const src = await readText("apps/web/src/stores/chatStore.ts");
-    assert.match(src, /MainView.*admin/, "MainView union must include admin");
+    assert.match(src, /MainView[\s\S]*admin/, "MainView union must include admin");
   });
 });

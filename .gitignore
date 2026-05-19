@@ -5,6 +5,7 @@ node_modules/
 .next/
 .turbo/
 dist/
+apps/desktop/resources/web/
 *.tsbuildinfo
 
 # Local data
@@ -21,6 +22,8 @@ data/
 # Logs
 logs/
 *.log
+test-results*.json
+test-results*.txt
 
 # OS
 .DS_Store

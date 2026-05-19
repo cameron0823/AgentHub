@@ -4,7 +4,7 @@
  * Creates a standard test user, agents, and knowledge bases for E2E tests.
  * Run before Playwright tests: pnpm tsx tests/e2e/seed.ts
  */
-import { db } from "../../src/server/db";
+import { client, db } from "../../src/server/db";
 import { agents, agentGroups, groupMembers, knowledgeBases, users } from "../../src/server/db/schema";
 
 async function seed() {
@@ -63,4 +63,11 @@ async function seed() {
   console.log("Done.");
 }
 
-seed().catch(console.error);
+seed()
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await client.end({ timeout: 1 });
+  });

@@ -3,9 +3,40 @@
   "short_name": "AgentHub",
   "description": "Local AI Agent Platform — self-hosted, privacy-preserving",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#09090b",
   "theme_color": "#09090b",
+  "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Open Chat",
+      "short_name": "Chat",
+      "description": "Open the AgentHub chat workspace",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Knowledge Base",
+      "short_name": "Knowledge",
+      "description": "Open AgentHub knowledge bases",
+      "url": "/kb",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
   "icons": [
     {
       "src": "/icon-192.png",

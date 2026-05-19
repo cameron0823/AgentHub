@@ -14,8 +14,14 @@ test.describe("Supervisor Orchestrator", () => {
     await page.fill("[name='name']", groupName);
     await page.selectOption("[name='pattern']", "supervisor");
 
-    const supervisorCheckbox = page.locator("label").filter({ hasText: supervisor.name }).locator("[data-testid='agent-checkbox']");
-    const workerCheckbox = page.locator("label").filter({ hasText: worker.name }).locator("[data-testid='agent-checkbox']");
+    const supervisorCheckbox = page
+      .locator("label")
+      .filter({ hasText: supervisor.name })
+      .locator("[data-testid='agent-checkbox']");
+    const workerCheckbox = page
+      .locator("label")
+      .filter({ hasText: worker.name })
+      .locator("[data-testid='agent-checkbox']");
     await expect(supervisorCheckbox).toBeVisible({ timeout: 15_000 });
     await supervisorCheckbox.check();
     await expect(workerCheckbox).toBeVisible({ timeout: 15_000 });

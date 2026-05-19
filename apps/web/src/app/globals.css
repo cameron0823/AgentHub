@@ -5,49 +5,159 @@
 @layer base {
   /* Light mode — rarely used since app defaults to dark */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 4%;
-    --card: 0 0% 98%;
-    --card-foreground: 240 10% 4%;
+    --background: 220 22% 96%;
+    --foreground: 222 30% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 30% 8%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 4%;
-    --primary: 161 94% 30%;
+    --popover-foreground: 222 30% 8%;
+    --primary: 211 100% 52%;
     --primary-foreground: 0 0% 98%;
     --secondary: 240 5% 92%;
     --secondary-foreground: 240 10% 4%;
     --muted: 240 5% 92%;
     --muted-foreground: 240 4% 46%;
-    --accent: 161 60% 92%;
-    --accent-foreground: 161 94% 20%;
+    --accent: 211 100% 94%;
+    --accent-foreground: 211 100% 32%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
     --border: 240 6% 88%;
     --input: 240 6% 88%;
-    --ring: 161 94% 30%;
-    --radius: 0.375rem;
+    --ring: 211 100% 52%;
+    --radius: 0.875rem;
+    --agenthub-message-max-width: 48rem;
+    --agenthub-primary-start: #42a4ff;
+    --agenthub-primary-end: #0a84ff;
+    --agenthub-primary-hover-start: #67b6ff;
+    --agenthub-primary-hover-end: #1d8dff;
+    --agenthub-primary-shadow: rgba(10, 132, 255, 0.26);
+  }
+
+  :root[data-agenthub-accent="blue"] {
+    --primary: 211 100% 52%;
+    --primary-foreground: 0 0% 98%;
+    --accent: 211 100% 94%;
+    --accent-foreground: 211 100% 32%;
+    --ring: 211 100% 52%;
+    --agenthub-primary-start: #42a4ff;
+    --agenthub-primary-end: #0a84ff;
+    --agenthub-primary-hover-start: #67b6ff;
+    --agenthub-primary-hover-end: #1d8dff;
+    --agenthub-primary-shadow: rgba(10, 132, 255, 0.26);
+  }
+
+  :root[data-agenthub-accent="cyan"] {
+    --primary: 188 86% 42%;
+    --primary-foreground: 0 0% 98%;
+    --accent: 187 92% 92%;
+    --accent-foreground: 188 88% 26%;
+    --ring: 188 86% 42%;
+    --agenthub-primary-start: #22d3ee;
+    --agenthub-primary-end: #0891b2;
+    --agenthub-primary-hover-start: #67e8f9;
+    --agenthub-primary-hover-end: #06b6d4;
+    --agenthub-primary-shadow: rgba(8, 145, 178, 0.24);
+  }
+
+  :root[data-agenthub-accent="emerald"] {
+    --primary: 160 84% 39%;
+    --primary-foreground: 0 0% 98%;
+    --accent: 152 76% 92%;
+    --accent-foreground: 158 64% 24%;
+    --ring: 160 84% 39%;
+    --agenthub-primary-start: #34d399;
+    --agenthub-primary-end: #059669;
+    --agenthub-primary-hover-start: #6ee7b7;
+    --agenthub-primary-hover-end: #10b981;
+    --agenthub-primary-shadow: rgba(16, 185, 129, 0.24);
+  }
+
+  :root[data-agenthub-accent="amber"] {
+    --primary: 38 92% 50%;
+    --primary-foreground: 240 10% 4%;
+    --accent: 48 96% 89%;
+    --accent-foreground: 32 95% 28%;
+    --ring: 38 92% 50%;
+    --agenthub-primary-start: #fbbf24;
+    --agenthub-primary-end: #d97706;
+    --agenthub-primary-hover-start: #fcd34d;
+    --agenthub-primary-hover-end: #f59e0b;
+    --agenthub-primary-shadow: rgba(245, 158, 11, 0.24);
+  }
+
+  :root[data-agenthub-accent="rose"] {
+    --primary: 346 77% 49%;
+    --primary-foreground: 0 0% 98%;
+    --accent: 355 100% 95%;
+    --accent-foreground: 343 76% 34%;
+    --ring: 346 77% 49%;
+    --agenthub-primary-start: #fb7185;
+    --agenthub-primary-end: #e11d48;
+    --agenthub-primary-hover-start: #fda4af;
+    --agenthub-primary-hover-end: #f43f5e;
+    --agenthub-primary-shadow: rgba(225, 29, 72, 0.24);
   }
 
   /* Dark mode — primary theme */
   .dark {
-    --background: 240 10% 4%;
+    --background: 224 38% 7%;
     --foreground: 0 0% 98%;
-    --card: 240 5% 7%;
+    --card: 218 27% 11%;
     --card-foreground: 0 0% 98%;
-    --popover: 240 5% 9%;
+    --popover: 218 26% 12%;
     --popover-foreground: 0 0% 98%;
-    --primary: 161 94% 30%;
+    --primary: 211 100% 52%;
     --primary-foreground: 0 0% 98%;
-    --secondary: 240 4% 12%;
+    --secondary: 218 18% 19%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 4% 16%;
-    --muted-foreground: 240 5% 65%;
-    --accent: 161 50% 14%;
-    --accent-foreground: 161 70% 80%;
+    --muted: 218 18% 20%;
+    --muted-foreground: 220 14% 72%;
+    --accent: 211 100% 18%;
+    --accent-foreground: 211 100% 84%;
     --destructive: 0 63% 31%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 4% 14%;
-    --input: 240 4% 14%;
-    --ring: 161 94% 30%;
+    --border: 220 20% 28%;
+    --input: 220 18% 21%;
+    --ring: 211 100% 58%;
+  }
+
+  .dark[data-agenthub-accent="blue"] {
+    --primary: 211 100% 58%;
+    --accent: 211 100% 18%;
+    --accent-foreground: 211 100% 84%;
+    --ring: 211 100% 58%;
+  }
+
+  .dark[data-agenthub-accent="cyan"] {
+    --primary: 187 84% 53%;
+    --accent: 190 82% 18%;
+    --accent-foreground: 187 100% 84%;
+    --ring: 187 84% 53%;
+  }
+
+  .dark[data-agenthub-accent="emerald"] {
+    --primary: 160 84% 45%;
+    --accent: 158 64% 18%;
+    --accent-foreground: 152 76% 82%;
+    --ring: 160 84% 45%;
+  }
+
+  .dark[data-agenthub-accent="amber"] {
+    --primary: 43 96% 56%;
+    --accent: 32 95% 18%;
+    --accent-foreground: 48 96% 82%;
+    --ring: 43 96% 56%;
+  }
+
+  .dark[data-agenthub-accent="rose"] {
+    --primary: 349 89% 62%;
+    --accent: 343 76% 20%;
+    --accent-foreground: 355 100% 86%;
+    --ring: 349 89% 62%;
+  }
+
+  :root[data-agenthub-layout="document"] {
+    --agenthub-message-max-width: 58rem;
   }
 }
 
@@ -56,7 +166,153 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background:
+      radial-gradient(circle at 28% -12%, rgba(151, 214, 194, 0.34), transparent 31rem),
+      radial-gradient(circle at 91% 18%, rgba(88, 169, 177, 0.24), transparent 28rem),
+      radial-gradient(circle at 86% 96%, rgba(18, 116, 159, 0.32), transparent 34rem),
+      linear-gradient(135deg, #060a12 0%, #111827 42%, #101022 100%);
+  }
+
+  input,
+  textarea,
+  select {
+    @apply border-white/10 bg-white/10 text-foreground placeholder:text-muted-foreground shadow-inner shadow-black/10 outline-none transition-colors;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    @apply border-primary/55 ring-2 ring-primary/20;
+  }
+}
+
+@layer components {
+  .agenthub-aurora-scene {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 24% 0%, rgba(164, 217, 197, 0.36), transparent 30rem),
+      radial-gradient(circle at 90% 20%, rgba(92, 181, 177, 0.24), transparent 34rem),
+      radial-gradient(circle at 82% 96%, rgba(20, 117, 164, 0.35), transparent 38rem),
+      linear-gradient(135deg, #060a12 0%, #111827 48%, #111126 100%);
+  }
+
+  .agenthub-aurora-scene::before,
+  .agenthub-aurora-scene::after {
+    content: "";
+    position: absolute;
+    inset: auto;
+    z-index: -1;
+    border-radius: 999px;
+    filter: blur(54px);
+    opacity: 0.52;
+    pointer-events: none;
+  }
+
+  .agenthub-aurora-scene::before {
+    width: 34rem;
+    height: 18rem;
+    top: -6rem;
+    left: 16%;
+    background: rgba(151, 214, 194, 0.34);
+  }
+
+  .agenthub-aurora-scene::after {
+    width: 32rem;
+    height: 22rem;
+    right: -6rem;
+    bottom: 3rem;
+    background: rgba(10, 132, 255, 0.2);
+  }
+
+  .agenthub-window {
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    border-radius: 10px;
+    background: rgba(11, 16, 25, 0.76);
+    box-shadow:
+      0 28px 90px rgba(0, 0, 0, 0.46),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(30px);
+  }
+
+  .agenthub-glass-panel {
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    background: linear-gradient(180deg, rgba(31, 41, 55, 0.72), rgba(15, 23, 42, 0.52));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 18px 48px rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(22px);
+  }
+
+  .agenthub-mac-dot {
+    @apply h-3 w-3 rounded-full;
+  }
+
+  .agenthub-primary-button {
+    background: linear-gradient(180deg, var(--agenthub-primary-start) 0%, var(--agenthub-primary-end) 100%);
+    color: white;
+    box-shadow:
+      0 12px 24px var(--agenthub-primary-shadow),
+      inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  }
+
+  .agenthub-primary-button:hover {
+    background: linear-gradient(180deg, var(--agenthub-primary-hover-start) 0%, var(--agenthub-primary-hover-end) 100%);
+  }
+
+  .agenthub-secondary-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium text-slate-100 transition-colors hover:bg-white/15 disabled:opacity-60;
+  }
+
+  .agenthub-icon-button {
+    @apply rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground disabled:opacity-50;
+  }
+
+  .agenthub-list-row {
+    @apply rounded-xl border border-white/10 bg-white/5 transition-colors hover:bg-white/10;
+  }
+
+  .agenthub-field {
+    @apply rounded-xl border border-white/10 bg-white/10 text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary/55 focus:ring-2 focus:ring-primary/20;
+  }
+
+  .agenthub-app-surface {
+    background:
+      radial-gradient(circle at 34% 2%, rgba(151, 214, 194, 0.26), transparent 27rem),
+      radial-gradient(circle at 86% 8%, rgba(70, 111, 126, 0.16), transparent 30rem),
+      linear-gradient(135deg, rgba(22, 31, 42, 0.82), rgba(13, 17, 31, 0.9) 56%, rgba(15, 18, 35, 0.92));
+  }
+
+  .agenthub-page {
+    @apply min-h-screen p-5 md:p-8;
+    background:
+      radial-gradient(circle at 22% -8%, rgba(151, 214, 194, 0.32), transparent 30rem),
+      radial-gradient(circle at 82% 96%, rgba(10, 132, 255, 0.2), transparent 34rem),
+      linear-gradient(135deg, #060a12 0%, #101827 55%, #111126 100%);
+  }
+
+  .agenthub-chat-shell {
+    --agenthub-message-max-width: 48rem;
+  }
+
+  .agenthub-chat-list {
+    width: min(100%, var(--agenthub-message-max-width));
+  }
+
+  [data-agenthub-layout="document"] .agenthub-chat-shell {
+    --agenthub-message-max-width: 58rem;
+  }
+
+  [data-agenthub-layout="document"] [data-testid="chat-message"] {
+    border-radius: 10px;
+  }
+
+  [data-agenthub-layout="document"] .agenthub-chat-list {
+    padding-inline: 0.75rem;
   }
 }
 
@@ -71,12 +327,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
+  background: rgba(148, 163, 184, 0.38);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: rgba(148, 163, 184, 0.58);
 }
 
 /* Markdown prose overrides */

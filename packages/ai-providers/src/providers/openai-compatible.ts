@@ -2,11 +2,19 @@ import type {
   ChatOptions,
   ChatResponse,
   ChatStreamChunk,
+  ImageGenerationOptions,
+  ImageGenerationResponse,
   ModelInfo,
   ModelProvider,
   ProviderHealth,
   ToolCall,
 } from "../types";
+import {
+  DEFAULT_IMAGE_GENERATION_MODEL,
+  imageGenerationRequestBody,
+  normalizeImageGenerationResponse,
+  type OpenAIImageGenerationPayload,
+} from "../image-generation";
 
 interface OpenAIModel {
   id: string;
@@ -62,23 +70,37 @@ interface OpenAICompatibleProviderOptions {
   id: string;
   name: string;
   baseUrl: string;
+  apiKey?: string;
+  apiPath?: string;
+  type?: "local" | "cloud";
 }
+
+const DEFAULT_API_PATH = "/v1";
+const DEFAULT_MODELS_ENDPOINT = "/v1/models";
+const DEFAULT_CHAT_COMPLETIONS_ENDPOINT = "/v1/chat/completions";
+const DEFAULT_IMAGE_GENERATIONS_ENDPOINT = "/v1/images/generations";
 
 export class OpenAICompatibleProvider implements ModelProvider {
   readonly id: string;
   readonly name: string;
-  readonly type = "local" as const;
+  readonly type: "local" | "cloud";
   private readonly baseUrl: string;
+  private readonly apiKey?: string;
+  private readonly apiPath: string;
 
   constructor(options: OpenAICompatibleProviderOptions) {
     this.id = options.id;
     this.name = options.name;
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
+    this.apiKey = options.apiKey;
+    this.apiPath = normalizeApiPath(options.apiPath);
+    this.type = options.type || "local";
   }
 
   async listModels(): Promise<ModelInfo[]> {
     try {
-      const res = await fetch(`${this.baseUrl}/v1/models`, {
+      const res = await fetch(this.url(DEFAULT_MODELS_ENDPOINT, "/models"), {
+        headers: this.authHeaders(),
         signal: AbortSignal.timeout(5000),
       });
       if (!res.ok) return [];
@@ -96,7 +118,8 @@ export class OpenAICompatibleProvider implements ModelProvider {
   async healthCheck(): Promise<ProviderHealth> {
     try {
       const start = Date.now();
-      const res = await fetch(`${this.baseUrl}/v1/models`, {
+      const res = await fetch(this.url(DEFAULT_MODELS_ENDPOINT, "/models"), {
+        headers: this.authHeaders(),
         signal: AbortSignal.timeout(5000),
       });
       return {
@@ -116,9 +139,9 @@ export class OpenAICompatibleProvider implements ModelProvider {
   }
 
   async chat(options: ChatOptions): Promise<ChatResponse> {
-    const res = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+    const res = await fetch(this.url(DEFAULT_CHAT_COMPLETIONS_ENDPOINT, "/chat/completions"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
       body: JSON.stringify(this.toChatBody(options, false)),
       signal: options.signal,
     });
@@ -139,9 +162,9 @@ export class OpenAICompatibleProvider implements ModelProvider {
   }
 
   async *streamChat(options: ChatOptions): AsyncIterable<ChatStreamChunk> {
-    const res = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+    const res = await fetch(this.url(DEFAULT_CHAT_COMPLETIONS_ENDPOINT, "/chat/completions"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
       body: JSON.stringify(this.toChatBody(options, true)),
       signal: options.signal,
     });
@@ -209,6 +232,24 @@ export class OpenAICompatibleProvider implements ModelProvider {
     }
   }
 
+  async createImage(options: ImageGenerationOptions): Promise<ImageGenerationResponse> {
+    const model = options.model || DEFAULT_IMAGE_GENERATION_MODEL;
+    const res = await fetch(this.url(DEFAULT_IMAGE_GENERATIONS_ENDPOINT, "/images/generations"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeaders() },
+      body: JSON.stringify(imageGenerationRequestBody({ ...options, model }, model)),
+      signal: options.signal,
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`${this.name} image generation error: ${err}`);
+    }
+
+    const data = (await res.json()) as OpenAIImageGenerationPayload;
+    return normalizeImageGenerationResponse(data, options, model, this.id);
+  }
+
   private toChatBody(options: ChatOptions, stream: boolean) {
     const body: Record<string, unknown> = {
       model: options.model,
@@ -230,6 +271,15 @@ export class OpenAICompatibleProvider implements ModelProvider {
     if (options.tools?.length) body.tools = options.tools;
 
     return body;
+  }
+
+  private authHeaders(): Record<string, string> {
+    return this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {};
+  }
+
+  private url(defaultEndpoint: string, path: string) {
+    const endpoint = this.apiPath === DEFAULT_API_PATH ? defaultEndpoint : `${this.apiPath}${path}`;
+    return `${this.baseUrl}${endpoint}`;
   }
 
   private mergeToolCallChunk(toolCalls: Map<number, ToolCall>, chunk: OpenAIToolCallChunk) {
@@ -255,4 +305,10 @@ export class OpenAICompatibleProvider implements ModelProvider {
       totalTokens: usage.total_tokens || 0,
     };
   }
+}
+
+function normalizeApiPath(apiPath = DEFAULT_API_PATH) {
+  const trimmed = apiPath.trim();
+  if (!trimmed) return DEFAULT_API_PATH;
+  return trimmed.startsWith("/") ? trimmed.replace(/\/$/, "") : `/${trimmed.replace(/\/$/, "")}`;
 }

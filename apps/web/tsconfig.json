@@ -1,10 +1,6 @@
 {
   "compilerOptions": {
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -23,25 +19,15 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "src/*"
-      ],
-      "@agenthub/ai-providers": [
-        "../../packages/ai-providers/src"
-      ],
-      "@agenthub/agent-runtime": [
-        "../../packages/agent-runtime/src"
-      ]
+      "@/*": ["src/*"],
+      "@agenthub/ai-providers": ["../../packages/ai-providers/src"],
+      "@agenthub/agent-runtime": ["../../packages/agent-runtime/src"],
+      "@agenthub/ui": ["../../packages/ui/src"],
+      "@agenthub/editor-kernel": ["../../packages/editor-kernel/src"],
+      "@agenthub/editor-kernel/*": ["../../packages/editor-kernel/src/*"]
     },
     "target": "ES2017"
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
 }

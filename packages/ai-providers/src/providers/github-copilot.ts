@@ -68,6 +68,7 @@ function normalizeCopilotModel(model: CopilotApiModel): ModelInfo | null {
 }
 
 export class GitHubCopilotProvider extends OpenAICompatibleProvider {
+  override readonly type = "cloud" as const;
   private accessToken: string;
 
   constructor(accessToken: string) {
@@ -157,10 +158,17 @@ export class GitHubCopilotProvider extends OpenAICompatibleProvider {
           const line = rawLine.trim();
           if (!line.startsWith("data:")) continue;
           const payload = line.slice(5).trim();
-          if (!payload || payload === "[DONE]") { yield { type: "done" }; return; }
+          if (!payload || payload === "[DONE]") {
+            yield { type: "done" };
+            return;
+          }
 
           let data: { choices?: Array<{ delta?: { content?: string | null } }> };
-          try { data = JSON.parse(payload); } catch { continue; }
+          try {
+            data = JSON.parse(payload);
+          } catch {
+            continue;
+          }
 
           for (const choice of data.choices || []) {
             if (choice.delta?.content) yield { type: "content", content: choice.delta.content };
@@ -183,7 +191,7 @@ export class GitHubCopilotProvider extends OpenAICompatibleProvider {
   private buildBody(options: ChatOptions, stream: boolean): Record<string, unknown> {
     const body: Record<string, unknown> = {
       model: options.model,
-      messages: options.messages.map(m => ({
+      messages: options.messages.map((m) => ({
         role: m.role,
         content: m.content,
         ...(m.name ? { name: m.name } : {}),

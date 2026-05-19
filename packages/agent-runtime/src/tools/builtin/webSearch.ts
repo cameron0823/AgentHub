@@ -28,12 +28,14 @@ export const webSearch: ToolDefinition = {
     url.searchParams.set("format", "json");
     url.searchParams.set("categories", "general");
 
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), {
+      headers: { "X-Real-IP": "127.0.0.1" },
+    });
     if (!res.ok) {
       throw new Error(`SearXNG error: ${res.status}`);
     }
 
-    const data = await res.json() as SearXNGResponse;
+    const data = (await res.json()) as SearXNGResponse;
     return data.results.slice(0, 5).map((r) => ({
       title: r.title,
       url: r.url,

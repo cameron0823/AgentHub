@@ -4,19 +4,38 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
+    "desktop": "node scripts/start-desktop.mjs",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
+    "format": "prettier --write \"*.{js,mjs,cjs,json,md,yml,yaml}\" \"apps/**/*.{js,jsx,ts,tsx,mjs,cjs,json,md,css,yml,yaml}\" \"packages/**/*.{js,jsx,ts,tsx,mjs,cjs,json,md,css,yml,yaml}\" \"docs/**/*.{md,json,yml,yaml}\" \"scripts/**/*.{js,mjs,cjs,ts,json,md}\" \"tests/**/*.{js,mjs,cjs,ts,json,md}\" \".github/**/*.{yml,yaml}\"",
+    "format:check": "prettier --check \"*.{js,mjs,cjs,json,md,yml,yaml}\" \"apps/**/*.{js,jsx,ts,tsx,mjs,cjs,json,md,css,yml,yaml}\" \"packages/**/*.{js,jsx,ts,tsx,mjs,cjs,json,md,css,yml,yaml}\" \"docs/**/*.{md,json,yml,yaml}\" \"scripts/**/*.{js,mjs,cjs,ts,json,md}\" \"tests/**/*.{js,mjs,cjs,ts,json,md}\" \".github/**/*.{yml,yaml}\"",
     "test": "turbo run test",
+    "test:vitest": "vitest run",
+    "test:vitest:coverage": "vitest run --coverage",
     "test:e2e": "turbo run test:e2e",
     "typecheck": "turbo run typecheck",
+    "commitlint": "commitlint --edit",
+    "changelog:check": "node scripts/generate-changelog.mjs --check",
+    "changelog:update": "node scripts/generate-changelog.mjs --write",
+    "prepare": "husky",
     "db:generate": "pnpm -C apps/web exec drizzle-kit generate",
     "db:migrate": "pnpm -C apps/web exec drizzle-kit migrate",
     "db:push": "pnpm -C apps/web exec drizzle-kit push",
-    "validate": "turbo run typecheck && turbo run test"
+    "env:check": "node scripts/validate-env.mjs",
+    "validate": "pnpm env:check && pnpm test:vitest && turbo run typecheck && turbo run test && turbo run lint && turbo run build"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.0.1",
+    "@commitlint/config-conventional": "^21.0.1",
+    "@vitest/coverage-v8": "^4.1.6",
+    "happy-dom": "^20.9.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.5",
+    "prettier": "^3.8.3",
     "turbo": "^2.9.12",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.6",
+    "zod": "^4.4.3"
   },
   "pnpm": {
     "overrides": {

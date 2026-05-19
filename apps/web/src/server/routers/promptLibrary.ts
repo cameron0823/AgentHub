@@ -23,44 +23,44 @@ export const promptLibraryRouter = router({
       if (input.tag) {
         filters.push(sql`${input.tag} = ANY(${promptLibrary.tags})`);
       }
-      return db.select().from(promptLibrary)
+      return db
+        .select()
+        .from(promptLibrary)
         .where(and(...filters))
         .orderBy(desc(promptLibrary.isPinned), desc(promptLibrary.useCount), desc(promptLibrary.createdAt));
     }),
 
-  create: authedProcedure
-    .input(promptInput)
-    .mutation(async ({ ctx, input }) => {
-      const [created] = await db.insert(promptLibrary).values({
+  create: authedProcedure.input(promptInput).mutation(async ({ ctx, input }) => {
+    const [created] = await db
+      .insert(promptLibrary)
+      .values({
         userId: ctx.user.id,
         ...input,
-      }).returning();
-      return created;
-    }),
+      })
+      .returning();
+    return created;
+  }),
 
   update: authedProcedure
     .input(z.object({ id: z.string().uuid() }).merge(promptInput.partial()))
     .mutation(async ({ ctx, input }) => {
       const { id, ...rest } = input;
-      const [updated] = await db.update(promptLibrary)
+      const [updated] = await db
+        .update(promptLibrary)
         .set({ ...rest, updatedAt: new Date() })
         .where(and(eq(promptLibrary.id, id), eq(promptLibrary.userId, ctx.user.id)))
         .returning();
       return updated;
     }),
 
-  delete: authedProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      await db.delete(promptLibrary)
-        .where(and(eq(promptLibrary.id, input.id), eq(promptLibrary.userId, ctx.user.id)));
-    }),
+  delete: authedProcedure.input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+    await db.delete(promptLibrary).where(and(eq(promptLibrary.id, input.id), eq(promptLibrary.userId, ctx.user.id)));
+  }),
 
-  incrementUse: authedProcedure
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      await db.update(promptLibrary)
-        .set({ useCount: sql`${promptLibrary.useCount} + 1` })
-        .where(and(eq(promptLibrary.id, input.id), eq(promptLibrary.userId, ctx.user.id)));
-    }),
+  incrementUse: authedProcedure.input(z.object({ id: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+    await db
+      .update(promptLibrary)
+      .set({ useCount: sql`${promptLibrary.useCount} + 1` })
+      .where(and(eq(promptLibrary.id, input.id), eq(promptLibrary.userId, ctx.user.id)));
+  }),
 });

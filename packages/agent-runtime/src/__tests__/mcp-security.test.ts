@@ -32,20 +32,41 @@ describe("MCP client — shell injection prevention", () => {
 
   it("code execution sandboxes Python in Docker with network isolation", () => {
     const dockerArgs = [
-      "run", "--rm",
-      "--network", "none",
+      "run",
+      "--rm",
+      "--network",
+      "none",
       "--read-only",
-      "--tmpfs", "/tmp:size=50m",
-      "--memory", "256m",
-      "--cpus", "0.5",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges",
+      "--tmpfs",
+      "/tmp:size=50m,noexec,nosuid,nodev",
+      "--memory",
+      "256m",
+      "--memory-swap",
+      "256m",
+      "--cpus",
+      "0.5",
+      "--pids-limit",
+      "128",
+      "--ulimit",
+      "nofile=64:64",
+      "--ulimit",
+      "nproc=64:64",
       "-i",
       "python:3.11-slim",
-      "python", "-",
+      "python",
+      "-",
     ];
     assert.ok(dockerArgs.includes("--network"), "must set network flag");
     assert.equal(dockerArgs[dockerArgs.indexOf("--network") + 1], "none", "network must be none");
     assert.ok(dockerArgs.includes("--read-only"), "must enforce read-only filesystem");
+    assert.ok(dockerArgs.includes("--cap-drop"), "must drop Linux capabilities");
+    assert.ok(dockerArgs.includes("--security-opt"), "must set security options");
     assert.ok(dockerArgs.includes("--memory"), "must limit memory");
+    assert.ok(dockerArgs.includes("--pids-limit"), "must limit process fanout");
   });
 
   it("user code is passed via stdin, not as a command-line argument", () => {

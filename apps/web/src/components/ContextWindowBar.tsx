@@ -11,7 +11,7 @@ export function ContextWindowBar({ usedTokens, limitTokens }: ContextWindowBarPr
 
   return (
     <div className="flex items-center gap-2 px-4 py-1 text-[10px] text-muted-foreground/60 select-none">
-      <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden" title={`Context: ~${pct}% used`}>
+      <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/10" title={`Context: ~${pct}% used`}>
         <div className={`h-full ${barColor} transition-all duration-300`} style={{ width: `${pct}%` }} />
       </div>
       <span className={pct >= 80 ? "text-red-500" : pct >= 60 ? "text-yellow-500" : ""}>

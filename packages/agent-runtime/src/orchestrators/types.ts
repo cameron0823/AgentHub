@@ -1,7 +1,7 @@
 import type { AgentOptions, AgentStreamChunk } from "../types";
 import type { Message } from "@agenthub/ai-providers";
 
-export type OrchestrationPattern = "sequential" | "parallel" | "supervisor" | "debate" | "groupchat";
+export type OrchestrationPattern = "sequential" | "parallel" | "supervisor" | "iterative" | "debate" | "groupchat";
 
 export interface OrchestratorAgent {
   id: string;
@@ -9,6 +9,7 @@ export interface OrchestratorAgent {
   role: string | null;
   sortOrder?: number | null;
   tools: string[];
+  deniedTools?: string[];
   runtimeOptions: AgentOptions;
 }
 
@@ -17,6 +18,7 @@ export interface GroupConfig {
   name: string;
   pattern: OrchestrationPattern;
   description?: string | null;
+  maxIterations?: number | null;
 }
 
 export interface AgentRunResult {
@@ -39,7 +41,13 @@ interface BaseEvent {
 export type OrchestratorEvent =
   // Group lifecycle events
   | (BaseEvent & { type: "group_start"; groupName: string; pattern: OrchestrationPattern; agentCount: number })
-  | (BaseEvent & { type: "group_complete"; groupName: string; pattern: OrchestrationPattern; outputs: AgentRunResult[]; synthesis: string })
+  | (BaseEvent & {
+      type: "group_complete";
+      groupName: string;
+      pattern: OrchestrationPattern;
+      outputs: AgentRunResult[];
+      synthesis: string;
+    })
 
   // Agent lifecycle events
   | (BaseEvent & { type: "agent_start"; agentId: string; agentName: string; role: string | null })
@@ -54,6 +62,12 @@ export type OrchestratorEvent =
 
   // HITL checkpoint event
   | (BaseEvent & { type: "hitl_checkpoint"; checkpointId: string; title: string; plan: string })
+
+  // Iterative pattern events
+  | (BaseEvent & { type: "iterative_start"; author: string; editor: string; reviser: string; maxIterations: number })
+  | (BaseEvent & { type: "iterative_iteration"; iteration: number; total: number })
+  | (BaseEvent & { type: "iterative_revision"; iteration: number; draft: string; review: string })
+  | (BaseEvent & { type: "iterative_complete"; iterations: number; finalOutput: string })
 
   // Debate pattern events
   | (BaseEvent & { type: "debate_start"; agents: string[]; rounds: number })
@@ -74,18 +88,22 @@ export interface OrchestratorRunOptions {
   messages?: Message[];
   streamToClient?: boolean;
   signal?: AbortSignal;
+  maxIterations?: number;
   /** Called at HITL checkpoints. Return true to proceed, false to cancel. */
   checkpoint?: (checkpointId: string, title: string, plan: string) => Promise<boolean>;
 }
 
-export type AgentRuntimeFactory = (agent: OrchestratorAgent) => {
+export interface AgentRuntimeLike {
   run(options: {
     sessionId: string;
     messages: Message[];
     tools?: string[];
+    deniedTools?: string[];
     signal?: AbortSignal;
   }): AsyncGenerator<AgentStreamChunk>;
-};
+}
+
+export type AgentRuntimeFactory = (agent: OrchestratorAgent) => AgentRuntimeLike;
 
 export interface Orchestrator {
   run(options: OrchestratorRunOptions): AsyncGenerator<OrchestratorEvent>;

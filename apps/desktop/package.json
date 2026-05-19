@@ -1,0 +1,37 @@
+{
+  "name": "@agenthub/desktop",
+  "version": "0.1.0",
+  "description": "AgentHub desktop shell",
+  "author": "AgentHub",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cameron0823/AgentHub.git",
+    "directory": "apps/desktop"
+  },
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "tsx scripts/dev.ts",
+    "prepare:web": "tsx scripts/prepare-web-bundle.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test ../../tests/desktop-*.test.mjs",
+    "test:e2e": "playwright test -c playwright.config.ts",
+    "package": "pnpm run prepare:web && pnpm run build && electron-builder --dir",
+    "dist": "pnpm run prepare:web && pnpm run build && electron-builder"
+  },
+  "dependencies": {
+    "electron-log": "5.4.4",
+    "electron-updater": "6.8.3",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@types/node": "^20.0.0",
+    "electron": "42.1.0",
+    "electron-builder": "26.8.1",
+    "electron-builder-squirrel-windows": "26.8.1",
+    "tsx": "4.22.0",
+    "typescript": "^5.9.3"
+  }
+}

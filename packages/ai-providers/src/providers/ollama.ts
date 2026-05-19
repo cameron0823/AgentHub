@@ -1,11 +1,4 @@
-import type {
-  ChatOptions,
-  ChatResponse,
-  ChatStreamChunk,
-  ModelInfo,
-  ModelProvider,
-  ProviderHealth,
-} from "../types";
+import type { ChatOptions, ChatResponse, ChatStreamChunk, ModelInfo, ModelProvider, ProviderHealth } from "../types";
 
 interface OllamaModelTag {
   name: string;
@@ -210,7 +203,7 @@ export class OllamaProvider implements ModelProvider {
         });
         const data = await res.json();
         return data.embedding as number[];
-      })
+      }),
     );
     return results;
   }

@@ -40,7 +40,7 @@ export abstract class BaseOrchestrator {
   protected async collectAgentRun(
     options: OrchestratorRunOptions,
     agent: OrchestratorAgent,
-    previousOutputs: AgentRunResult[] = []
+    previousOutputs: AgentRunResult[] = [],
   ) {
     const runtime = this.createRuntime(agent);
     const chunks: AgentStreamChunk[] = [];
@@ -50,6 +50,7 @@ export abstract class BaseOrchestrator {
       sessionId: options.sessionId,
       messages: this.buildMessages(options, previousOutputs),
       tools: agent.tools,
+      deniedTools: agent.deniedTools,
       signal: options.signal,
     })) {
       chunks.push(chunk);

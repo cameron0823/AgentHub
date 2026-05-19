@@ -3,23 +3,14 @@ import { db } from "@/server/db";
 import { documents, documentChunks, knowledgeBases } from "@/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@/server/auth";
+import { fetchWithOutboundGuard, validateProviderBaseUrl } from "@/server/security/outbound";
+import { chunkParsedDocument, parseKnowledgeDocument } from "@/server/kb-ingestion";
+import { indexVectorChunks, resolveVectorBackendConfig, type VectorChunkRecord } from "@/server/vector-backends";
 
 export const runtime = "nodejs";
 
-function chunkText(text: string, chunkSize: number, overlap: number): string[] {
-  const chunks: string[] = [];
-  let start = 0;
-  while (start < text.length) {
-    const end = Math.min(start + chunkSize, text.length);
-    chunks.push(text.slice(start, end));
-    start += chunkSize - overlap;
-    if (start >= text.length) break;
-  }
-  return chunks;
-}
-
 async function generateEmbeddings(texts: string[], model: string): Promise<number[][]> {
-  const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+  const ollamaUrl = validateProviderBaseUrl(process.env.OLLAMA_URL, "http://localhost:11434");
   const embeddings: number[][] = [];
 
   for (const text of texts) {
@@ -34,8 +25,11 @@ async function generateEmbeddings(texts: string[], model: string): Promise<numbe
     }
 
     const data = (await res.json()) as { embedding?: number[] };
-    if (!data.embedding) {
-      throw new Error("No embedding returned from Ollama");
+    if (
+      !Array.isArray(data.embedding) ||
+      !data.embedding.every((value) => typeof value === "number" && isFinite(value))
+    ) {
+      throw new Error("Invalid embedding returned from Ollama: non-numeric or non-finite values");
     }
     embeddings.push(data.embedding);
   }
@@ -60,7 +54,9 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const [doc] = await db.select().from(documents)
+  const [doc] = await db
+    .select()
+    .from(documents)
     .where(and(eq(documents.id, documentId), eq(documents.userId, session.user.id)))
     .limit(1);
 
@@ -73,7 +69,9 @@ export async function POST(req: NextRequest) {
 
   // Get knowledge base config
   const kbConfig = doc.knowledgeBaseId
-    ? await db.select().from(knowledgeBases)
+    ? await db
+        .select()
+        .from(knowledgeBases)
         .where(and(eq(knowledgeBases.id, doc.knowledgeBaseId), eq(knowledgeBases.userId, session.user.id)))
         .limit(1)
     : [];
@@ -89,54 +87,103 @@ export async function POST(req: NextRequest) {
   try {
     // Get document content
     let content = doc.content;
+    let data: Buffer | undefined;
     if (!content && doc.s3Url) {
-      const res = await fetch(doc.s3Url);
+      const res = await fetchWithOutboundGuard(doc.s3Url, undefined, {
+        allowedOrigins: [process.env.S3_ENDPOINT].filter((value): value is string => Boolean(value)),
+        purpose: "Knowledge base document",
+      });
       if (res.ok) {
-        content = await res.text();
+        data = Buffer.from(await res.arrayBuffer());
       }
     }
 
-    if (!content) {
+    if (!content && !data) {
       throw new Error("Document content is empty");
     }
 
-    // Clean content
-    content = content.replace(/\s+/g, " ").trim();
+    const parsed = await parseKnowledgeDocument({
+      name: doc.name,
+      mimeType: doc.mimeType,
+      content,
+      data,
+    });
 
     // Chunk content
-    const chunks = chunkText(content, chunkSize, chunkOverlap);
+    const chunks = chunkParsedDocument(parsed, doc.name, chunkSize, chunkOverlap);
+    if (chunks.length === 0) throw new Error("Document produced no indexable chunks");
 
     // Generate embeddings
-    const embeddings = await generateEmbeddings(chunks, embeddingModel);
+    const embeddings = await generateEmbeddings(
+      chunks.map((chunk) => chunk.content),
+      embeddingModel,
+    );
 
     // Store chunks
+    const vectorChunks: VectorChunkRecord[] = [];
     for (let i = 0; i < chunks.length; i++) {
-      await db.insert(documentChunks).values({
+      const metadata = {
+        ...chunks[i].metadata,
+        index: i,
+        knowledgeBaseId: doc.knowledgeBaseId,
+        sourceName: doc.name,
+        sourceType: parsed.kind,
+        mimeType: doc.mimeType,
+        sourceUrl: doc.s3Url,
+        citation: chunks[i].citation,
+      };
+      const [storedChunk] = await db
+        .insert(documentChunks)
+        .values({
+          documentId,
+          content: chunks[i].content,
+          embedding: embeddings[i],
+          metadata,
+        })
+        .returning();
+      vectorChunks.push({
+        id: storedChunk.id,
         documentId,
-        content: chunks[i],
+        content: chunks[i].content,
         embedding: embeddings[i],
-        metadata: { index: i, knowledgeBaseId: doc.knowledgeBaseId },
+        metadata,
       });
     }
+    await indexVectorChunks(resolveVectorBackendConfig(), vectorChunks);
 
     // Update document status
-    await db.update(documents).set({
-      status: "indexed",
-      content,
-    }).where(eq(documents.id, documentId));
+    await db
+      .update(documents)
+      .set({
+        status: "indexed",
+        content: parsed.text,
+        metadata: {
+          ...((doc.metadata as Record<string, unknown> | null) ?? {}),
+          sourceType: parsed.kind,
+          chunks: chunks.length,
+        },
+      })
+      .where(eq(documents.id, documentId));
 
-    return new Response(JSON.stringify({
-      success: true,
-      chunks: chunks.length,
-    }), {
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        chunks: chunks.length,
+        sourceType: parsed.kind,
+      }),
+      {
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
-    await db.update(documents).set({
-      status: "error",
-      errorMessage: error,
-    }).where(eq(documents.id, documentId));
+    await db
+      .update(documents)
+      .set({
+        status: "error",
+        errorMessage: error,
+      })
+      .where(eq(documents.id, documentId));
 
     return new Response(JSON.stringify({ error }), {
       status: 500,

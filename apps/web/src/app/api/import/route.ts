@@ -54,7 +54,11 @@ export async function POST(req: NextRequest) {
   const userId = session.user.id;
 
   const contentType = req.headers.get("content-type") ?? "";
-  if (!contentType.includes("multipart/form-data") && !contentType.includes("application/octet-stream") && !contentType.includes("application/zip")) {
+  if (
+    !contentType.includes("multipart/form-data") &&
+    !contentType.includes("application/octet-stream") &&
+    !contentType.includes("application/zip")
+  ) {
     return NextResponse.json({ error: "Expected multipart/form-data or application/zip body" }, { status: 400 });
   }
 
@@ -101,7 +105,11 @@ export async function POST(req: NextRequest) {
   const agentsRaw = zipEntries.get("agents.json");
   if (agentsRaw) {
     let parsed: unknown[];
-    try { parsed = JSON.parse(agentsRaw.toString("utf8")); } catch { parsed = []; }
+    try {
+      parsed = JSON.parse(agentsRaw.toString("utf8"));
+    } catch {
+      parsed = [];
+    }
 
     for (const row of parsed) {
       if (!row || typeof row !== "object") continue;
@@ -144,13 +152,17 @@ export async function POST(req: NextRequest) {
 
     for (const line of lines) {
       let s: Record<string, unknown>;
-      try { s = JSON.parse(line); } catch { continue; }
+      try {
+        s = JSON.parse(line);
+      } catch {
+        continue;
+      }
 
       const oldSessionId = String(s.id ?? "");
       const newSessionId = randomUUID();
       sessionIdMap.set(oldSessionId, newSessionId);
 
-      const mappedAgentId = s.agentId ? agentIdMap.get(String(s.agentId)) ?? null : null;
+      const mappedAgentId = s.agentId ? (agentIdMap.get(String(s.agentId)) ?? null) : null;
 
       try {
         await db.insert(chatSessions).values({
@@ -160,7 +172,8 @@ export async function POST(req: NextRequest) {
           groupId: null, // groups not included in export
           title: String(s.title ?? "Imported Chat"),
           model: String(s.model ?? "ollama:qwen2.5:7b"),
-          metadata: typeof s.metadata === "object" && s.metadata !== null ? s.metadata as Record<string, unknown> : {},
+          metadata:
+            typeof s.metadata === "object" && s.metadata !== null ? (s.metadata as Record<string, unknown>) : {},
           isPublic: false,
           publicSlug: null, // don't preserve slugs — avoid collisions
           isPinned: false,
@@ -185,7 +198,7 @@ export async function POST(req: NextRequest) {
         const role = String(mr.role ?? "user");
         if (!["user", "assistant", "system", "tool"].includes(role)) continue;
 
-        const mappedParentId = mr.parentId ? msgIdMap.get(String(mr.parentId)) ?? null : null;
+        const mappedParentId = mr.parentId ? (msgIdMap.get(String(mr.parentId)) ?? null) : null;
 
         try {
           await db.insert(messagesTable).values({
@@ -215,13 +228,17 @@ export async function POST(req: NextRequest) {
   const memoryRaw = zipEntries.get("memory.json");
   if (memoryRaw) {
     let parsed: unknown[];
-    try { parsed = JSON.parse(memoryRaw.toString("utf8")); } catch { parsed = []; }
+    try {
+      parsed = JSON.parse(memoryRaw.toString("utf8"));
+    } catch {
+      parsed = [];
+    }
 
     for (const row of parsed) {
       if (!row || typeof row !== "object") continue;
       const r = row as Record<string, unknown>;
 
-      const mappedAgentId = r.agentId ? agentIdMap.get(String(r.agentId)) ?? null : null;
+      const mappedAgentId = r.agentId ? (agentIdMap.get(String(r.agentId)) ?? null) : null;
       const status = String(r.status ?? "accepted");
       const validStatus = ["accepted", "proposed", "rejected", "archived"].includes(status) ? status : "accepted";
 

@@ -3,11 +3,23 @@ import type {
   ChatResponse,
   ChatStreamChunk,
   ContentPart,
+  ImageGenerationOptions,
+  ImageGenerationResponse,
   ModelInfo,
   ModelProvider,
   ProviderHealth,
+  SpeechToTextOptions,
+  SpeechToTextResponse,
+  TextToSpeechOptions,
+  TextToSpeechResponse,
   ToolCall,
 } from "../types";
+import {
+  DEFAULT_IMAGE_GENERATION_MODEL,
+  imageGenerationRequestBody,
+  normalizeImageGenerationResponse,
+  type OpenAIImageGenerationPayload,
+} from "../image-generation";
 
 export interface OpenAIProviderOptions {
   apiKey: string;
@@ -38,6 +50,23 @@ interface OpenAIStreamChunk {
     completion_tokens?: number;
     total_tokens?: number;
   };
+}
+
+const DEFAULT_TTS_MODEL = "tts-1";
+const DEFAULT_STT_MODEL = "whisper-1";
+const DEFAULT_TTS_VOICE = "alloy";
+
+function audioMimeType(format: NonNullable<TextToSpeechOptions["format"]>): string {
+  if (format === "mp3") return "audio/mpeg";
+  if (format === "wav") return "audio/wav";
+  return `audio/${format}`;
+}
+
+function toBlobPart(audio: ArrayBuffer | Uint8Array): BlobPart {
+  if (audio instanceof ArrayBuffer) return audio;
+  const buffer = new ArrayBuffer(audio.byteLength);
+  new Uint8Array(buffer).set(audio);
+  return buffer;
 }
 
 export class OpenAIProvider implements ModelProvider {
@@ -238,9 +267,97 @@ export class OpenAIProvider implements ModelProvider {
     }
   }
 
+  async textToSpeech(options: TextToSpeechOptions): Promise<TextToSpeechResponse> {
+    const format = options.format || "mp3";
+    const model = options.model || DEFAULT_TTS_MODEL;
+    const voice = options.voice || DEFAULT_TTS_VOICE;
+    const res = await fetch(`${this.baseUrl}/v1/audio/speech`, {
+      method: "POST",
+      headers: this.buildHeaders(),
+      body: JSON.stringify({
+        model,
+        voice,
+        input: options.text,
+        response_format: format,
+        ...(options.speed ? { speed: options.speed } : {}),
+      }),
+      signal: options.signal,
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`OpenAI TTS error: ${err}`);
+    }
+
+    return {
+      audio: await res.arrayBuffer(),
+      mimeType: res.headers.get("content-type") || audioMimeType(format),
+      model,
+      voice,
+    };
+  }
+
+  async speechToText(options: SpeechToTextOptions): Promise<SpeechToTextResponse> {
+    const model = options.model || DEFAULT_STT_MODEL;
+    const mimeType = options.mimeType || "audio/webm";
+    const fileName = options.fileName || "voice-input.webm";
+    const form = new FormData();
+    const audio =
+      options.audio instanceof Blob ? options.audio : new Blob([toBlobPart(options.audio)], { type: mimeType });
+
+    form.append("file", audio, fileName);
+    form.append("model", model);
+    if (options.language) form.append("language", options.language);
+    if (options.prompt) form.append("prompt", options.prompt);
+
+    const res = await fetch(`${this.baseUrl}/v1/audio/transcriptions`, {
+      method: "POST",
+      headers: this.authHeaders(),
+      body: form,
+      signal: options.signal,
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`OpenAI STT error: ${err}`);
+    }
+
+    const data = (await res.json()) as { text?: string; language?: string; duration?: number };
+    return {
+      text: data.text || "",
+      model,
+      language: data.language,
+      durationSeconds: data.duration,
+    };
+  }
+
+  async createImage(options: ImageGenerationOptions): Promise<ImageGenerationResponse> {
+    const model = options.model || DEFAULT_IMAGE_GENERATION_MODEL;
+    const res = await fetch(`${this.baseUrl}/v1/images/generations`, {
+      method: "POST",
+      headers: this.buildHeaders(),
+      body: JSON.stringify(imageGenerationRequestBody({ ...options, model }, model)),
+      signal: options.signal,
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`OpenAI image generation error: ${err}`);
+    }
+
+    const data = (await res.json()) as OpenAIImageGenerationPayload;
+    return normalizeImageGenerationResponse(data, options, model, this.id);
+  }
+
   private buildHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
+    return {
       "Content-Type": "application/json",
+      ...this.authHeaders(),
+    };
+  }
+
+  private authHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
       Authorization: `Bearer ${this.apiKey}`,
     };
     if (this.organization) headers["OpenAI-Organization"] = this.organization;
@@ -250,9 +367,7 @@ export class OpenAIProvider implements ModelProvider {
   private serializeContent(content: string | ContentPart[]): unknown {
     if (typeof content === "string") return content;
     return content.map((part) =>
-      part.type === "text"
-        ? { type: "text", text: part.text }
-        : { type: "image_url", image_url: { url: part.url } }
+      part.type === "text" ? { type: "text", text: part.text } : { type: "image_url", image_url: { url: part.url } },
     );
   }
 

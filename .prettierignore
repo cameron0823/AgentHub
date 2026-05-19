@@ -1,0 +1,10 @@
+.next
+coverage
+dist
+node_modules
+data
+apps/web/.next
+apps/desktop/dist
+apps/desktop/out
+apps/desktop/resources/web
+pnpm-lock.yaml

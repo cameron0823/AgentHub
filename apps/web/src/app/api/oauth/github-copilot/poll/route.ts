@@ -3,6 +3,9 @@ import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { providerCredentials } from "@/server/db/schema";
 import { and, eq } from "drizzle-orm";
+import { encryptProviderCredentialValues } from "@/server/provider-credentials";
+import { checkProviderPlanAccess } from "@agenthub/ai-providers";
+import { ensureUserQuota } from "@/server/quotas";
 
 export const runtime = "nodejs";
 
@@ -12,6 +15,15 @@ export async function POST(req: NextRequest) {
   const session = await auth(req.headers);
   if (!session?.user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const quota = await ensureUserQuota(session.user.id);
+  const gate = checkProviderPlanAccess("github-copilot", quota.plan);
+  if (!gate.allowed) {
+    return Response.json(
+      { status: "forbidden", error: `Requires ${gate.requiredPlan} plan or higher` },
+      { status: 403 },
+    );
   }
 
   const { device_code } = (await req.json()) as { device_code: string };
@@ -37,24 +49,21 @@ export async function POST(req: NextRequest) {
   };
 
   if (data.access_token) {
-    const expiresAt = data.expires_in
-      ? new Date(Date.now() + data.expires_in * 1000)
-      : null;
+    const expiresAt = data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : null;
 
     // Upsert: delete existing copilot cred then insert fresh
-    await db.delete(providerCredentials).where(
-      and(
-        eq(providerCredentials.userId, session.user.id),
-        eq(providerCredentials.providerId, "github-copilot")
-      )
-    );
+    await db
+      .delete(providerCredentials)
+      .where(
+        and(eq(providerCredentials.userId, session.user.id), eq(providerCredentials.providerId, "github-copilot")),
+      );
 
     await db.insert(providerCredentials).values({
       userId: session.user.id,
       providerId: "github-copilot",
       providerName: "GitHub Copilot",
       authType: "oauth",
-      accessToken: data.access_token,
+      ...encryptProviderCredentialValues({ accessToken: data.access_token }),
       expiresAt: expiresAt ?? undefined,
       isEnabled: true,
     });

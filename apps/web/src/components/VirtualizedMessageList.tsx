@@ -3,27 +3,38 @@
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { forwardRef, useLayoutEffect, useRef } from "react";
 import type { ChatMessage } from "@/stores/chatStore";
-import { ChatMessageItem } from "./ChatMessage";
+import type { A2UIClientEvent } from "@/lib/a2ui/actions";
+import { ChatMessageItem, type BranchMode } from "./ChatMessage";
 
 interface VirtualizedMessageListProps {
   messages: ChatMessage[];
-  onBranch?: (messageId: string) => void;
+  onBranch?: (messageId: string, mode?: BranchMode) => void;
   onEdit?: (messageId: string, newContent: string) => void;
   onRegenerate?: (messageId: string) => void;
   onFeedback?: (messageId: string, feedback: "up" | "down") => void;
+  onOpenArtifact?: (artifact: NonNullable<ChatMessage["artifacts"]>[number]) => void;
+  onA2UIEvent?: (event: A2UIClientEvent) => void | Promise<void>;
 }
 
 const MessageList = forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ style, children, ...props }, ref) => (
-    <div ref={ref} style={style} className="max-w-3xl mx-auto" {...props}>
+    <div ref={ref} style={style} className="agenthub-chat-list mx-auto" {...props}>
       {children}
     </div>
-  )
+  ),
 );
 
 MessageList.displayName = "MessageList";
 
-export function VirtualizedMessageList({ messages, onBranch, onEdit, onRegenerate, onFeedback }: VirtualizedMessageListProps) {
+export function VirtualizedMessageList({
+  messages,
+  onBranch,
+  onEdit,
+  onRegenerate,
+  onFeedback,
+  onOpenArtifact,
+  onA2UIEvent,
+}: VirtualizedMessageListProps) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
 
   useLayoutEffect(() => {
@@ -62,6 +73,8 @@ export function VirtualizedMessageList({ messages, onBranch, onEdit, onRegenerat
           onEdit={onEdit}
           onRegenerate={onRegenerate}
           onFeedback={onFeedback}
+          onOpenArtifact={onOpenArtifact}
+          onA2UIEvent={onA2UIEvent}
         />
       )}
     />

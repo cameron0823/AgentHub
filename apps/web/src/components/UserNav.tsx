@@ -21,7 +21,7 @@ export function UserNav() {
     return (
       <button
         onClick={() => signIn("casdoor")}
-        className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-accent transition-colors w-full text-left"
+        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-white/10"
       >
         <LogIn className="w-4 h-4" />
         Sign In
@@ -44,7 +44,7 @@ export function UserNav() {
       </div>
       <button
         onClick={() => signOut()}
-        className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent transition-colors w-full text-left text-muted-foreground hover:text-foreground"
+        className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
       >
         <LogOut className="w-4 h-4" />
         Sign Out

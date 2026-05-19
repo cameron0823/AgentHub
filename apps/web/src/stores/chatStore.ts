@@ -1,6 +1,10 @@
 import { create } from "zustand";
+import type { ReasoningTimelineEvent, RouteDecision, RouteStrategy } from "@agenthub/ai-providers";
+import type { FileSnapshot } from "@/lib/file-snapshots";
 
 export const DEFAULT_MODEL_ID = "ollama:qwen2.5:7b";
+export type { ReasoningTimelineEvent, RouteDecision, RouteStrategy };
+export type ToolProfile = "minimal" | "research" | "coding" | "messaging" | "admin" | "full";
 
 export interface ToolCall {
   id: string;
@@ -22,6 +26,43 @@ export interface RagSource {
   documentId: string;
   content: string;
   similarity: number;
+  sourceName?: string;
+  sourceType?: string;
+  mimeType?: string;
+  sourceUrl?: string;
+  citation?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface GeneratedResource {
+  id: string;
+  type: "image" | "file" | "chart" | "document";
+  url: string;
+  mimeType?: string;
+  filename?: string;
+  prompt?: string;
+  revisedPrompt?: string;
+  providerId?: string;
+  model?: string;
+  size?: string;
+  sizeBytes?: number;
+  content?: string;
+  downloadable?: boolean;
+  sessionId?: string;
+  chartSpec?: unknown;
+  toolCallId?: string;
+  providerImageId?: string;
+  source?: string;
+  createdAt?: string;
+}
+
+export interface ChatArtifact {
+  id: string;
+  title: string;
+  kind: "html" | "svg" | "css" | "react";
+  language: string;
+  content: string;
+  previewHtml: string;
 }
 
 export interface ChatMessage {
@@ -31,6 +72,7 @@ export interface ChatMessage {
   content: string;
   imageUrls?: string[];
   reasoning?: string;
+  reasoningTimeline?: ReasoningTimelineEvent[];
   toolCalls?: ToolCall[];
   toolCallId?: string;
   toolName?: string;
@@ -39,6 +81,12 @@ export interface ChatMessage {
   isStreaming?: boolean;
   createdAt?: Date;
   ragSources?: RagSource[];
+  generatedResources?: GeneratedResource[];
+  sandboxResources?: GeneratedResource[];
+  fileSnapshots?: FileSnapshot[];
+  artifacts?: ChatArtifact[];
+  routeDecision?: RouteDecision;
+  metadata?: Record<string, unknown> | null;
   tokensUsed?: number | null;
   latencyMs?: number | null;
   feedback?: "up" | "down" | null;
@@ -51,6 +99,7 @@ export interface ChatSession {
   parentMessageId?: string | null;
   title: string;
   model: string;
+  metadata?: Record<string, unknown> | null;
   messages: ChatMessage[];
   isPinned?: boolean;
   createdAt: Date;
@@ -64,9 +113,18 @@ export interface Agent {
   avatar?: string | null;
   systemPrompt: string;
   model: string;
+  routeStrategy?: RouteStrategy;
+  fallbackModelIds?: string[];
+  voiceProvider?: "browser" | "edge" | "openai" | "piper" | "faster-whisper";
+  voiceId?: string;
+  voiceSpeed?: number;
+  sttProvider?: "browser" | "edge" | "openai" | "piper" | "faster-whisper";
+  handsFreeVoice?: boolean;
   temperature: number;
   maxTokens: number;
   tools: string[];
+  toolProfile?: ToolProfile;
+  deniedTools?: string[];
   memoryEnabled: boolean;
   knowledgeBaseId?: string | null;
   createdAt?: Date | null;
@@ -84,7 +142,7 @@ export interface AgentGroup {
   id: string;
   name: string;
   description?: string | null;
-  pattern: "sequential" | "parallel" | "supervisor" | "debate" | "groupchat";
+  pattern: "sequential" | "parallel" | "supervisor" | "iterative" | "debate" | "groupchat";
   members: AgentGroupMember[];
   createdAt?: Date | null;
   updatedAt?: Date | null;
@@ -106,7 +164,15 @@ export interface MemoryEntry {
   updatedAt?: Date | null;
 }
 
-export type MainView = "chat" | "agent-builder" | "group-builder" | "memory-editor" | "marketplace" | "tasks" | "admin";
+export type MainView =
+  | "chat"
+  | "agent-builder"
+  | "group-builder"
+  | "memory-editor"
+  | "marketplace"
+  | "tasks"
+  | "review"
+  | "admin";
 
 export type TaskStatus = "pending" | "queued" | "running" | "success" | "error" | "cancelled";
 
@@ -114,17 +180,52 @@ export interface AgentTask {
   id: string;
   userId: string;
   agentId: string | null;
+  parentTaskId: string | null;
+  templateId: string | null;
+  assignedByUserId: string | null;
   title: string;
   prompt: string;
   status: TaskStatus;
   output: string | null;
   error: string | null;
-  dependsOn: string | null;
+  dependsOn: string[];
   retryCount: number;
   maxRetries: number;
   priority: number;
+  assignedAt: Date;
+  reassignedAt: Date | null;
+  metadata: Record<string, unknown>;
   startedAt: Date | null;
   completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AgentTaskComment {
+  id: string;
+  taskId: string;
+  userId: string;
+  agentId: string | null;
+  authorType: "human" | "agent" | "system";
+  body: string;
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AgentTaskTemplate {
+  id: string;
+  userId: string;
+  agentId: string | null;
+  name: string;
+  description: string | null;
+  title: string;
+  prompt: string;
+  variables: string[];
+  subtasks: Array<{ title: string; prompt: string; agentId?: string | null; priority?: number; maxRetries?: number }>;
+  defaultPriority: number;
+  defaultMaxRetries: number;
+  metadata: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -137,7 +238,7 @@ export interface ModelMetadata {
   providerStatus?: "healthy" | "unhealthy";
   providerLatency?: number;
   parameters?: string;
-  capabilities?: ("chat" | "vision" | "tools" | "embeddings" | "reasoning")[];
+  capabilities?: ("chat" | "vision" | "tools" | "embeddings" | "reasoning" | "imageGeneration" | "tts" | "stt")[];
 }
 
 interface ChatState {
@@ -181,7 +282,10 @@ interface ChatState {
   deleteAgentGroup: (id: string) => void;
   addSession: (session: ChatSession) => void;
   replaceMessageId: (sessionId: string, currentId: string, nextId: string) => void;
-  updateSession: (id: string, updates: Partial<Pick<ChatSession, "title" | "model" | "agentId" | "groupId" | "updatedAt">>) => void;
+  updateSession: (
+    id: string,
+    updates: Partial<Pick<ChatSession, "title" | "model" | "agentId" | "groupId" | "updatedAt">>,
+  ) => void;
   deleteSession: (id: string) => void;
   pinSession: (id: string, isPinned: boolean) => void;
 }
@@ -243,9 +347,7 @@ export const useChatStore = create<ChatState>((set) => ({
 
   addMessage: (sessionId, message) =>
     set((state) => ({
-      sessions: state.sessions.map((s) =>
-        s.id === sessionId ? { ...s, messages: [...s.messages, message] } : s
-      ),
+      sessions: state.sessions.map((s) => (s.id === sessionId ? { ...s, messages: [...s.messages, message] } : s)),
     })),
 
   updateMessage: (sessionId, messageId, updates) =>
@@ -256,7 +358,7 @@ export const useChatStore = create<ChatState>((set) => ({
               ...s,
               messages: s.messages.map((m) => (m.id === messageId ? { ...m, ...updates } : m)),
             }
-          : s
+          : s,
       ),
     })),
 
@@ -344,20 +446,17 @@ export const useChatStore = create<ChatState>((set) => ({
           ? {
               ...session,
               messages: session.messages.map((message) =>
-                message.id === currentId ? { ...message, id: nextId } : message
+                message.id === currentId ? { ...message, id: nextId } : message,
               ),
             }
-          : session
+          : session,
       ),
     })),
 
   updateSession: (id, updates) =>
     set((state) => ({
-      sessions: state.sessions.map((session) =>
-        session.id === id ? { ...session, ...updates } : session
-      ),
-      selectedModel:
-        state.activeSessionId === id && updates.model ? updates.model : state.selectedModel,
+      sessions: state.sessions.map((session) => (session.id === id ? { ...session, ...updates } : session)),
+      selectedModel: state.activeSessionId === id && updates.model ? updates.model : state.selectedModel,
     })),
 
   deleteSession: (id) =>
@@ -365,12 +464,12 @@ export const useChatStore = create<ChatState>((set) => ({
       const filtered = state.sessions.filter((s) => s.id !== id);
       return {
         sessions: filtered,
-        activeSessionId: state.activeSessionId === id ? (filtered[0]?.id || null) : state.activeSessionId,
+        activeSessionId: state.activeSessionId === id ? filtered[0]?.id || null : state.activeSessionId,
       };
     }),
 
   pinSession: (id, isPinned) =>
     set((state) => ({
-      sessions: state.sessions.map((s) => s.id === id ? { ...s, isPinned } : s),
+      sessions: state.sessions.map((s) => (s.id === id ? { ...s, isPinned } : s)),
     })),
 }));

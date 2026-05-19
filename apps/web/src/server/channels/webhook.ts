@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AgentRuntime } from "@agenthub/agent-runtime";
-import { providerRegistry, type ProviderRegistry } from "@agenthub/ai-providers";
+import { checkProviderPlanAccess, providerRegistry, type ProviderRegistry } from "@agenthub/ai-providers";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db";
 import { agents, channelAccounts, channelAuditLog, channelSenderPolicies, providerCredentials } from "../db/schema";
 import { decrypt } from "../trust-engine";
+import { decryptProviderCredentials } from "../provider-credentials";
+import { ensureUserQuota } from "../quotas";
 import { appendMemoryBlockToSystemPrompt, fetchAcceptedMemoriesForAgent, formatMemoryBlock } from "../memory";
 import {
   evaluateChannelSenderPolicy,
@@ -33,10 +35,14 @@ function getChannelAccountId(req: NextRequest): string | null {
 }
 
 async function loadProviderCredentials(userId: string): Promise<ProviderRegistry> {
-  const userCreds = await db
+  const encryptedUserCreds = await db
     .select()
     .from(providerCredentials)
     .where(and(eq(providerCredentials.userId, userId), eq(providerCredentials.isEnabled, true)));
+  const quota = await ensureUserQuota(userId);
+  const userCreds = decryptProviderCredentials(encryptedUserCreds).filter(
+    (credential) => checkProviderPlanAccess(credential.providerId, quota.plan).allowed,
+  );
 
   if (userCreds.length === 0) return providerRegistry;
 
@@ -48,21 +54,25 @@ async function loadProviderCredentials(userId: string): Promise<ProviderRegistry
       baseUrl: credential.baseUrl || undefined,
       accessToken: credential.accessToken || undefined,
       expiresAt: credential.expiresAt,
-    }))
+    })),
   );
 }
 
 async function buildSystemPrompt(agent: typeof agents.$inferSelect) {
   let systemPrompt = agent.systemPrompt;
-  if (agent.memoryEnabled) {
-    const memories = await fetchAcceptedMemoriesForAgent(agent.id);
+  if (agent.memoryEnabled && agent.userId) {
+    const memories = await fetchAcceptedMemoriesForAgent(agent.id, agent.userId);
     const memoryBlock = formatMemoryBlock(memories);
     systemPrompt = appendMemoryBlockToSystemPrompt(systemPrompt, memoryBlock) ?? systemPrompt;
   }
   return systemPrompt;
 }
 
-function resolveRuntimeToolIds(accountAllowedTools: unknown, senderAllowedTools: unknown, agent: typeof agents.$inferSelect) {
+function resolveRuntimeToolIds(
+  accountAllowedTools: unknown,
+  senderAllowedTools: unknown,
+  agent: typeof agents.$inferSelect,
+) {
   const channelToolIds = resolveChannelToolIds(accountAllowedTools, senderAllowedTools);
   const agentToolIds = new Set(parseChannelToolList(agent.tools));
   const deniedToolIds = new Set(parseChannelToolList(agent.deniedTools));
@@ -95,7 +105,8 @@ async function recordChannelAudit(input: {
 }
 
 export async function handleChannelWebhook(options: HandleChannelWebhookOptions) {
-  const { req, rawBody, provider, verifyRequest, parseCommand, successResponse, deniedResponse, pingResponse } = options;
+  const { req, rawBody, provider, verifyRequest, parseCommand, successResponse, deniedResponse, pingResponse } =
+    options;
   const accountId = getChannelAccountId(req);
 
   if (!accountId) {
@@ -106,7 +117,13 @@ export async function handleChannelWebhook(options: HandleChannelWebhookOptions)
     .select({ account: channelAccounts, agent: agents })
     .from(channelAccounts)
     .innerJoin(agents, eq(channelAccounts.agentId, agents.id))
-    .where(and(eq(channelAccounts.id, accountId), eq(channelAccounts.provider, provider), eq(channelAccounts.isEnabled, true)))
+    .where(
+      and(
+        eq(channelAccounts.id, accountId),
+        eq(channelAccounts.provider, provider),
+        eq(channelAccounts.isEnabled, true),
+      ),
+    )
     .limit(1);
 
   if (!record) {
@@ -117,7 +134,7 @@ export async function handleChannelWebhook(options: HandleChannelWebhookOptions)
   const verificationSecret = decrypt(
     account.verificationSecretEncrypted,
     account.verificationSecretIv,
-    account.verificationSecretAuthTag
+    account.verificationSecretAuthTag,
   );
 
   if (!verifyRequest({ rawBody, headers: req.headers, verificationSecret })) {
@@ -170,10 +187,12 @@ export async function handleChannelWebhook(options: HandleChannelWebhookOptions)
   const [senderPolicy] = await db
     .select()
     .from(channelSenderPolicies)
-    .where(and(
-      eq(channelSenderPolicies.channelAccountId, account.id),
-      eq(channelSenderPolicies.externalSenderId, command.externalSenderId)
-    ))
+    .where(
+      and(
+        eq(channelSenderPolicies.channelAccountId, account.id),
+        eq(channelSenderPolicies.externalSenderId, command.externalSenderId),
+      ),
+    )
     .limit(1);
 
   const decision = evaluateChannelSenderPolicy(account, senderPolicy, command);

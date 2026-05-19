@@ -73,8 +73,7 @@ export function truncateToContextLimit<T extends { role: string; content: unknow
 
   for (let i = nonSystem.length - 1; i >= 0; i--) {
     const msg = nonSystem[i]!;
-    const t =
-      estimateTokens(typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)) + 4;
+    const t = estimateTokens(typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)) + 4;
     if (tokens + t > budget && kept.length > 0) break;
     tokens += t;
     kept.unshift(msg);

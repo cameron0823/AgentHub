@@ -1,34 +1,43 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { db } from "./db";
 import { memoryEntries } from "./db/schema";
+import { validateProviderBaseUrl } from "./security/outbound";
 
 const MAX_MEMORY_ENTRIES = 12;
 const MAX_MEMORY_VALUE_LENGTH = 280;
 
-export async function fetchAcceptedMemoriesForAgent(agentId: string) {
+export async function fetchAcceptedMemoriesForAgent(agentId: string, userId: string) {
   return db
     .select()
     .from(memoryEntries)
-    .where(and(eq(memoryEntries.agentId, agentId), eq(memoryEntries.status, "accepted")))
+    .where(
+      and(
+        eq(memoryEntries.userId, userId),
+        eq(memoryEntries.status, "accepted"),
+        or(isNull(memoryEntries.agentId), eq(memoryEntries.agentId, agentId)),
+      ),
+    )
     .orderBy(desc(memoryEntries.updatedAt))
     .limit(MAX_MEMORY_ENTRIES);
 }
 
 export function formatMemoryBlock(entries: Array<{ category: string; key: string; value: string }>) {
-  const lines = entries
-    .slice(0, MAX_MEMORY_ENTRIES)
-    .map((entry) => {
-      const value = entry.value.length > MAX_MEMORY_VALUE_LENGTH
+  const lines = entries.slice(0, MAX_MEMORY_ENTRIES).map((entry) => {
+    const value =
+      entry.value.length > MAX_MEMORY_VALUE_LENGTH
         ? `${entry.value.slice(0, MAX_MEMORY_VALUE_LENGTH - 1)}...`
         : entry.value;
-      return `- [${entry.category}] ${entry.key}: ${value}`;
-    });
+    return `- [${entry.category}] ${entry.key}: ${value}`;
+  });
 
   if (lines.length === 0) return "";
   return ["Relevant saved memories:", ...lines].join("\n");
 }
 
-export function appendMemoryBlockToSystemPrompt(systemPrompt: string | null | undefined, memoryBlock: string): string | undefined {
+export function appendMemoryBlockToSystemPrompt(
+  systemPrompt: string | null | undefined,
+  memoryBlock: string,
+): string | undefined {
   if (!memoryBlock) return systemPrompt || undefined;
   return [systemPrompt || "", memoryBlock].filter(Boolean).join("\n\n");
 }
@@ -39,8 +48,12 @@ interface ExtractedMemory {
   value: string;
 }
 
-export async function extractMemories(userMessage: string, assistantResponse: string, model = "ollama:qwen2.5:7b"): Promise<ExtractedMemory[]> {
-  const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+export async function extractMemories(
+  userMessage: string,
+  assistantResponse: string,
+  model = "ollama:qwen2.5:7b",
+): Promise<ExtractedMemory[]> {
+  const ollamaUrl = validateProviderBaseUrl(process.env.OLLAMA_URL, "http://localhost:11434");
   const modelName = model.replace("ollama:", "");
 
   const prompt = `You are a memory extraction system. Given a user message and an assistant response, extract 0-3 factual memories about the user that would be useful in future conversations.
@@ -106,7 +119,7 @@ Extracted memories:`;
 
 async function embedText(text: string): Promise<number[] | null> {
   try {
-    const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+    const ollamaUrl = validateProviderBaseUrl(process.env.OLLAMA_URL, "http://localhost:11434");
     const res = await fetch(`${ollamaUrl}/api/embeddings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -126,7 +139,7 @@ export async function storePendingMemories(
   agentId: string,
   userId: string,
   memories: ExtractedMemory[],
-  sourceMessageId?: string
+  sourceMessageId?: string,
 ) {
   for (const mem of memories) {
     const embeddingText = `${mem.key}: ${mem.value}`;

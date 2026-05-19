@@ -29,6 +29,7 @@ ${workers.map((w) => `INSTRUCTIONS_FOR_${w.name}: <specific instructions>`).join
       sessionId: options.sessionId,
       messages: [{ role: "user", content: delegationPrompt }],
       tools: supervisor.tools,
+      deniedTools: supervisor.deniedTools,
       signal: options.signal,
     })) {
       if (chunk.type === "content" && chunk.content) {
@@ -64,11 +65,7 @@ ${workers.map((w) => `INSTRUCTIONS_FOR_${w.name}: <specific instructions>`).join
 
       const workerPrompt = `${supervisorOutput}\n\nBased on the supervisor's plan above, complete your assigned task:\n\n${options.task}`;
 
-      const result = await this.collectAgentRun(
-        { ...options, task: workerPrompt },
-        worker,
-        workerOutputs
-      );
+      const result = await this.collectAgentRun({ ...options, task: workerPrompt }, worker, workerOutputs);
 
       workerOutputs.push(result);
       yield { type: "agent_complete", groupId, agentId: worker.id, agentName: worker.name, output: result.output };
@@ -91,6 +88,7 @@ Provide a clear, comprehensive final answer.`;
       sessionId: options.sessionId,
       messages: [{ role: "user", content: synthesisPrompt }],
       tools: supervisor.tools,
+      deniedTools: supervisor.deniedTools,
       signal: options.signal,
     })) {
       if (chunk.type === "content" && chunk.content) {

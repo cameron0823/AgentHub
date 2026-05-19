@@ -6,12 +6,20 @@ import { trpc } from "@/lib/trpc";
 import { useChatStore, type AgentGroup } from "@/stores/chatStore";
 import { PatternVisualizer } from "./PatternVisualizer";
 
-const ALL_PATTERNS: AgentGroup["pattern"][] = ["sequential", "parallel", "supervisor", "debate", "groupchat"];
+const ALL_PATTERNS: AgentGroup["pattern"][] = [
+  "sequential",
+  "parallel",
+  "supervisor",
+  "iterative",
+  "debate",
+  "groupchat",
+];
 
 const PATTERN_DESCRIPTIONS: Record<AgentGroup["pattern"], string> = {
   sequential: "Agents run one after another. Each sees the previous agent's output.",
   parallel: "All agents run simultaneously. Outputs are synthesized at the end.",
   supervisor: "A coordinator agent plans tasks and delegates to workers, then synthesizes results.",
+  iterative: "Author, Editor, Reviser loop drafts, reviews, revises, and pauses at checkpoints.",
   debate: "Agents argue in rounds with a moderator synthesis at the end.",
   groupchat: "Agents take turns in a conversation until consensus is reached.",
 };
@@ -20,6 +28,7 @@ const PATTERN_ROLE_HINTS: Record<AgentGroup["pattern"], string> = {
   sequential: "Role: e.g. Step 1, Step 2",
   parallel: "Role: e.g. Researcher, Analyst",
   supervisor: "Role: supervisor or worker",
+  iterative: "Role: Author, Editor, Reviser",
   debate: "Role: debater or moderator",
   groupchat: "Role: participant",
 };
@@ -44,16 +53,12 @@ function formFromGroup(group?: AgentGroup) {
 }
 
 export function AgentGroupBuilder() {
-  const {
-    agents,
-    agentGroups,
-    activeGroupId,
-    addAgentGroup,
-    updateAgentGroup,
-    deleteAgentGroup,
-    setMainView,
-  } = useChatStore();
-  const activeGroup = useMemo(() => agentGroups.find((group) => group.id === activeGroupId), [agentGroups, activeGroupId]);
+  const { agents, agentGroups, activeGroupId, addAgentGroup, updateAgentGroup, deleteAgentGroup, setMainView } =
+    useChatStore();
+  const activeGroup = useMemo(
+    () => agentGroups.find((group) => group.id === activeGroupId),
+    [agentGroups, activeGroupId],
+  );
   const [form, setForm] = useState(() => formFromGroup(activeGroup));
   const utils = trpc.useUtils();
 
@@ -138,12 +143,15 @@ export function AgentGroupBuilder() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-background p-6">
+    <div className="flex-1 overflow-y-auto p-5 md:p-6">
       <div className="mx-auto max-w-4xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-semibold">{activeGroup ? "Edit Group" : "New Group"}</h2>
-            <p className="text-sm text-muted-foreground">Combine agents into multi-agent patterns: sequential, parallel, supervisor, debate, or group chat.</p>
+            <h2 className="text-4xl font-semibold tracking-tight">{activeGroup ? "Edit Group" : "New Group"}</h2>
+            <p className="text-sm text-muted-foreground">
+              Combine agents into multi-agent patterns: sequential, parallel, supervisor, iterative, debate, or group
+              chat.
+            </p>
           </div>
           <div className="flex gap-2">
             {activeGroup ? (
@@ -161,7 +169,7 @@ export function AgentGroupBuilder() {
               type="button"
               onClick={handleSave}
               disabled={!canSave}
-              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+              className="agenthub-primary-button flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-60"
             >
               <Save className="h-4 w-4" />
               Save Group
@@ -169,7 +177,7 @@ export function AgentGroupBuilder() {
           </div>
         </div>
 
-        <section className="rounded-xl border bg-card p-4">
+        <section className="agenthub-glass-panel rounded-2xl p-5">
           <h3 className="mb-3 font-semibold">Basics</h3>
           <div className="grid gap-3 md:grid-cols-2">
             <label className="space-y-1 text-sm">
@@ -179,7 +187,7 @@ export function AgentGroupBuilder() {
                 value={form.name}
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
                 placeholder="Research Team"
-                className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-xl border px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
               />
             </label>
             <label className="space-y-1 text-sm">
@@ -188,10 +196,12 @@ export function AgentGroupBuilder() {
                 name="pattern"
                 value={form.pattern}
                 onChange={(event) => setForm({ ...form, pattern: event.target.value as AgentGroup["pattern"] })}
-                className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-xl border px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
               >
                 {ALL_PATTERNS.map((p) => (
-                  <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)} — {PATTERN_DESCRIPTIONS[p]}</option>
+                  <option key={p} value={p}>
+                    {p.charAt(0).toUpperCase() + p.slice(1)} — {PATTERN_DESCRIPTIONS[p]}
+                  </option>
                 ))}
               </select>
             </label>
@@ -202,7 +212,7 @@ export function AgentGroupBuilder() {
                 value={form.description}
                 onChange={(event) => setForm({ ...form, description: event.target.value })}
                 placeholder="Runs specialists and returns a combined synthesis."
-                className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-xl border px-3 py-2 outline-none focus:ring-1 focus:ring-primary"
               />
             </label>
           </div>
@@ -217,17 +227,22 @@ export function AgentGroupBuilder() {
           }))}
         />
 
-        <section className="rounded-xl border bg-card p-4">
+        <section className="agenthub-glass-panel rounded-2xl p-5">
           <h3 className="mb-3 font-semibold">Members</h3>
           {agents.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Create agents before building a group.</div>
+            <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-4 text-sm text-muted-foreground">
+              Create agents before building a group.
+            </div>
           ) : (
             <div className="space-y-2">
               {agents.map((agent) => {
                 const selected = selectedIds.has(agent.id);
                 const member = form.members.find((item) => item.agentId === agent.id);
                 return (
-                  <div key={agent.id} className="grid gap-2 rounded-lg border p-3 text-sm md:grid-cols-[1fr_220px]">
+                  <div
+                    key={agent.id}
+                    className="grid gap-2 rounded-xl border border-white/10 bg-white/5 p-3 text-sm md:grid-cols-[1fr_220px]"
+                  >
                     <label className="flex items-start gap-2">
                       <input
                         data-testid="agent-checkbox"
@@ -246,7 +261,7 @@ export function AgentGroupBuilder() {
                       onChange={(event) => setMemberRole(agent.id, event.target.value)}
                       disabled={!selected}
                       placeholder={PATTERN_ROLE_HINTS[form.pattern]}
-                      className="rounded-lg border bg-background px-3 py-2 outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+                      className="rounded-xl border px-3 py-2 outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
                     />
                   </div>
                 );
@@ -263,7 +278,7 @@ function toAgentGroup(group: {
   id: string;
   name: string;
   description: string | null;
-  pattern: "sequential" | "parallel" | "supervisor" | "debate" | "groupchat";
+  pattern: "sequential" | "parallel" | "supervisor" | "iterative" | "debate" | "groupchat";
   members: Array<{ groupId?: string; agentId: string; role?: string | null; sortOrder?: number }>;
   createdAt?: Date | null;
   updatedAt?: Date | null;

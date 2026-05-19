@@ -1,16 +1,22 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    try {
-      const { startAutomationWorker } = await import("./server/workers/automationWorker");
-      startAutomationWorker();
-    } catch (err) {
-      console.warn("[instrumentation] automation worker failed to start:", err);
+    const { logger } = await import("./server/observability/logger");
+    const { initializeSentry } = await import("./server/observability/sentry");
+    const sentryInitialized = await initializeSentry();
+    logger.info({ sentryInitialized }, "AgentHub node instrumentation starting");
+
+    const { shouldStartInlineWorkers, startBackgroundWorkers } = await import("./server/workers/start");
+    if (!shouldStartInlineWorkers()) {
+      logger.info(
+        "AgentHub background workers disabled in Next.js instrumentation; use `pnpm -C apps/web workers` or set AGENTHUB_WORKER_MODE=inline for local desktop use.",
+      );
+      return;
     }
+
     try {
-      const { startTaskWorker } = await import("./server/workers/taskWorker");
-      startTaskWorker();
+      await startBackgroundWorkers();
     } catch (err) {
-      console.warn("[instrumentation] task worker failed to start:", err);
+      logger.warn({ err }, "background workers failed to start");
     }
   }
 }

@@ -17,7 +17,9 @@ function highlight(text: string, query: string) {
   return (
     <>
       {excerpt.slice(0, matchStart)}
-      <mark className="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5">{excerpt.slice(matchStart, matchStart + query.length)}</mark>
+      <mark className="bg-yellow-200 dark:bg-yellow-800 rounded px-0.5">
+        {excerpt.slice(matchStart, matchStart + query.length)}
+      </mark>
       {excerpt.slice(matchStart + query.length)}
     </>
   );
@@ -38,31 +40,39 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
   }, [query]);
 
   useEffect(() => {
-    if (!open) { setQuery(""); setDebouncedQuery(""); }
+    if (!open) {
+      setQuery("");
+      setDebouncedQuery("");
+    }
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
   const { data: results = [] } = trpc.messages.search.useQuery(
     { query: debouncedQuery },
-    { enabled: debouncedQuery.length > 0 }
+    { enabled: debouncedQuery.length > 0 },
   );
 
   const setActiveSession = useChatStore((s) => s.setActiveSession);
 
-  const handleSelect = useCallback((sessionId: string, messageId: string) => {
-    setActiveSession(sessionId);
-    onClose();
-    setTimeout(() => {
-      const el = document.getElementById(`msg-${messageId}`);
-      el?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 300);
-  }, [setActiveSession, onClose]);
+  const handleSelect = useCallback(
+    (sessionId: string, messageId: string) => {
+      setActiveSession(sessionId);
+      onClose();
+      setTimeout(() => {
+        const el = document.getElementById(`msg-${messageId}`);
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 300);
+    },
+    [setActiveSession, onClose],
+  );
 
   if (!open) return null;
 
@@ -74,15 +84,18 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
   }, {});
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-black/40 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 px-4 pt-[15vh] backdrop-blur-md"
+      onClick={onClose}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Search conversations"
-        className="w-full max-w-xl bg-background rounded-xl border shadow-2xl overflow-hidden"
+        className="agenthub-glass-panel w-full max-w-xl overflow-hidden rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 px-4 border-b">
+        <div className="flex items-center gap-2 border-b border-white/10 px-4">
           <Search className="w-4 h-4 text-muted-foreground shrink-0" />
           <input
             autoFocus
@@ -92,7 +105,7 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
             className="flex-1 py-3 text-sm bg-transparent outline-none"
           />
           {query && (
-            <button onClick={() => setQuery("")} className="p-1 hover:bg-muted rounded text-muted-foreground">
+            <button onClick={() => setQuery("")} className="rounded p-1 text-muted-foreground hover:bg-white/10">
               <X className="w-4 h-4" />
             </button>
           )}
@@ -100,12 +113,14 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
 
         <div className="max-h-[60vh] overflow-y-auto">
           {debouncedQuery && results.length === 0 && (
-            <div className="py-8 text-center text-sm text-muted-foreground">No results for &ldquo;{debouncedQuery}&rdquo;</div>
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              No results for &ldquo;{debouncedQuery}&rdquo;
+            </div>
           )}
 
           {Object.entries(grouped).map(([sessionId, msgs]) => (
             <div key={sessionId}>
-              <div className="px-4 py-2 text-xs font-medium text-muted-foreground bg-muted/30 flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 bg-white/5 px-4 py-2 text-xs font-medium text-muted-foreground">
                 <MessageSquare className="w-3 h-3" />
                 {msgs[0]?.sessionTitle ?? "Conversation"}
               </div>
@@ -113,9 +128,11 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
                 <button
                   key={msg.messageId}
                   onClick={() => handleSelect(msg.sessionId ?? "", msg.messageId ?? "")}
-                  className="w-full text-left px-4 py-3 hover:bg-accent/50 border-b last:border-b-0 transition-colors"
+                  className="w-full border-b border-white/10 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-white/10"
                 >
-                  <div className="text-xs text-muted-foreground mb-0.5">{msg.role === "user" ? "You" : "Assistant"}</div>
+                  <div className="text-xs text-muted-foreground mb-0.5">
+                    {msg.role === "user" ? "You" : "Assistant"}
+                  </div>
                   <p className="text-sm line-clamp-2">{highlight(msg.content ?? "", debouncedQuery)}</p>
                 </button>
               ))}
@@ -123,9 +140,7 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
           ))}
 
           {!debouncedQuery && (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              Type to search your conversations
-            </div>
+            <div className="py-8 text-center text-sm text-muted-foreground">Type to search your conversations</div>
           )}
         </div>
       </div>

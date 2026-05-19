@@ -17,11 +17,7 @@ test("agents router gates all CRUD operations behind authedProcedure", async () 
 test("agents.list scopes to authenticated user — user A cannot see user B agents", async () => {
   const src = await readText("apps/web/src/server/routers/agents.ts");
 
-  assert.match(
-    src,
-    /\.where\(eq\(agents\.userId, ctx\.user\.id\)\)/,
-    "list must filter by ctx.user.id"
-  );
+  assert.match(src, /\.where\(eq\(agents\.userId, ctx\.user\.id\)\)/, "list must filter by ctx.user.id");
 });
 
 test("agents.get uses compound ownership check — id AND userId", async () => {
@@ -30,7 +26,7 @@ test("agents.get uses compound ownership check — id AND userId", async () => {
   assert.match(
     src,
     /and\(eq\(agents\.id, input\.id\), eq\(agents\.userId, ctx\.user\.id\)\)/,
-    "get must check both agent id and userId ownership"
+    "get must check both agent id and userId ownership",
   );
 });
 
@@ -47,7 +43,7 @@ test("agents.update enforces ownership — cannot update another user's agent", 
   assert.match(
     src,
     /and\(eq\(agents\.id, id\), eq\(agents\.userId, ctx\.user\.id\)\)/,
-    "update WHERE clause must include userId ownership"
+    "update WHERE clause must include userId ownership",
   );
 });
 
@@ -57,7 +53,7 @@ test("agents.delete enforces ownership — cannot delete another user's agent", 
   assert.match(
     src,
     /db\.delete\(agents\)\.where\(and\(eq\(agents\.id, input\.id\), eq\(agents\.userId, ctx\.user\.id\)\)\)/,
-    "delete must use compound ownership check"
+    "delete must use compound ownership check",
   );
 });
 
@@ -74,21 +70,13 @@ test("agentGroups router gates all CRUD operations behind authedProcedure", asyn
 test("agentGroups.list scopes to authenticated user", async () => {
   const src = await readText("apps/web/src/server/routers/agents.ts");
 
-  assert.match(
-    src,
-    /eq\(agentGroups\.userId, ctx\.user\.id\)/,
-    "agentGroups list must filter by ctx.user.id"
-  );
+  assert.match(src, /eq\(agentGroups\.userId, ctx\.user\.id\)/, "agentGroups list must filter by ctx.user.id");
 });
 
 test("agentGroups.get verifies group.userId matches session userId", async () => {
   const src = await readText("apps/web/src/server/routers/agents.ts");
 
-  assert.match(
-    src,
-    /group\.userId !== ctx\.user\.id/,
-    "agentGroups.get must reject access when userId does not match"
-  );
+  assert.match(src, /group\.userId !== ctx\.user\.id/, "agentGroups.get must reject access when userId does not match");
 });
 
 test("agentGroups.delete enforces ownership compound check", async () => {
@@ -97,7 +85,7 @@ test("agentGroups.delete enforces ownership compound check", async () => {
   assert.match(
     src,
     /db\.delete\(agentGroups\)\.where\(and\(eq\(agentGroups\.id, input\.id\), eq\(agentGroups\.userId, ctx\.user\.id\)\)\)/,
-    "agentGroups.delete must use compound ownership check"
+    "agentGroups.delete must use compound ownership check",
   );
 });
 
@@ -114,11 +102,7 @@ test("sessions router gates all mutations behind authedProcedure", async () => {
 test("sessions.list scopes to authenticated user only", async () => {
   const src = await readText("apps/web/src/server/routers/sessions.ts");
 
-  assert.match(
-    src,
-    /eq\(chatSessions\.userId, ctx\.user\.id\)/,
-    "sessions.list must filter by ctx.user.id"
-  );
+  assert.match(src, /eq\(chatSessions\.userId, ctx\.user\.id\)/, "sessions.list must filter by ctx.user.id");
 });
 
 test("sessions.create verifies agent ownership before creating session", async () => {
@@ -127,7 +111,7 @@ test("sessions.create verifies agent ownership before creating session", async (
   assert.match(
     src,
     /and\(eq\(agents\.id, input\.agentId\), eq\(agents\.userId, ctx\.user\.id\)\)/,
-    "session create must verify agent belongs to the user before associating it"
+    "session create must verify agent belongs to the user before associating it",
   );
 });
 
@@ -137,7 +121,7 @@ test("sessions.delete enforces ownership — cannot delete another user's sessio
   assert.match(
     src,
     /db\.delete\(chatSessions\)\.where\(and\(eq\(chatSessions\.id, input\.id\), eq\(chatSessions\.userId, ctx\.user\.id\)\)\)/,
-    "sessions.delete must use compound ownership check"
+    "sessions.delete must use compound ownership check",
   );
 });
 
@@ -147,7 +131,12 @@ test("sessions.fork verifies source session ownership before forking", async () 
   assert.match(
     src,
     /and\(eq\(chatSessions\.id, input\.id\), eq\(chatSessions\.userId, ctx\.user\.id\)\)/,
-    "fork must verify ownership of source session before copying it"
+    "fork must verify ownership of source session before copying it",
+  );
+  assert.match(
+    src,
+    /and\(eq\(messages\.id, input\.messageId\), eq\(messages\.sessionId, input\.id\)\)/,
+    "fork point must belong to the owned source session",
   );
 });
 
@@ -168,7 +157,7 @@ test("messages operations verify session ownership via join before touching mess
   assert.match(
     src,
     /eq\(chatSessions\.userId, ctx\.user\.id\)/,
-    "messages ops must verify session userId before accessing message data"
+    "messages ops must verify session userId before accessing message data",
   );
 });
 
@@ -184,9 +173,5 @@ test("agents schema userId has no default — must always be explicitly set by s
 test("chatSessions schema userId references users table with cascade delete", async () => {
   const src = await readText("apps/web/src/server/db/schema.ts");
 
-  assert.match(
-    src,
-    /onDelete.*cascade/,
-    "chatSessions userId must cascade-delete when user is removed"
-  );
+  assert.match(src, /onDelete.*cascade/, "chatSessions userId must cascade-delete when user is removed");
 });

@@ -43,7 +43,11 @@ export const analyticsRouter = router({
 
     let favoriteAgentName: string | null = null;
     if (agentUsage[0]?.agentId) {
-      const [a] = await db.select({ name: agents.name }).from(agents).where(eq(agents.id, agentUsage[0].agentId)).limit(1);
+      const [a] = await db
+        .select({ name: agents.name })
+        .from(agents)
+        .where(eq(agents.id, agentUsage[0].agentId))
+        .limit(1);
       favoriteAgentName = a?.name ?? null;
     }
 
@@ -56,21 +60,19 @@ export const analyticsRouter = router({
     };
   }),
 
-  messagesPerDay: authedProcedure
-    .input(z.object({ days: z.number().default(30) }))
-    .query(async ({ ctx, input }) => {
-      const since = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
-      return db
-        .select({
-          day: sql<string>`date_trunc('day', ${messages.createdAt})::date::text`,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(messages)
-        .innerJoin(chatSessions, eq(messages.sessionId, chatSessions.id))
-        .where(and(eq(chatSessions.userId, ctx.user.id), gte(messages.createdAt, since)))
-        .groupBy(sql`date_trunc('day', ${messages.createdAt})`)
-        .orderBy(sql`date_trunc('day', ${messages.createdAt})`);
-    }),
+  messagesPerDay: authedProcedure.input(z.object({ days: z.number().default(30) })).query(async ({ ctx, input }) => {
+    const since = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
+    return db
+      .select({
+        day: sql<string>`date_trunc('day', ${messages.createdAt})::date::text`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(messages)
+      .innerJoin(chatSessions, eq(messages.sessionId, chatSessions.id))
+      .where(and(eq(chatSessions.userId, ctx.user.id), gte(messages.createdAt, since)))
+      .groupBy(sql`date_trunc('day', ${messages.createdAt})`)
+      .orderBy(sql`date_trunc('day', ${messages.createdAt})`);
+  }),
 
   tokensByAgent: authedProcedure.query(async ({ ctx }) => {
     const rows = await db
@@ -108,35 +110,31 @@ export const analyticsRouter = router({
       .groupBy(messages.role);
   }),
 
-  tokensPerDay: authedProcedure
-    .input(z.object({ days: z.number().default(30) }))
-    .query(async ({ ctx, input }) => {
-      const since = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
-      return db
-        .select({
-          day: sql<string>`date_trunc('day', ${messages.createdAt})::date::text`,
-          tokens: sql<number>`coalesce(sum(${messages.tokensUsed}), 0)::int`,
-        })
-        .from(messages)
-        .innerJoin(chatSessions, eq(messages.sessionId, chatSessions.id))
-        .where(and(eq(chatSessions.userId, ctx.user.id), gte(messages.createdAt, since)))
-        .groupBy(sql`date_trunc('day', ${messages.createdAt})`)
-        .orderBy(sql`date_trunc('day', ${messages.createdAt})`);
-    }),
+  tokensPerDay: authedProcedure.input(z.object({ days: z.number().default(30) })).query(async ({ ctx, input }) => {
+    const since = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
+    return db
+      .select({
+        day: sql<string>`date_trunc('day', ${messages.createdAt})::date::text`,
+        tokens: sql<number>`coalesce(sum(${messages.tokensUsed}), 0)::int`,
+      })
+      .from(messages)
+      .innerJoin(chatSessions, eq(messages.sessionId, chatSessions.id))
+      .where(and(eq(chatSessions.userId, ctx.user.id), gte(messages.createdAt, since)))
+      .groupBy(sql`date_trunc('day', ${messages.createdAt})`)
+      .orderBy(sql`date_trunc('day', ${messages.createdAt})`);
+  }),
 
-  latencyPerDay: authedProcedure
-    .input(z.object({ days: z.number().default(30) }))
-    .query(async ({ ctx, input }) => {
-      const since = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
-      return db
-        .select({
-          day: sql<string>`date_trunc('day', ${messages.createdAt})::date::text`,
-          avgLatency: sql<number>`coalesce(avg(${messages.latencyMs}) filter (where ${messages.latencyMs} is not null), 0)::int`,
-        })
-        .from(messages)
-        .innerJoin(chatSessions, eq(messages.sessionId, chatSessions.id))
-        .where(and(eq(chatSessions.userId, ctx.user.id), gte(messages.createdAt, since)))
-        .groupBy(sql`date_trunc('day', ${messages.createdAt})`)
-        .orderBy(sql`date_trunc('day', ${messages.createdAt})`);
-    }),
+  latencyPerDay: authedProcedure.input(z.object({ days: z.number().default(30) })).query(async ({ ctx, input }) => {
+    const since = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
+    return db
+      .select({
+        day: sql<string>`date_trunc('day', ${messages.createdAt})::date::text`,
+        avgLatency: sql<number>`coalesce(avg(${messages.latencyMs}) filter (where ${messages.latencyMs} is not null), 0)::int`,
+      })
+      .from(messages)
+      .innerJoin(chatSessions, eq(messages.sessionId, chatSessions.id))
+      .where(and(eq(chatSessions.userId, ctx.user.id), gte(messages.createdAt, since)))
+      .groupBy(sql`date_trunc('day', ${messages.createdAt})`)
+      .orderBy(sql`date_trunc('day', ${messages.createdAt})`);
+  }),
 });

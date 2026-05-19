@@ -1,0 +1,18 @@
+{
+  "name": "@agenthub/eslint-config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./base": "./base.mjs",
+    "./next": "./next.mjs"
+  },
+  "peerDependencies": {
+    "eslint": "^9.0.0"
+  },
+  "dependencies": {
+    "@eslint/js": "^9.39.4",
+    "globals": "^17.6.0",
+    "typescript-eslint": "^8.59.3"
+  }
+}

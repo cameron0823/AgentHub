@@ -20,7 +20,7 @@ test("stream route scopes session lookup to authenticated user — prevents cros
   assert.match(
     src,
     /eq\(chatSessions\.userId, session\.user\.id\)/,
-    "session DB query must include userId equality check"
+    "session DB query must include userId equality check",
   );
   assert.match(src, /status: 404/, "must return 404 when session not found or not owned");
 });
@@ -60,6 +60,15 @@ test("stream route persists the assistant message to DB after streaming complete
   assert.match(src, /latencyMs/, "must persist latency");
 });
 
+test("stream route forwards and persists provider-visible reasoning timeline events", async () => {
+  const src = await readText("apps/web/src/app/api/chat/stream/route.ts");
+
+  assert.match(src, /chunk\.type === "reasoning"/, "must keep raw reasoning compatibility");
+  assert.match(src, /chunk\.type === "reasoning_event"/, "must forward structured reasoning events");
+  assert.match(src, /reasoningTimeline\.push\(chunk\.event\)/, "must accumulate timeline events");
+  assert.match(src, /reasoningTimeline: reasoningTimeline/, "must persist timeline metadata");
+});
+
 test("stream route updates chatSession updatedAt after message persisted", async () => {
   const src = await readText("apps/web/src/app/api/chat/stream/route.ts");
 
@@ -71,11 +80,7 @@ test("stream route updates chatSession updatedAt after message persisted", async
 test("group path wraps orchestrator events in orchestrator_event SSE type", async () => {
   const src = await readText("apps/web/src/app/api/chat/stream/route.ts");
 
-  assert.match(
-    src,
-    /type.*orchestrator_event/,
-    "group events must be wrapped with type: 'orchestrator_event'"
-  );
+  assert.match(src, /type.*orchestrator_event/, "group events must be wrapped with type: 'orchestrator_event'");
   assert.match(src, /event\.type/, "must read event.type to branch on orchestrator event kinds");
 });
 
@@ -144,7 +149,7 @@ test("stream route substitutes prompt variables before sending to provider", asy
 
   assert.match(src, /substituteVariables/, "must call substituteVariables on system prompt");
   assert.match(src, /userName.*session\.user\.name/, "must pass userName from session");
-  assert.match(src, /agentName.*sessionAgent\?\.name/, "must pass agentName from agent record");
+  assert.match(src, /agentName.*runtimeAgent\?\.name/, "must pass agentName from the runtime agent record");
 });
 
 // ── RAG Integration ───────────────────────────────────────────────────────────

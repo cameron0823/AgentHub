@@ -14,7 +14,7 @@ test("Turbo uses tasks and exposes required tasks", async () => {
   }
   assert.ok(
     turbo.tasks.test.inputs?.includes("../../tests/**/*"),
-    "turbo test cache inputs must include the shared root test suite"
+    "turbo test cache inputs must include the shared root test suite",
   );
   assert.equal(turbo.tasks["test:e2e"].cache, false);
 });
@@ -36,7 +36,7 @@ test("Playwright browser smoke stack is configured for deterministic local e2e",
   ]);
 
   assert.equal(rootPkg.scripts["test:e2e"], "turbo run test:e2e");
-  assert.equal(webPkg.scripts["test:e2e"], "playwright test");
+  assert.equal(webPkg.scripts["test:e2e"], "node scripts/run-playwright.mjs");
   assert.ok(webPkg.devDependencies["@playwright/test"], "missing @playwright/test devDependency");
   assert.match(config, /devices\["Desktop Chrome"\]/);
   assert.match(config, /process\.env\.E2E_WEB_SERVER_COMMAND \?\?/);
@@ -106,19 +106,35 @@ test("Local provider parity contract is explicit and browser-covered", async () 
     readText("apps/web/tests/e2e/specs/phase-h/local-providers.spec.ts"),
   ]);
 
-  assert.match(registry, /LOCAL_PROVIDER_IDS = \["ollama", "lmstudio", "vllm"\]/);
+  assert.match(
+    registry,
+    /LOCAL_PROVIDER_IDS = \[\s*"ollama",\s*"lmstudio",\s*"vllm",\s*"piper",\s*"faster-whisper",\s*"comfyui",\s*"a1111",?\s*\]/,
+  );
   assert.match(registry, /createDefaultLocalProviders/);
   assert.match(registry, /listLocalProviders/);
   assert.match(registry, /provider\.type === "cloud"/);
 
-  for (const providerId of ["ollama", "lmstudio", "vllm"]) {
+  for (const providerId of ["ollama", "lmstudio", "vllm", "piper", "faster-whisper", "comfyui", "a1111"]) {
     assert.match(catalog, new RegExp(`id: "${providerId}"[\\s\\S]*?type: "local"`), `${providerId} must remain local`);
-    assert.match(catalog, new RegExp(`id: "${providerId}"[\\s\\S]*?authType: "none"`), `${providerId} must require no credential`);
-    assert.match(catalog, new RegExp(`id: "${providerId}"[\\s\\S]*?enabledByDefault: true`), `${providerId} must remain enabled by default`);
-    assert.match(localProviderSpec, new RegExp(providerId === "lmstudio" ? "LM Studio" : providerId, "i"));
+    assert.match(
+      catalog,
+      new RegExp(`id: "${providerId}"[\\s\\S]*?authType: "none"`),
+      `${providerId} must require no credential`,
+    );
+    assert.match(
+      catalog,
+      new RegExp(`id: "${providerId}"[\\s\\S]*?enabledByDefault: true`),
+      `${providerId} must remain enabled by default`,
+    );
+  }
+  for (const providerLabel of ["Ollama", "LM Studio", "Piper", "faster-whisper", "ComfyUI", "A1111"]) {
+    assert.match(localProviderSpec, new RegExp(providerLabel, "i"));
   }
 
-  assert.match(providerSettings, /Local providers \(Ollama, vLLM, LM Studio\) do not require credentials/);
+  assert.match(
+    providerSettings,
+    /Local providers \(Ollama, vLLM, LM Studio, Piper, faster-whisper, ComfyUI, A1111\) do not require credentials/,
+  );
 });
 
 test("Provider registry emits and resolves qualified model IDs", async () => {
@@ -169,14 +185,15 @@ test("SQLite-backed route handlers explicitly use the Node runtime", async () =>
 });
 
 test("Provider catalog powers model selector and persisted session model", async () => {
-  const [router, chatInterface, modelSelector, modelSelectorView, copilotProvider, moonshotProvider] = await Promise.all([
-    readText("apps/web/src/server/routers/providers.ts"),
-    readText("apps/web/src/components/ChatInterface.tsx"),
-    readText("apps/web/src/components/ModelSelector.tsx"),
-    readText("packages/ui/src/ModelSelectorView.tsx"),
-    readText("packages/ai-providers/src/providers/github-copilot.ts"),
-    readText("packages/ai-providers/src/providers/moonshot.ts"),
-  ]);
+  const [router, chatInterface, modelSelector, modelSelectorView, copilotProvider, moonshotProvider] =
+    await Promise.all([
+      readText("apps/web/src/server/routers/providers.ts"),
+      readText("apps/web/src/components/ChatInterface.tsx"),
+      readText("apps/web/src/components/ModelSelector.tsx"),
+      readText("packages/ui/src/ModelSelectorView.tsx"),
+      readText("packages/ai-providers/src/providers/github-copilot.ts"),
+      readText("packages/ai-providers/src/providers/moonshot.ts"),
+    ]);
 
   assert.match(router, /catalog:\s*authedProcedure\.query/);
   assert.match(router, /providerStatus/);
@@ -328,7 +345,7 @@ test("Initial Drizzle migration defaults use qualified model IDs", async () => {
     readText("apps/web/src/server/db/schema.ts"),
   ]);
 
-  assert.match(schema, /model: text\("model"\)\.default\("ollama:qwen2\.5:7b"\)/);
+  assert.match(schema, /model: text\(\s*\"model\"\)\.default\("ollama:qwen2\.5:7b"\)/);
   assert.match(migration, /CREATE TABLE "chat_sessions"[\s\S]*"model" text DEFAULT 'ollama:qwen2\.5:7b'/);
   assert.match(migration, /CREATE TABLE "agents"[\s\S]*"model" text DEFAULT 'ollama:qwen2\.5:7b'/);
   assert.equal(snapshot.tables["public.chat_sessions"].columns.model.default, "'ollama:qwen2.5:7b'");
@@ -347,10 +364,16 @@ test("Agent Builder MVP links sessions to agents and exposes agent API", async (
     readText("apps/web/src/stores/chatStore.ts"),
   ]);
 
-  assert.match(schema, /agentId: uuid\("agent_id"\)\.references\(\(\) => agents\.id, \{ onDelete: "set null" \}\)/);
+  assert.match(
+    schema,
+    /agentId: uuid\(\s*\"agent_id\"\)\.references\(\(\) => agents\.id, \{ onDelete: "set null" \}\)/,
+  );
   assert.match(migration, /"agent_id" uuid/);
   assert.equal(snapshot.tables["public.chat_sessions"].columns.agent_id.notNull, false);
-  assert.equal(snapshot.tables["public.chat_sessions"].foreignKeys.chat_sessions_agent_id_agents_id_fk.onDelete, "set null");
+  assert.equal(
+    snapshot.tables["public.chat_sessions"].foreignKeys.chat_sessions_agent_id_agents_id_fk.onDelete,
+    "set null",
+  );
   assert.match(router, /agentsRouter = router\(\{/);
   for (const procedure of ["list", "get", "create", "update", "delete"]) {
     assert.match(router, new RegExp(`${procedure}: authedProcedure`));
@@ -381,13 +404,19 @@ test("Agent Builder UI and stream route apply agent runtime configuration", asyn
   assert.match(sidebar, /onMutate:\s*\(\) => \{/);
   assert.match(sidebar, /setActiveSession\(null\)/);
   assert.match(sidebar, /createSession\.mutate\(\{ agentId \}\)/);
-  assert.match(page, /mainView === "agent-builder" \? <AgentBuilder \/>/);
+  assert.match(page, /mainView === "agent-builder" \?\s*\(\s*<AgentBuilder \/>/);
   assert.match(page, /<ChatInterface \/>/);
-  assert.match(route, /const systemPrompt = appendMemoryBlockToSystemPrompt\(runtimeAgent\?\.systemPrompt, memoryBlock\)/);
+  assert.match(
+    route,
+    /const systemPrompt = appendMemoryBlockToSystemPrompt\(runtimeAgent\?\.systemPrompt, memoryBlock\)/,
+  );
   assert.match(route, /systemPrompt,/);
   assert.match(route, /temperature: runtimeAgent\?\.temperature \?\? temperature/);
   assert.match(route, /maxTokens: runtimeAgent\?\.maxTokens \?\? maxTokens/);
-  assert.match(route, /const effectiveTools = runtimeAgent \? parseAgentTools\(runtimeAgent\.tools\) : \(tools \|\| \["calculator", "datetime"\]\)/);
+  assert.match(
+    route,
+    /const effectiveTools = runtimeAgent \? parseAgentTools\(runtimeAgent\.tools\) : tools \|\| \["calculator", "datetime"\]/,
+  );
   assert.doesNotMatch(route, /tools: tools \|\| \["calculator", "datetime", "read_file"\]/);
 });
 
@@ -441,9 +470,12 @@ test("Multi-agent orchestration MVP exposes runtime, schema, router, stream rout
   assert.match(sequential, /type: "group_complete"/);
   assert.match(parallel, /export class ParallelOrchestrator/);
   assert.match(parallel, /Promise\.allSettled/);
-  assert.match(schema, /export const agentGroups = pgTable\("agent_groups"/);
-  assert.match(schema, /export const groupMembers = pgTable\("group_members"/);
-  assert.match(schema, /groupId: uuid\("group_id"\)\.references\(\(\) => agentGroups\.id, \{ onDelete: "set null" \}\)/);
+  assert.match(schema, /export const agentGroups = pgTable\(\s*\"agent_groups\"/);
+  assert.match(schema, /export const groupMembers = pgTable\(\s*\"group_members\"/);
+  assert.match(
+    schema,
+    /groupId: uuid\(\s*\"group_id\"\)\.references\(\(\) => agentGroups\.id, \{ onDelete: "set null" \}\)/,
+  );
   assert.match(router, /agentGroupsRouter = router\(\{/);
   for (const procedure of ["list", "get", "create", "update", "delete"]) {
     assert.match(router, new RegExp(`${procedure}: authedProcedure`));
@@ -475,11 +507,17 @@ test("White-box Memory MVP exposes schema, API, prompt helper, store, and UI", a
     readText("apps/web/src/components/MemoryEditor.tsx"),
   ]);
 
-  assert.match(schema, /export const memoryEntries = pgTable\("memory_entries"/);
-  assert.match(schema, /agentId: uuid\("agent_id"\)\.references\(\(\) => agents\.id, \{ onDelete: "set null" \}\)/);
-  assert.match(schema, /sourceMessageId: uuid\("source_message_id"\)\.references\(\(\) => messages\.id, \{ onDelete: "set null" \}\)/);
-  assert.match(schema, /status: text\("status"/);
-  assert.match(schema, /isEdited: boolean\("is_edited"\)/);
+  assert.match(schema, /export const memoryEntries = pgTable\(\s*\"memory_entries\"/);
+  assert.match(
+    schema,
+    /agentId: uuid\(\s*\"agent_id\"\)\.references\(\(\) => agents\.id, \{ onDelete: "set null" \}\)/,
+  );
+  assert.match(
+    schema,
+    /sourceMessageId: uuid\(\s*\"source_message_id\"\)\.references\(\(\) => messages\.id, \{ onDelete: "set null" \}\)/,
+  );
+  assert.match(schema, /status: text\(\s*\"status\"/);
+  assert.match(schema, /isEdited: boolean\(\s*\"is_edited\"\)/);
   assert.match(router, /memoryEntriesRouter = router\(\{/);
   for (const procedure of ["list", "create", "update", "delete"]) {
     assert.match(router, new RegExp(`${procedure}: authedProcedure`));
@@ -489,7 +527,7 @@ test("White-box Memory MVP exposes schema, API, prompt helper, store, and UI", a
   assert.match(helper, /fetchAcceptedMemoriesForAgent/);
   assert.match(helper, /Relevant saved memories:/);
   assert.match(helper, /MAX_MEMORY_ENTRIES/);
-  assert.match(route, /fetchAcceptedMemoriesForAgent\(runtimeAgent\.id\)/);
+  assert.match(route, /fetchAcceptedMemoriesForAgent\(runtimeAgent\.id, session\.user\.id\)/);
   assert.match(route, /appendMemoryBlockToSystemPrompt/);
   assert.match(route, /runtimeAgent\?\.memoryEnabled/);
   assert.match(store, /export interface MemoryEntry/);
@@ -514,7 +552,7 @@ test("Agent Marketplace MVP exposes strict local and remote manifests, API proce
 
   assert.match(manifest, /MARKETPLACE_SCHEMA_VERSION = "agenthub\.marketplace\.v1"/);
   assert.match(manifest, /SUPPORTED_MARKETPLACE_TOOLS = \["calculator", "datetime", "read_file"\]/);
-  assert.match(manifest, /\.strict\(\)\.superRefine/);
+  assert.match(manifest, /\.strict\(\)\s*\.superRefine/);
   assert.match(manifest, /Duplicate agent localKey/);
   assert.match(manifest, /\.min\(1, "Manifest must include at least one agent\."\)/);
   assert.match(manifest, /model: z\.string\(\)\.trim\(\)\.min\(1\)\.default\(DEFAULT_MARKETPLACE_MODEL\)/);
@@ -540,11 +578,17 @@ test("Agent Marketplace MVP exposes strict local and remote manifests, API proce
   for (const procedure of ["catalog", "remoteCatalog", "validateManifest"]) {
     assert.match(router, new RegExp(`${procedure}: publicProcedure`));
   }
-  for (const procedure of ["installManifest", "installCatalogItem", "installRemoteItem", "forkRemoteItem", "exportAgent"]) {
+  for (const procedure of [
+    "installManifest",
+    "installCatalogItem",
+    "installRemoteItem",
+    "forkRemoteItem",
+    "exportAgent",
+  ]) {
     assert.match(router, new RegExp(`${procedure}: authedProcedure`));
   }
   assert.match(router, /parseMarketplaceManifest\(input\)/);
-  assert.match(router, /db\.insert\(agents\)/);
+  assert.match(router, /db\s*\.\s*insert\(\s*agents\s*\)/);
   assert.match(router, /id: crypto\.randomUUID\(\)/);
   assert.match(router, /userId,/);
   assert.match(router, /installMarketplaceManifest\(input, ctx\.user\.id\)/);

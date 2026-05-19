@@ -49,7 +49,11 @@ describe("Message feedback (👍/👎)", () => {
   it("thumbs buttons toggle feedback on click and show filled state", async () => {
     const src = await readText("apps/web/src/components/ChatMessage.tsx");
     assert.match(src, /message\.feedback.*up|up.*message\.feedback/, "must check feedback === 'up' for active state");
-    assert.match(src, /message\.feedback.*down|down.*message\.feedback/, "must check feedback === 'down' for active state");
+    assert.match(
+      src,
+      /message\.feedback.*down|down.*message\.feedback/,
+      "must check feedback === 'down' for active state",
+    );
   });
 
   it("feedback buttons only shown on assistant messages", async () => {

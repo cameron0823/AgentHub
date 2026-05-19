@@ -61,19 +61,16 @@ export function KeyboardShortcuts() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-md"
       onClick={() => setHelpOpen(false)}
     >
-      <div
-        className="bg-background rounded-xl border shadow-2xl p-6 w-full max-w-sm"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="agenthub-glass-panel w-full max-w-sm rounded-2xl p-6" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-sm font-semibold mb-4">Keyboard Shortcuts</h2>
         <div className="space-y-2">
           {SHORTCUTS.map(({ keys, description }) => (
             <div key={keys} className="flex items-center justify-between gap-4">
               <span className="text-xs text-muted-foreground">{description}</span>
-              <kbd className="px-2 py-0.5 rounded border bg-muted text-xs font-mono">{keys}</kbd>
+              <kbd className="rounded border border-white/10 bg-white/10 px-2 py-0.5 font-mono text-xs">{keys}</kbd>
             </div>
           ))}
         </div>

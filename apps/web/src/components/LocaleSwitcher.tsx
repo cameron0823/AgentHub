@@ -1,14 +1,8 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { locales, type Locale } from "@/i18n/config";
+import { getLocaleDirection, localeLabels, locales, type Locale } from "@/i18n/config";
 import { setLocale } from "@/i18n/actions";
-
-const LOCALE_LABELS: Record<Locale, string> = {
-  en: "English",
-  es: "Español",
-  fr: "Français",
-};
 
 export function LocaleSwitcher() {
   const [current, setCurrent] = useState<Locale>("en");
@@ -21,6 +15,8 @@ export function LocaleSwitcher() {
 
   function onChange(locale: Locale) {
     setCurrent(locale);
+    document.documentElement.lang = locale;
+    document.documentElement.dir = getLocaleDirection(locale);
     startTransition(() => {
       setLocale(locale);
     });
@@ -31,12 +27,12 @@ export function LocaleSwitcher() {
       value={current}
       onChange={(e) => onChange(e.target.value as Locale)}
       disabled={isPending}
-      className="bg-background border border-border rounded px-2 py-1 text-sm text-foreground"
+      className="agenthub-field px-2 py-1 text-sm"
       aria-label="Select language"
     >
       {locales.map((loc) => (
         <option key={loc} value={loc}>
-          {LOCALE_LABELS[loc]}
+          {localeLabels[loc]}
         </option>
       ))}
     </select>

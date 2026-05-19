@@ -66,67 +66,75 @@ async function installTrpcMocks(page: Page, options: { sessions?: Session[]; mes
     const dispatch = (procedure: string, input: any) => {
       if (procedure === "sessions.list") return sessions;
       if (procedure === "agents.list") return [];
-      if (procedure === "providers.catalog") return {
-        providers: [{ id: "ollama", name: "Ollama", status: "unhealthy", latency: -1 }],
-        models: [{
-          id: "ollama:qwen2.5:7b",
-          name: "qwen2.5:7b",
-          providerId: "ollama",
-          providerName: "Ollama",
-          providerStatus: "unhealthy",
-          providerLatency: -1,
-          capabilities: ["chat"],
-        }],
-      };
+      if (procedure === "providers.catalog")
+        return {
+          providers: [{ id: "ollama", name: "Ollama", status: "unhealthy", latency: -1 }],
+          models: [
+            {
+              id: "ollama:qwen2.5:7b",
+              name: "qwen2.5:7b",
+              providerId: "ollama",
+              providerName: "Ollama",
+              providerStatus: "unhealthy",
+              providerLatency: -1,
+              capabilities: ["chat"],
+            },
+          ],
+        };
       if (procedure === "messages.list") return messagesBySession.get(input?.sessionId || "") || [];
       if (procedure === "sessions.create") {
-      const session: Session = {
-        id: `session-${sessions.length + 1}`,
-        agentId: input.agentId || null,
-        title: input.title || "New Chat",
-        model: input.model || "ollama:qwen2.5:7b",
-        createdAt: now,
-        updatedAt: now,
-      };
-      sessions.unshift(session);
+        const session: Session = {
+          id: `session-${sessions.length + 1}`,
+          agentId: input.agentId || null,
+          title: input.title || "New Chat",
+          model: input.model || "ollama:qwen2.5:7b",
+          createdAt: now,
+          updatedAt: now,
+        };
+        sessions.unshift(session);
         return session;
       }
       if (procedure === "sessions.update") {
-      const session = sessions.find((item) => item.id === input.id);
-      if (session) {
-        session.title = input.title || session.title;
-        session.model = input.model || session.model;
-        session.updatedAt = now;
-      }
+        const session = sessions.find((item) => item.id === input.id);
+        if (session) {
+          session.title = input.title || session.title;
+          session.model = input.model || session.model;
+          session.updatedAt = now;
+        }
         return { success: true };
       }
       if (procedure === "sessions.delete") {
-      const index = sessions.findIndex((item) => item.id === input.id);
-      if (index >= 0) sessions.splice(index, 1);
+        const index = sessions.findIndex((item) => item.id === input.id);
+        if (index >= 0) sessions.splice(index, 1);
         return { success: true };
       }
       if (procedure === "messages.create") {
-      const message: Message = {
-        id: input.id || `message-${Date.now()}`,
-        sessionId: input.sessionId,
-        role: input.role,
-        content: input.content,
-        reasoning: input.reasoning || null,
-        model: input.model || null,
-        toolCalls: input.toolCalls || null,
-        createdAt: now,
-      };
-      const list = messagesBySession.get(message.sessionId) || [];
-      list.push(message);
-      messagesBySession.set(message.sessionId, list);
+        const message: Message = {
+          id: input.id || `message-${Date.now()}`,
+          sessionId: input.sessionId,
+          role: input.role,
+          content: input.content,
+          reasoning: input.reasoning || null,
+          model: input.model || null,
+          toolCalls: input.toolCalls || null,
+          createdAt: now,
+        };
+        const list = messagesBySession.get(message.sessionId) || [];
+        list.push(message);
+        messagesBySession.set(message.sessionId, list);
         return message;
       }
       return null;
     };
 
-    await fulfillJson(route, procedures.map((procedure, index) => ({
-      result: { data: { json: dispatch(procedure, body?.[String(index)]?.json ?? queryInput?.[String(index)]?.json) } },
-    })));
+    await fulfillJson(
+      route,
+      procedures.map((procedure, index) => ({
+        result: {
+          data: { json: dispatch(procedure, body?.[String(index)]?.json ?? queryInput?.[String(index)]?.json) },
+        },
+      })),
+    );
   });
 }
 
@@ -134,7 +142,7 @@ async function installStreamMock(page: Page, options: { delayMs?: number; delaye
   let requestCount = 0;
   await page.route("**/api/chat/stream", async (route) => {
     requestCount += 1;
-    const delayMs = options.delayedFirstResponse && requestCount === 1 ? options.delayMs ?? 500 : 25;
+    const delayMs = options.delayedFirstResponse && requestCount === 1 ? (options.delayMs ?? 500) : 25;
     const chunks = [
       { type: "content", content: "Deterministic answer with math $E=mc^2$." },
       {

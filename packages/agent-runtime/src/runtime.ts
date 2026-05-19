@@ -7,10 +7,7 @@ function parseToolArguments(args: string | Record<string, unknown>) {
   return typeof args === "string" ? JSON.parse(args) : args;
 }
 
-function createTimelineEvent(
-  sequence: number,
-  event: Omit<ReasoningTimelineEvent, "id">
-): ReasoningTimelineEvent {
+function createTimelineEvent(sequence: number, event: Omit<ReasoningTimelineEvent, "id">): ReasoningTimelineEvent {
   return {
     id: `reasoning-${sequence}`,
     ...event,
@@ -29,26 +26,26 @@ export class AgentRuntime {
     const toolTimeoutMs = this.options.toolTimeoutMs ?? 30_000;
     const deniedToolSet = new Set(runOptions.deniedTools || []);
     let eventSequence = 0;
-    
+
     // Inject system prompt if not present
-    if (this.options.systemPrompt && !messages.some(m => m.role === "system")) {
+    if (this.options.systemPrompt && !messages.some((m) => m.role === "system")) {
       messages.unshift({ role: "system", content: this.options.systemPrompt });
     }
 
     const enabledTools = runOptions.tools
-      ? globalToolRegistry.list().filter(t => runOptions.tools!.includes(t.name) && !deniedToolSet.has(t.name))
+      ? globalToolRegistry.list().filter((t) => runOptions.tools!.includes(t.name) && !deniedToolSet.has(t.name))
       : [];
 
-    const extraTools: ExtraTool[] = (runOptions.extraTools || []).filter(t => !deniedToolSet.has(t.name));
+    const extraTools: ExtraTool[] = (runOptions.extraTools || []).filter((t) => !deniedToolSet.has(t.name));
 
     const allToolDefs = [
-      ...enabledTools.map(t => ({
+      ...enabledTools.map((t) => ({
         name: t.name,
         description: t.description,
         parameters: globalToolRegistry.zodToJSONSchema(t.parameters),
         _isExtra: false,
       })),
-      ...extraTools.map(t => ({
+      ...extraTools.map((t) => ({
         name: t.name,
         description: t.description,
         parameters: t.parameters,
@@ -57,10 +54,13 @@ export class AgentRuntime {
     ];
     const exposedToolNames = new Set(allToolDefs.map((tool) => tool.name));
 
-    const tools = allToolDefs.length > 0 ? allToolDefs.map(t => ({
-      type: "function" as const,
-      function: { name: t.name, description: t.description, parameters: t.parameters },
-    })) : undefined;
+    const tools =
+      allToolDefs.length > 0
+        ? allToolDefs.map((t) => ({
+            type: "function" as const,
+            function: { name: t.name, description: t.description, parameters: t.parameters },
+          }))
+        : undefined;
 
     for (let iteration = 0; iteration <= maxToolIterations; iteration++) {
       const toolCalls: NonNullable<Message["tool_calls"]> = [];
@@ -187,7 +187,7 @@ export class AgentRuntime {
             });
             continue;
           }
-          const extra = extraTools.find(t => t.name === toolName);
+          const extra = extraTools.find((t) => t.name === toolName);
           const args = parseToolArguments(toolCall.function.arguments);
           if (runOptions.approval && requiresApprovalForTool(toolName, runOptions.approvalPolicy)) {
             const approvalRequest = createToolApprovalRequest({
@@ -198,7 +198,7 @@ export class AgentRuntime {
             const approvalPromise = requestApproval(
               approvalRequest,
               runOptions.approval,
-              runOptions.approvalPolicy?.timeoutMs
+              runOptions.approvalPolicy?.timeoutMs,
             );
             yield {
               type: "approval_request",
@@ -238,7 +238,10 @@ export class AgentRuntime {
           if (extra) {
             result = await extra.execute(args);
           } else {
-            result = await globalToolRegistry.execute(toolName, args, { timeoutMs: toolTimeoutMs, context: runOptions.toolContext });
+            result = await globalToolRegistry.execute(toolName, args, {
+              timeoutMs: toolTimeoutMs,
+              context: runOptions.toolContext,
+            });
           }
         } catch (err) {
           result = { error: err instanceof Error ? err.message : String(err) };

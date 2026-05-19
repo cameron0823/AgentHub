@@ -5,11 +5,30 @@ export interface ToolDefinition {
   name: string;
   description: string;
   parameters: z.ZodObject<any>;
-  execute: (args: any) => Promise<any>;
+  execute: (args: any, context?: ToolExecutionContext) => Promise<any>;
+}
+
+export interface ToolExecutionContext {
+  desktopRuntime?: boolean;
+  getCredential?: (toolName: string) => Promise<string | null>;
 }
 
 export interface ToolExecuteOptions {
   timeoutMs?: number;
+  context?: ToolExecutionContext;
+}
+
+export const SKILL_RUNTIME_TOOL_NAMES = [
+  "run_skill",
+  "read_skill_reference",
+  "exec_skill_script",
+  "export_skill_file",
+] as const;
+
+export type SkillRuntimeToolName = (typeof SKILL_RUNTIME_TOOL_NAMES)[number];
+
+export function isSkillRuntimeToolName(name: string): name is SkillRuntimeToolName {
+  return (SKILL_RUNTIME_TOOL_NAMES as readonly string[]).includes(name);
 }
 
 export class ToolRegistry {
@@ -50,15 +69,18 @@ export class ToolRegistry {
     const validatedArgs = tool.parameters.parse(parsedArgs);
 
     if (!options.timeoutMs || options.timeoutMs <= 0) {
-      return tool.execute(validatedArgs);
+      return tool.execute(validatedArgs, options.context);
     }
 
     let timeout: NodeJS.Timeout | undefined;
     try {
       return await Promise.race([
-        tool.execute(validatedArgs),
+        tool.execute(validatedArgs, options.context),
         new Promise((_, reject) => {
-          timeout = setTimeout(() => reject(new Error(`Tool ${name} timed out after ${options.timeoutMs}ms`)), options.timeoutMs);
+          timeout = setTimeout(
+            () => reject(new Error(`Tool ${name} timed out after ${options.timeoutMs}ms`)),
+            options.timeoutMs,
+          );
         }),
       ]);
     } finally {
